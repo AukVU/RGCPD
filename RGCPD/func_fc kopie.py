@@ -79,6 +79,9 @@ class fcev():
             
         TV = df_data_to_RV(self.df_data, kwrgs_pp=self.kwrgs_pp, 
                            kwrgs_events=self.kwrgs_events)
+#         if all(TV.fullts == TV.RV_ts):
+#             print('RV_ts must be a subset of fullts, otherwise the lags ')
+            
         TV.TrainIsTrue = self.df_data['TrainIsTrue']
         TV.RV_mask = self.df_data['RV_mask']
     
@@ -143,7 +146,7 @@ class fcev():
         self.dict_models = {}
         for stat_model in stat_model_l:
             name = stat_model[0]
-            y_pred_all, y_pred_c = fit_model(self.TV, 
+            self.TV, y_pred_all, y_pred_c = fit_model(self.TV, 
                                                       df_data=self.df_data, 
                                                       keys_d=self.keys_d, 
                                                       kwrgs_pp=self.kwrgs_pp, 
@@ -151,14 +154,6 @@ class fcev():
                                                       lags_i=self.lags_i)
             self.dict_models[name] = (y_pred_all, y_pred_c)
 
-    # if RV_mask is True at the beginning of the timeseries, the
-    # last dates must be removed because at this lag, no precursor 
-    # information exists
-    y = y[:y_pred_all.iloc[:,0].size]
-    min_max_lag = np.isnan(y_pred_all.loc[:,max(y_pred_all.columns)][-max(y_pred_all.columns):])
-    y_pred_all = y_pred_all[:-min_max_lag[min_max_lag.values].size]
-    y = y[:-min_max_lag[min_max_lag.values].size]
-    y_pred_c = y_pred_c[:-min_max_lag[min_max_lag.values].size]
         return 
 
     def perform_validation(self, n_boot=2000, blocksize='auto', 
@@ -247,16 +242,21 @@ def fit_model(RV, df_data, keys_d, kwrgs_pp={}, stat_model=tuple, lags_i=list,
                 keys = None
                 
             model_name, kwrgs = stat_model
-
+            
             df_split = df_data.loc[s]
 
             df_norm, keys = prepare_data(df_split, lag_i=int(lag),
                                         keys=keys,
                                         **kwrgs_pp)
-            # data used to train and predict
             df_norm = df_norm[df_norm['fit_model_mask']]
-
-
+            
+            if s == 0 and lag < 15:
+                print(f'\nlag{lag}')
+                print(df_norm.iloc[:10,[0,1]])
+                print(RV.RV_bin[:5])
+            # data used to train and predict
+            
+                
             # forecasting models
             if model_name == 'logit':
                 prediction, model = stat_models.logit(RV, df_norm, keys=keys)
@@ -313,15 +313,38 @@ def fit_model(RV, df_data, keys_d, kwrgs_pp={}, stat_model=tuple, lags_i=list,
     print("\n")
     # do validation
 
-
+    RV, y_pred_all, y_pred_c = check_nans_max_lag(RV, y_pred_all, y_pred_c, verbosity)
     print(f'{stat_model} ')
-    return y_pred_all, y_pred_c
+    return RV, y_pred_all, y_pred_c
 
 
+def check_nans_max_lag(RV, y_pred_all, y_pred_c, verbosity=0):
+    # if RV_mask is True at the beginning of the timeseries, the
+    # last dates must be removed because at this lag, no precursor 
+    # information exists
+    RV_bin = RV.RV_bin
+    RV_ts  = RV.RV_ts
+    dates_RV = RV.dates_RV
+    RV_bin = RV_bin[:y_pred_all.iloc[:,0].size]
+    RV_ts  = RV_ts[:y_pred_all.iloc[:,0].size]
+    dates_RV = dates_RV[:y_pred_all.iloc[:,0].size]
+    nans_max_lag = np.isnan(y_pred_all.loc[:,max(y_pred_all.columns)][-max(y_pred_all.columns):])
+    nans_elsewhere = np.isnan(y_pred_all.loc[:,max(y_pred_all.columns)][:-max(y_pred_all.columns)])
+    n_nans_else = nans_elsewhere[nans_elsewhere.values].size
+    n_nans = nans_max_lag[nans_max_lag.values].size
+    if n_nans != 0 and n_nans_else == 0:
+        if verbosity == 1:
+            print('NaNs detected at end of y_pred due to inability to predict at lag>0 when', 
+              'RV_mask is true at beginning of timeseries, last {} dp are removed'.format(n_nans))
+        y_pred_all = y_pred_all[:-nans_max_lag[nans_max_lag.values].size]
+        y_pred_c = y_pred_c[:-nans_max_lag[nans_max_lag.values].size]
+        RV.RV_bin = RV_bin[:-nans_max_lag[nans_max_lag.values].size]
+        RV.RV_ts = RV_ts[:-nans_max_lag[nans_max_lag.values].size]
+        RV.dates_RV = dates_RV[:-nans_max_lag[nans_max_lag.values].size]
+    elif n_nans_else != 0:
+        print('NaNs detected in prediction')
 
-
-
-
+    return RV, y_pred_all, y_pred_c
 
 def load_hdf5(path_data):
     hdf = h5py.File(path_data,'r+')
@@ -332,7 +355,7 @@ def load_hdf5(path_data):
     return dict_of_dfs
 
 def prepare_data(df_split, lag_i=int, TrainIsTrue=None, RV_mask=None,
-                 fit_model_dates=None, norm_datesRV=True, remove_RV=True, keys=None,
+                 fit_model_dates=None, normalize='datesRV', remove_RV=True, keys=None,
                  add_autocorr=True, EOF=False, expl_var=None):
 
     #%%
@@ -359,21 +382,22 @@ def prepare_data(df_split, lag_i=int, TrainIsTrue=None, RV_mask=None,
         fit_model_mask = df_split['fit_model_mask']
 
     if keys is None:
-        keys = np.array(df_split.dtypes.index[df_split.dtypes != bool], dtype='object')      
-    if remove_RV is True and add_autocorr==False:
+        keys = np.array(df_split.dtypes.index[df_split.dtypes != bool], dtype='object')    
+
+    RV_name = df_split.columns[0]
+    df_RV = df_split[RV_name]
+    if remove_RV is True:
         # completely remove RV timeseries
-        RV_name = df_split.columns[0]
         df_prec = df_split.drop([RV_name], axis=1)
         keys = np.array([k for k in keys if k != RV_name], dtype='object')
     else:
-        # first column should contain RV timeseries
-        RV_name = df_split.columns[0]
-        df_RV = df_split[RV_name]
-        df_prec = df_split.drop([RV_name], axis=1)
-        keys = np.array([k for k in keys if k != RV_name], dtype='object')
+        keys = np.array(keys, dtype='object')
+        df_prec = df_split
+
 
     # =============================================================================
-    # Shifting data w.r.t. index dates
+    # Shifting data of precursor 'forward' in time such that precursor data of the past
+    # overlaps with prediction date. 
     # =============================================================================
     df_prec = df_prec.shift(periods=int(lag_i))
 
@@ -383,7 +407,6 @@ def prepare_data(df_split, lag_i=int, TrainIsTrue=None, RV_mask=None,
         df_prec.insert(0, 'RV_ac', df_RV.shift(periods=max(1,int(lag_i))))
         if 'RV_ac' not in keys:
             x_keys = np.insert(keys, 0, 'RV_ac')
-
     # drop nans
     mask_nonans = ~df_prec.iloc[:,0].isna().values
     # last dates are no longer present in shifted data. But we want restore
@@ -404,15 +427,17 @@ def prepare_data(df_split, lag_i=int, TrainIsTrue=None, RV_mask=None,
     # =============================================================================
     # Normalize data using datesRV or all training data in dataframe
     # =============================================================================
-    if norm_datesRV == False:
+    if normalize=='all':
         # Normalize using all dates
         df_prec[x_keys]  = (df_prec[x_keys] - df_prec[x_keys][TrainIsTrue].mean(0)) \
                 / df_prec[x_keys][TrainIsTrue].std(0)
-    elif norm_datesRV == True:
+    elif normalize=='datesRV':
         # Normalize only using the RV dates
         TrainRV = np.logical_and(TrainIsTrue,fit_model_mask).values
         df_prec[x_keys]  = (df_prec[x_keys] - df_prec[x_keys][TrainRV].mean(0)) \
                 / df_prec[x_keys][TrainRV].std(0)
+    elif normalize==False:
+        pass
 
 
     if EOF:
@@ -424,7 +449,7 @@ def prepare_data(df_split, lag_i=int, TrainIsTrue=None, RV_mask=None,
         df_prec.columns = df_prec.columns.astype(str)
         upd_keys = np.array(df_prec.columns.values.ravel(), dtype=str)
     else:
-        upd_keys = keys
+        upd_keys = x_keys
 
     # =============================================================================
     # Replace masks

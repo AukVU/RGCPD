@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Documentation about RGCPD"""
-import sys
-sys.path.append('./RGCPD')
-from classes import RGCPD
+import os, inspect, sys
+curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
+if curr_dir not in sys.path:
+    sys.path.append(curr_dir)
+    
+from class_RGCPD import RGCPD
 from func_fc import fcev
 
 

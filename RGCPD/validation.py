@@ -46,11 +46,12 @@ def get_metrics_sklearn(RV, y_pred_all, y_pred_c, alpha=0.05, n_boot=5,
                         
     #%%
 
-    y = RV.RV_bin.values
+    y = RV.RV_bin.values.squeeze()
     clim_prob = np.mean(RV.prob_clim.values)
     lags = y_pred_all.columns
     cont_pred = np.unique(y_pred_all).size > 5
 
+    
     if cont_pred:
         df_auc = pd.DataFrame(data=np.zeros( (3, len(lags)) ), columns=[lags],
                               index=['AUC-ROC', 'con_low', 'con_high'])
@@ -77,7 +78,6 @@ def get_metrics_sklearn(RV, y_pred_all, y_pred_c, alpha=0.05, n_boot=5,
 
     for lag in lags:
         y_pred = y_pred_all[[lag]].values
-
         metrics_dict = metrics_sklearn(
                     y, y_pred, y_pred_c.values,
                     alpha=alpha, n_boot=n_boot, blocksize=blocksize,
@@ -317,7 +317,6 @@ def metrics_sklearn(y_true=np.ndarray, y_pred=np.ndarray, y_pred_c=np.ndarray,
     percentile_t = 100 * quantile 
 
     y_pred_b = np.array(y_pred > np.percentile(y_pred, percentile_t),dtype=int)
-
 
     out = get_metrics_bin(y_true, y_pred, t=percentile_t)
     (prec, recall, FPR, SP, Acc, f1, KSS_score, EDI) = out

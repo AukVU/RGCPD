@@ -547,7 +547,7 @@ def valid_figures(dict_experiments, expers, models, line_dim='model', group_line
         lines = expers
         cols  = models
     assert line_dim in ['model', 'exper'], ('illegal key for line_dim, '
-                           'choose \'exper\' or \'model\'')
+                           'choose \'expers\' or \'models\'')
 
     if len(cols) == 1 and group_line_by is not None:
         group_s = len(group_line_by)

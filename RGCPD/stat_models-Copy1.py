@@ -39,9 +39,9 @@ def logit(RV, df_norm, keys):
     X = add_constant(X)
     y = RV.RV_bin_fit[:TrainIsTrue.size]
 
-    
+
     model_set = sm.Logit(y['RV_binary'][TrainIsTrue.values] , 
-                         X[TrainIsTrue].values, disp=0)
+                         X[TrainIsTrue], disp=0)
     try:
         model = model_set.fit( disp=0, maxfun=60 )
         prediction = model.predict(X[pred_mask])

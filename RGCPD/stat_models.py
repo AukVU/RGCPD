@@ -165,7 +165,7 @@ def GBR_logitCV(RV, df_norm, keys, kwrgs_GBR=None, verbosity=0):
     pred_mask   = df_norm['RV_mask']
     X = df_norm[keys]
     X = add_constant(X)
-    RV_ts = RV.RV_bin_fit[:TrainIsTrue.size]
+    RV_ts = RV.RV_bin_fit
   
     X_train = X[TrainIsTrue.values]
     y_train = RV_ts[TrainIsTrue.values] 
@@ -246,7 +246,7 @@ def logit_skl(RV, df_norm, keys, kwrgs_logit=None):
     pred_mask   = df_norm['RV_mask']
     X = df_norm[keys]
     X = add_constant(X)
-    RV_ts = RV.RV_bin_fit[:TrainIsTrue.size]
+    RV_ts = RV.RV_bin_fit[:]
   
     X_train = X[TrainIsTrue.values] 
     y_train = RV_ts[TrainIsTrue.values].squeeze().values 

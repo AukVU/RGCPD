@@ -150,15 +150,6 @@ class fcev():
                                                       stat_model=stat_model, 
                                                       lags_i=self.lags_i)
             self.dict_models[name] = (y_pred_all, y_pred_c)
-
-    # if RV_mask is True at the beginning of the timeseries, the
-    # last dates must be removed because at this lag, no precursor 
-    # information exists
-    y = y[:y_pred_all.iloc[:,0].size]
-    min_max_lag = np.isnan(y_pred_all.loc[:,max(y_pred_all.columns)][-max(y_pred_all.columns):])
-    y_pred_all = y_pred_all[:-min_max_lag[min_max_lag.values].size]
-    y = y[:-min_max_lag[min_max_lag.values].size]
-    y_pred_c = y_pred_c[:-min_max_lag[min_max_lag.values].size]
         return 
 
     def perform_validation(self, n_boot=2000, blocksize='auto', 
@@ -281,7 +272,7 @@ def fit_model(RV, df_data, keys_d, kwrgs_pp={}, stat_model=tuple, lags_i=list,
                                                             verbosity=verbosity)
 
             prediction = pd.DataFrame(prediction.values, 
-                                      index=RV.dates_RV[:prediction.size],
+                                      index=RV.dates_RV[:],
                                       columns=[lag])
             TrainRV = (df_norm['TrainIsTrue'])[df_norm['RV_mask']]
             TestRV  = (df_norm['TrainIsTrue']==False)[df_norm['RV_mask']]
@@ -332,7 +323,7 @@ def load_hdf5(path_data):
     return dict_of_dfs
 
 def prepare_data(df_split, lag_i=int, TrainIsTrue=None, RV_mask=None,
-                 fit_model_dates=None, norm_datesRV=True, remove_RV=True, keys=None,
+                 fit_model_dates=None, normalize='datesRV', remove_RV=True, keys=None,
                  add_autocorr=True, EOF=False, expl_var=None):
 
     #%%
@@ -402,18 +393,19 @@ def prepare_data(df_split, lag_i=int, TrainIsTrue=None, RV_mask=None,
     # =============================================================================
     df_prec = df_prec[x_keys]
     # =============================================================================
-    # Normalize data using datesRV or all training data in dataframe
+    # Normalize data using datesRV or all training data or not at all
     # =============================================================================
-    if norm_datesRV == False:
+    if normalize=='all':
         # Normalize using all dates
         df_prec[x_keys]  = (df_prec[x_keys] - df_prec[x_keys][TrainIsTrue].mean(0)) \
                 / df_prec[x_keys][TrainIsTrue].std(0)
-    elif norm_datesRV == True:
+    elif normalize=='datesRV':
         # Normalize only using the RV dates
         TrainRV = np.logical_and(TrainIsTrue,fit_model_mask).values
         df_prec[x_keys]  = (df_prec[x_keys] - df_prec[x_keys][TrainRV].mean(0)) \
                 / df_prec[x_keys][TrainRV].std(0)
-
+    elif normalize==False:
+        pass
 
     if EOF:
         if expl_var is None:

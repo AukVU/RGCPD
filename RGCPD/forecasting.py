@@ -69,14 +69,15 @@ GBR_logitCV_tuned = ('GBR-logitCV',
 
 # format {'dataset' : (path_data, list(keys_options) ) }
 
-ERA_and_EC_daily  = {'ERA-5':(strat_1d_CPPA_era5, ['PEP', 'CPPA']),
-                 'EC-earth 2.3':(strat_1d_CPPA_EC, ['PEP', 'CPPA'])} # random_state 60
-stat_model_l = [GBR_logitCV, logit]
+#ERA_and_EC_daily  = {'ERA-5':(strat_1d_CPPA_era5, ['PEP', 'CPPA']),
+#                 'EC-earth 2.3':(strat_1d_CPPA_EC, ['PEP', 'CPPA'])} # random_state 60
+
 
 
    
 #
 #ERA5         = {'ERA-5:':(CPPA_sm_10d, ['sst(PEP)+sm', 'sst(PDO,ENSO)+sm', 'sst(CPPA)+sm'])}
+ERA5         = {'ERA-5:':(CPPA_sm_10d, ['sst(CPPA)+sm'])}
 #ERA_Bram         = {'ERA-5:':(CPPA_sm_10d, ['all'])}
 #stat_model_l = [GBR_logitCV, logit]
 
@@ -88,8 +89,6 @@ stat_model_l = [GBR_logitCV, logit]
 #ERA5_sm_30d         = {'ERA-5:':(CPPA_sm_30d, ['sst(CPPA)+sm'])}
 #stat_model_l = [logit, logitCV]
 
-#ERA_Bram         = {'ERA-5:':(CPPA_sm_10d, ['sst(CPPA)+sm'])}
-#stat_model_l = [GBR_logitCV]
 
 #RGCPD       = {'RGCPD:' : (RGCPD_sst_sm_z500_10d, ['only_db_regs'])}
 #stat_model_l = [logitCV, GBR_logitCV]
@@ -104,7 +103,9 @@ stat_model_l = [GBR_logitCV, logit]
 #ERA_sp      = {'ERA-5:':(CPPA_sm_10d, ['CPPAregs+sm', 'CPPApattern+sm', 'sst(CPPA)+sm'])}
 #stat_model_l = [GBR_logitCV]
 
-datasets_path = ERA_Bram
+
+stat_model_l = [GBR_logitCV]
+datasets_path = ERA5
 
 causal = False
 
@@ -123,10 +124,10 @@ kwrgs_events_daily =    (filename_ts,
 
 kwrgs_events = kwrgs_events_daily
     
-#kwrgs_events = {'event_percentile': 90,
-#                'min_dur' : 1,
-#                'max_break' : 0,
-#                'grouped' : False}
+kwrgs_events = {'event_percentile': 66,
+                'min_dur' : 1,
+                'max_break' : 0,
+                'grouped' : False}
 
 kwrgs_pp = {'EOF':False, 
             'expl_var':0.5,
@@ -135,9 +136,9 @@ kwrgs_pp = {'EOF':False,
 
 
 #%%
-n_boot = 2000
-verbosity = 0
-lead_max = 75
+n_boot = 100
+verbosity = 1
+lead_max = 35
 from func_fc import fcev
 #stat_model_l = [logit]
 dict_experiments = {} ; list_fc = []
@@ -256,6 +257,7 @@ import valid_plots as dfplots
         
 f_formats = ['.pdf']
 f_format = '.png' 
+f_format = None
 for f_format in f_formats:
     filename = os.path.join(working_folder, f_name)
     

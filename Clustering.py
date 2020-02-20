@@ -14,7 +14,10 @@ import clustering_spatial as cl
 from RGCPD import RGCPD
 import plot_maps
 
+import matplotlib.pyplot as plt
+
 rg = RGCPD()
+plt.show()
 
 
 
@@ -34,3 +37,4 @@ mask = [145.0, 230.0, 20.0, 50.0]
 for q in [85, 95]:
     xrclustered, results = cl.dendogram_clustering(var_filename, mask=mask, q=q, kwrgs={'n_clusters':3})
     plot_maps.plot_corr_maps(xrclustered)
+    plt.show()

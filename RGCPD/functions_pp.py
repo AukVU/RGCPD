@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import xarray as xr
 import itertools
 import core_pp
+import datetime
 
 
 from dateutil.relativedelta import relativedelta as date_dt
@@ -33,6 +34,11 @@ def get_oneyr(pddatetime, *args):
 
 
 def perform_post_processing(list_of_name_path, kwrgs_pp=None, verbosity=1):
+    ''' 
+    if argument of kwrgs_pp is list, then the first item is assumed to be the
+    default argument value, the second item should be a dict contaning the 
+    {varname : exception_argument}.
+    '''
     
     list_precur_pp = []
     for idx, (name, filename) in enumerate(list_of_name_path[1:]):
@@ -44,15 +50,17 @@ def perform_post_processing(list_of_name_path, kwrgs_pp=None, verbosity=1):
                 print('Loaded post-processed data of {}\n'.format(name))
             pass
         else:
-            if verbosity == 1:
-                print('Output file of pp will be saved as: \n' + outfile)
             print('\nPerforming the post-processing {}'.format(name))
+            kwrgs = {}
+            for key, value in kwrgs_pp.items():
+                if type(value) is list and name in value[1].keys():
+                    kwrgs[key] = value[1][name]
+                elif type(value) is list and name not in value[1].keys():
+                    kwrgs[key] = value[0] # plugging in default value
+                else:
+                    kwrgs[key] = value
             
-            if kwrgs_pp is None:
-                kwrgs_pp = {'selbox':None,
-                            'loadleap':False, 'detrend':True, 'anomaly':True}
-            
-            core_pp.detrend_anom_ncdf3D(filename, outfile, **kwrgs_pp)
+            core_pp.detrend_anom_ncdf3D(filename, outfile, **kwrgs)
     return list_precur_pp
         # update the dates stored in var_class:
 #        var_class, ex = update_dates(var_class, ex)
@@ -143,23 +151,39 @@ def update_dates(cls, ex):
     cls.temporal_freq = '{}days'.format(temporal_freq.days)
     return cls, ex
 
-def load_TV(list_of_name_path):
+def load_TV(list_of_name_path, loadleap=False):
     '''
     function will load first item of list_of_name_path
     list_of_name_path = [('TVname', 'TVpath'), ('prec_name', 'prec_path')]
-    output fulltso : full timeseries original
+    
+    if TVpath refers to .npy file: 
+        it tries to import the variable {TVname}
+    if TVpath refers to .nc file:
+        it tries to import the timeseries of cluster {TVname}.
+    
+    
+    returns:
+    fulltso : full timeseries original
     '''
     name = list_of_name_path[0][0]
     filename = list_of_name_path[0][1]
     
     if filename.split('.')[-1] == 'npy':
         fulltso = load_npy(filename, name=name)
-    
-    return fulltso
+    elif filename.split('.')[-1] == 'nc':
+        ds = core_pp.import_ds_lazy(filename)
+        fulltso = ds['ts'].sel(cluster=name)
+    hashh = filename.split('_')[-1].split('.')[0]
+    fulltso.name = str(list_of_name_path[0][0])
+    if loadleap == False:
+        dates = core_pp.remove_leapdays(pd.to_datetime(fulltso.time.values))
+        fulltso = fulltso.sel(time=dates)
+    return fulltso, hashh
 
 def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
                start_end_year=None, RV_detrend=True, verbosity=1):
     #%%
+    name = fullts.name
     dates = pd.to_datetime(fullts.time.values)
     startyear = dates.year[0]
     endyear = dates.year[-1]
@@ -186,33 +210,33 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
                   'desired tfreq')
         to_freq = tfreq
 
-        fullts, dates = time_mean_bins(fullts, to_freq,
+        fullts, dates_tobin = time_mean_bins(fullts, to_freq,
                                                 start_end_date,
                                                 start_end_year)
-                                                
+        
 
-    if same_freq == True:
-        fullts = timeseries_tofit_bins(fullts, to_freq, start_end_date,
+    if same_freq == True and start_end_date is not None:
+        to_freq = tfreq
+        fullts, dates = timeseries_tofit_bins(fullts, to_freq, start_end_date,
                                        start_end_year)
-        print('The amount of timesteps in the RV ts and the precursors'
-                          ' do not match, selecting desired dates. ')
+        print('Selecting subset as defined by start_end_date')
 
     if RV_detrend == True:
         print('Detrending Respone Variable.')
         fullts = detrend1D(fullts)
     
     if input_freq == 'daily':
-#        dates_RV = make_TVdatestr(pd.to_datetime(fullts.time.values), ex)
-        dates_RV = make_TVdatestr(pd.to_datetime(fullts.time.values), start_end_TVdate,
+        dates_RV = core_pp.get_subdates(pd.to_datetime(fullts.time.values), start_end_TVdate,
                                   start_end_year)
     elif input_freq == 'monthly':
         dates_RV = TVmonthrange(fullts, start_end_TVdate)
 
     # get indices of RVdates
     string_RV = list(dates_RV.strftime('%Y-%m-%d'))
-    string_full = list(dates.strftime('%Y-%m-%d'))
+    string_full = list(pd.to_datetime(fullts.time.values).strftime('%Y-%m-%d'))
     RV_period = [string_full.index(date) for date in string_full if date in string_RV]
-
+    
+    fullts.name = name
     TV_ts = fullts[RV_period] # extract specific months of MT index
     
     return fullts, TV_ts, input_freq
@@ -233,7 +257,7 @@ def load_npy(filename, name=None):
             pass
     return fullts
 
-def import_ds_timemeanbins(filepath, tfreq, start_end_date=None, 
+def import_ds_timemeanbins(filepath, tfreq=1, start_end_date=None, 
                            start_end_year=None,
                            selbox=None,
                            loadleap=False, 
@@ -244,9 +268,10 @@ def import_ds_timemeanbins(filepath, tfreq, start_end_date=None,
     ds = core_pp.import_ds_lazy(filepath, loadleap=loadleap, 
                                 seldates=seldates, selbox=selbox, 
                                 format_lon=format_lon)
+    
     to_freq = tfreq
     if to_freq != 1:
-        ds, dates = time_mean_bins(ds, to_freq,
+        ds, dates_tobin = time_mean_bins(ds, to_freq,
                                         start_end_date,
                                         start_end_year)
 #    print('temporal frequency \'dt\' is: \n{}'.format(dates[1]- dates[0]))
@@ -255,197 +280,11 @@ def import_ds_timemeanbins(filepath, tfreq, start_end_date=None,
             ds = ds.squeeze()
         else:
             ds = ds.to_array().squeeze()
-
+    # check if no axis has length 0:
+    assert 0 not in ds.shape, ('loaded ds has a dimension of length 0'
+                               f', shape {ds.shape}')
     return ds
 
-
-
-#def RV_spatial_temporal_mask(ex, RV, importRV_1dts):
-#    '''
-#    Select months of your Response Variable that you want to predict.
-#    RV = the RV class
-#    ex = experiment dictionary
-#    months = list of integers
-#    If you select [6,7] you will attempt to correlate precursor gridcells with
-#    lag x versus the response variable values in june and july.
-#
-#    The second step is to insert a spatial mask -only if- you inserted a 3D field
-#    as your response variable (time, lats, lons).
-#    '''
-#    #%%
-#    if importRV_1dts == True:
-#        if ex['verbosity'] == 1:
-#            print('\nimportRV_1dts is true, so the 1D time serie given with filename\n'
-#              '{} is imported.\n'.format(ex['RVts_filename']))
-#        else:
-#            print('Response var imported: {}.\n'.format(ex['RVts_filename']))
-#        RV.name = ex['RV_name']
-#        if ex['RVts_filename'].split('.')[-1]  == 'csv':
-#            print('Assuming .csv, where rows are timesteps and 4 columns are\n'
-#                  'Year, Months, Day' )
-#            ex = csv_to_npy(ex)
-#        dicRV = np.load(os.path.join(ex['path_pp'], 'RVts', ex['RVts_filename']),
-#                        encoding='latin1', allow_pickle=True).item()
-#    #    dicRV = pickle.load( open(os.path.join(ex['path_pp'],ex['RVts_filename']+'.pkl'), "rb") )
-#        try:
-#            RV.RVfullts = dicRV['RVfullts']
-#        except:
-#            RV.RVfullts = dicRV['RVfullts95']
-#        RV.filename = ex['RVts_filename']
-#
-#
-#
-#
-#    elif importRV_1dts == False:
-#        RV.name = ex['vars'][0][0]
-#        # RV should always be the first variable of the vars list in ex
-#        RV = ex[RV.name]
-#        RVarray, RV = import_array(RV)
-#        print('The RV variable is the 0th index in ex[\'vars\'], '
-#              'i.e. {}'.format(RV.name))
-#        # =============================================================================
-#        # 3.2 Select spatial mask to create 1D timeseries (from .npy file)
-#        # =============================================================================
-#        # You can load a spatial mask here and use it to create your
-#        # full timeseries (of length equal to actor time series)
-#        if type(ex['spatial_mask_file']) == type(str()):
-#            try:
-#                mask_dic = np.load(ex['spatial_mask_file'], encoding='latin1').item()
-#                print('spatial mask loaded:')
-#                xarray_plot(mask_dic['RV_array'])
-#                resol_mask = mask_dic['RV_array'].longitude[1]-mask_dic['RV_array'].longitude[0]
-#                RV_array, RV = import_array(RV, path='pp')
-#                resol_ncdf = RV_array.longitude[1]-RV_array.longitude[0]
-#                # test if resolution matches
-#                assert (resol_mask - resol_ncdf).values == 0, ('resolution of '
-#                       'spatial mask not equal to resolution of precursor')
-#                RV_array.coords['mask'] = mask_dic['RV_array'].mask
-#                lats = RV_array.latitude.values
-#                cos_box = np.cos(np.deg2rad(lats))
-#                cos_box_array = np.tile(cos_box, (RVarray.longitude.size,1) )
-#                weights_box = np.swapaxes(cos_box_array, 1,0)
-#                weights_box = weights_box / np.mean(weights_box)
-#                RVarray_w = weights_box[None,:,:] * RVarray
-#                if RV_array.mask.dtype == 'float':
-#                    RV.mask = RV_array.mask == 1
-#                elif RV.mask.dtype == 'bool':
-#                    RV.mask = RV_array.mask
-#                print('spatial mask added to Response Variable:')
-#                xarray_plot(RV_array)
-#                RV.RVfullts = (RVarray_w).where(
-#                        RV.mask).mean(dim=['latitude','longitude']
-#                        ).squeeze()
-#
-#
-#            except IOError as e:
-#                print('\n\n**\nSpatial mask not found.\n \n {}'.format(
-#                        ex['spatial_mask_file']))
-#                raise(e)
-#        if type(ex['spatial_mask_file']) == type(list()):
-#            latlonbox = ex['spatial_mask_file']
-#            RV.RVfullts = selbox_to_1dts(RV, latlonbox)
-#
-#
-#    RV.dates = pd.to_datetime(RV.RVfullts.time.values)
-#    RV.startyear = RV.dates.year[0]
-#    RV.endyear = RV.dates.year[-1]
-#    RV.n_timesteps = RV.dates.size
-#    RV.n_yrs       = (RV.endyear - RV.startyear) + 1
-#
-#    if ex['input_freq'] == 'daily':
-#        same_freq = (RV.dates[1] - RV.dates[0]).days == ex['tfreq']
-#    elif ex['input_freq'] == 'monthly' and RV.n_yrs != RV.n_timesteps:
-#        same_freq = (RV.dates[1].month - RV.dates[0].month) == ex['tfreq']
-#    else:
-#        same_freq = True
-##    same_len_yr = RV.dates.size == ex[ex['vars'][0][0]].dates.size
-#
-#    if same_freq == False:
-#        if ex['verbosity'] == 1:
-#            print('original tfreq of imported response variable is converted to '
-#                  'desired tfreq')
-#        to_freq = ex['tfreq']
-#        start_end_date = (ex['sstartdate'], ex['senddate'])
-#        start_end_year = (ex['startyear'], ex['endyear'])
-#        RV.RVfullts, RV.dates = time_mean_bins(RV.RVfullts, to_freq,
-#                                                start_end_date,
-#                                                start_end_year,
-#                                                seldays='part')
-#
-#
-#    if same_freq == True:
-#        start_end_date = (ex['sstartdate'], ex['senddate'])
-#        start_end_year = (ex['startyear'], ex['endyear'])
-#        RV.RVfullts = timeseries_tofit_bins(RV.RVfullts, to_freq, 
-#                                                      start_end_date, start_end_year, seldays='part')
-#        print('The amount of timesteps in the RV ts and the precursors'
-#                          ' do not match, selecting desired dates. ')
-#
-#
-#    if ex['RV_detrend'] == True:
-#        print('Detrending Respone Variable.')
-#        RV.RVfullts = detrend1D(RV.RVfullts)
-#
-#    if ex['input_freq'] == 'daily':
-#        RV.dates_RV = make_TVdatestr(pd.to_datetime(RV.RVfullts.time.values), ex,
-#                                     ex['startyear'], ex['endyear'])
-#
-#    elif ex['input_freq'] == 'monthly':
-#
-#        want_month = np.arange(int(ex['startperiod'].split('-')[0]),
-#                           int(ex['endperiod'].split('-')[0])+1)
-#        months = RV.RVfullts.time.dt.month
-#        months_pres = np.unique(months)
-#        selmon = [m for m in want_month if m in list(months_pres)]
-#        if len(selmon) == 0:
-#            print('The RV months are no longer in the time series, perhaps due to '
-#                  'time mean bins, in which time axis is changed, i.e. new time axis'
-#                  'takes the center month of the bin')
-#            new_want_m = []
-#            for want_m in want_month:
-#                idx_close = max(months_pres)
-#                diff = []
-#                for m in months_pres:
-#                    diff.append(abs(m - want_m))
-#                    # choosing month present closest to desired month in ex['startperiod']
-#                    min_diff = min(diff[-1], idx_close)
-#                new_want_m.append(months_pres[diff.index(min_diff)])
-#            selmon = [m for m in new_want_m if m in list(months_pres)]
-#        mask = np.zeros(months.size, dtype=bool)
-#        idx = [i for i in range(months.size) if months[i] in selmon]
-#        mask[idx] = True
-#        xrdates = RV.RVfullts.time.where(mask).dropna(dim='time')
-#        RV.dates_RV = pd.to_datetime(xrdates.values)
-#
-#    # get indices of RVdates
-#    string_RV = list(RV.dates_RV.strftime('%Y-%m-%d'))
-#    string_full = list(RV.dates.strftime('%Y-%m-%d'))
-#    ex['RV_period'] = [string_full.index(date) for date in string_full if date in string_RV]
-#
-#    RV.RV_ts = RV.RVfullts[ex['RV_period']] # extract specific months of MT index
-#    # Store added information in RV class to the exp dictionary
-#    ex['RV_name'] = RV.name
-#
-#    months = dict( {1:'jan',2:'feb',3:'mar',4:'apr',5:'may',6:'jun',
-#                    7:'jul',8:'aug',9:'sep',10:'okt',11:'nov',12:'dec' } )
-#    RV_name_range = '{}{}-{}{}_'.format(RV.dates_RV[0].day, months[RV.dates_RV.month[0]],
-#                     RV.dates_RV[-1].day, months[RV.dates_RV.month[-1]] )
-#
-#    info_lags = 'lag{}-{}'.format(min(ex['lags']), max(ex['lags']))
-#
-#    # Creating a folder for the specific spatial mask, RV period and traintest set
-#    if importRV_1dts == True:
-#        ex['path_exp_periodmask'] = os.path.join(ex['path_exp'], RV_name_range + \
-#                                          info_lags )
-#
-#
-#    elif importRV_1dts == False:
-#        ex['path_exp_periodmask'] = os.path.join(ex['path_exp'], RV_name_range +
-#                                      ex['spatial_mask_naming'] + info_lags )
-#
-#    RV.RV_name_range = RV_name_range
-#    #%%
-#    return RV, ex
 
 
 def csv_to_npy(ex):
@@ -518,19 +357,21 @@ def time_mean_bins(xr_or_df, to_freq=int, start_end_date=None, start_end_year=No
                                           dtype='datetime64[D]'))
         
         
-        datetime = timeseries_tofit_bins(datetime, to_freq, 
+        dates_tobin = timeseries_tofit_bins(datetime, to_freq, 
                                                      start_end_date=start_end_date, 
                                                      start_end_year=start_end_year, 
                                                      verbosity=verbosity)
-#        datetime = timeseries_tofit_bins(datetime, ex, to_freq, seldays=seldays, verb=0)
-        xarray = xarray.sel(time=datetime)
-        one_yr = datetime.where(datetime.year == datetime.year[0]).dropna(how='any')
+        dates_notpresent = [d for d in dates_tobin if d not in datetime]
+        assert len(dates_notpresent)==0, f'dates not present in xr_or_df\n{dates_notpresent}'
+        xarray = xarray.sel(time=dates_tobin)
+        one_yr = dates_tobin.where(dates_tobin.year == dates_tobin.year[0]).dropna(how='any')
 
     else:
-        pass
+        dates_tobin = datetime
+
     fit_steps_yr = (one_yr.size )  / to_freq
     bins = list(np.repeat(np.arange(0, fit_steps_yr), to_freq))
-    n_years = np.unique(datetime.year).size
+    n_years = np.unique(dates_tobin.year).size
     for y in np.arange(1, n_years):
         x = np.repeat(np.arange(0, fit_steps_yr), to_freq)
         x = x + fit_steps_yr * y
@@ -542,7 +383,7 @@ def time_mean_bins(xr_or_df, to_freq=int, start_end_date=None, start_end_year=No
     xarray = xarray.set_index(time=['bins','time_dates'])
 
     half_step = to_freq/2.
-    newidx = np.arange(half_step, datetime.size, to_freq, dtype=int)
+    newidx = np.arange(half_step, dates_tobin.size, to_freq, dtype=int)
     newdate = label_dates[newidx]
 
     # suppres warning for nans in field
@@ -574,7 +415,7 @@ def time_mean_bins(xr_or_df, to_freq=int, start_end_date=None, start_end_year=No
     elif return_df == False:
         return_obj = xarray
    #%%
-    return return_obj, dates
+    return return_obj, dates_tobin
 
 
 def timeseries_tofit_bins(xr_or_dt, to_freq, start_end_date=None, start_end_year=None, 
@@ -587,7 +428,7 @@ def timeseries_tofit_bins(xr_or_dt, to_freq, start_end_date=None, start_end_year
     if type(xr_or_dt) == type(xr.DataArray([0])):
         datetime = pd.to_datetime(xr_or_dt['time'].values)
     else:
-        datetime = xr_or_dt
+        datetime = xr_or_dt.copy()
 
     datetime = core_pp.remove_leapdays(datetime)
     input_freq = datetime.resolution
@@ -611,9 +452,15 @@ def timeseries_tofit_bins(xr_or_dt, to_freq, start_end_date=None, start_end_year
     if start_end_year is None:
         startyear, endyear = datetime[0].year, datetime[-1].year
         years = np.unique(datetime.year)
+        assert (np.unique(datetime.year).size == len(years)), \
+            (f'Range of years ({len(years)}) requested not in dataset,',
+            f'only {np.unique(datetime.year).size} years present.')
     else:
         startyear, endyear = start_end_year
         years = range(startyear, endyear+1)
+    
+    
+    
     # selday_pp is the period you aim to study
     if seldays == 'part':
         # add corresponding time information
@@ -643,7 +490,12 @@ def timeseries_tofit_bins(xr_or_dt, to_freq, start_end_date=None, start_end_year
         # line below: The +1 = include day 1 in counting
         start_day = (end_day - (dt * np.round(fit_steps_yr, decimals=0))) \
                     + np.timedelta64(1, 'D')
-
+        if start_day.month==1 and start_day.day==1 and start_day.is_leap_year:
+            # if leap year, start_day is adjusted one day backward in time,
+            # however, if start_day is already first of januari, this can't be done
+            # thus removing one step_yr
+            start_day = (end_day - (dt * np.round(fit_steps_yr-1, decimals=0))) \
+                    + np.timedelta64(1, 'D')
 
         if start_day.dayofyear < sdate.dayofyear or start_day.year < sdate.year:
 #        if start_day.year < sdate.year:
@@ -651,8 +503,10 @@ def timeseries_tofit_bins(xr_or_dt, to_freq, start_end_date=None, start_end_year
             start_day = (end_day - (dt * np.round(fit_steps_yr-1, decimals=0))) \
                     + np.timedelta64(1, 'D')
         if start_day.is_leap_year:
-            # add day in front to compensate for removing a day
+            # add day in front to compensate for removing a leap day
             start_day = start_day - np.timedelta64(1, 'D')
+
+            
 
         start_yr = pd.date_range(start=start_day, end=end_day,
                                     freq=(datetime[1] - datetime[0]))
@@ -742,94 +596,6 @@ def make_dates(datetime, years):
 
 
 
-
-def make_TVdatestr(dates, start_end_TVdate, start_end_year=None, lpyr=False):
-    #%%
-    '''
-    dates is type pandas.core.indexes.datetimes.DatetimeIndex
-    start_end_TVdate is tuple of start- and enddate in format ('mm-dd', 'mm-dd')
-    lpyr is boolean if you want load the leap days yes or no.
-    '''
-    #%%
-    import calendar
-
-    def oneyr(datetime):
-        return datetime.where(datetime.year==datetime.year[0]).dropna()
-
-    if start_end_year is None:
-        startyr = dates.year.min()
-        endyr   = dates.year.max()
-    else:
-        startyr = start_end_year[0]
-        endyr   = start_end_year[1]
-        
-    sstartdate = pd.to_datetime(str(startyr) + '-' + start_end_TVdate[0])
-    senddate_   = pd.to_datetime(str(startyr) + '-' + start_end_TVdate[1])
-
-
-    tfreq = (dates[1] - dates[0]).days
-    oneyr_dates = pd.date_range(start=sstartdate, end=senddate_,
-                            freq=pd.Timedelta(1, 'd'))
-    daily_yr_fit = np.round(oneyr_dates.size / tfreq, 0)
-
-    # dont get following
-#    firstyr = oneyr(oneyr_dates)
-    firstyr = oneyr(dates)
-    #find closest senddate
-    closest_enddate_idx = np.argmin(abs(firstyr - senddate_))
-    senddate = firstyr[closest_enddate_idx]
-    if senddate > senddate_ :
-        senddate = firstyr[closest_enddate_idx-1]
-
-    #update startdate of RV period to fit bins
-    if tfreq == 1:
-        sstartdate = senddate - pd.Timedelta(int(tfreq * daily_yr_fit), 'd') + \
-                             np.timedelta64(1, 'D')
-    else:
-        sstartdate = senddate - pd.Timedelta(int(tfreq * daily_yr_fit), 'd')
-
-
-
-    start_yr = pd.date_range(start=sstartdate, end=senddate,
-                                freq=(dates[1] - dates[0]))
-    if lpyr==True and calendar.isleap(startyr):
-        start_yr -= pd.Timedelta( '1 days')
-    else:
-        pass
-    breakyr = endyr
-    datesstr = [str(date).split('.', 1)[0] for date in start_yr.values]
-    nyears = (endyr - startyr)+1
-    startday = start_yr[0].strftime('%Y-%m-%dT%H:%M:%S')
-    endday = start_yr[-1].strftime('%Y-%m-%dT%H:%M:%S')
-    firstyear = startday[:4]
-    def plusyearnoleap(curr_yr, startday, endday, incr):
-        startday = startday.replace(firstyear, str(curr_yr+incr))
-        endday = endday.replace(firstyear, str(curr_yr+incr))
-
-        next_yr = pd.date_range(start=startday, end=endday,
-                        freq=(dates[1] - dates[0]))
-        if lpyr==True and calendar.isleap(curr_yr+incr):
-            next_yr -= pd.Timedelta( '1 days')
-        elif lpyr == False:
-            # excluding leap year again
-            noleapdays = (((next_yr.month==2) & (next_yr.day==29))==False)
-            next_yr = next_yr[noleapdays].dropna(how='all')
-        return next_yr
-
-
-    for yr in range(0,nyears):
-        curr_yr = yr+startyr
-        next_yr = plusyearnoleap(curr_yr, startday, endday, 1)
-        nextstr = [str(date).split('.', 1)[0] for date in next_yr.values]
-        datesstr = datesstr + nextstr
-
-        if next_yr.year[0] == breakyr:
-            break
-    datesmcK = pd.to_datetime(datesstr)
-    #%%
-    return datesmcK
-
-
 def TVmonthrange(fullts, start_end_TVdate):
     '''
     fullts : 1-D xarray timeseries
@@ -916,33 +682,6 @@ def xarray_plot(data, path='default', name = 'default', saving=False):
         save_figure(data, path=path)
     plt.show()
 
-# def convert_longitude(data, to_format='west_east'):
-#     import numpy as np
-#     import xarray as xr
-#     if to_format == 'west_east':
-#         lon_above = data.longitude[np.where(data.longitude > 180)[0]]
-#         lon_normal = data.longitude[np.where(data.longitude <= 180)[0]]
-#         # roll all values to the right for len(lon_above amount of steps)
-#         data = data.roll(longitude=len(lon_above))
-#         # adapt longitude values above 180 to negative values
-#         substract = lambda x, y: (x - y)
-#         lon_above = xr.apply_ufunc(substract, lon_above, 360)
-#         if lon_normal.size != 0:
-#             if lon_normal[0] == 0.:
-#                 convert_lon = xr.concat([lon_above, lon_normal], dim='longitude')
-#             else:
-#                 convert_lon = xr.concat([lon_normal, lon_above], dim='longitude')
-#         else:
-#             convert_lon = lon_above
-
-#     elif to_format == 'only_east':
-#         lon_above = data.longitude[np.where(data.longitude >= 0)[0]]
-#         lon_below = data.longitude[np.where(data.longitude < 0)[0]]
-#         lon_below += 360
-#         data = data.roll(longitude=len(lon_below))
-#         convert_lon = xr.concat([lon_above, lon_below], dim='longitude')
-#     data['longitude'] = convert_lon
-#     return data
 
 def find_region(data, region='EU'):
     import numpy as np
@@ -1081,6 +820,9 @@ def rolling_mean_np(arr, win, center=True, plot=False):
 
 def regrid_xarray(xarray_in, to_grid_res, periodic=True):
     #%%
+    '''
+    Only supports 2 (lat, lon) or 3 (time, lat, lon) xr.DataArrays
+    '''
     import xesmf as xe
     method_list = ['bilinear', 'conservative', 'nearest_s2d', 'nearest_d2s', 'patch']
     method = method_list[0]
@@ -1095,10 +837,11 @@ def regrid_xarray(xarray_in, to_grid_res, periodic=True):
 
     lats = ds.lat
     lons = ds.lon
-
+    orig_grid = float(abs(ds.lat[1] - ds.lat[0] ))
+    
     if method == 'conservative':
         # add lon_b and lat_b
-        orig_grid = float(abs(ds.lat[1] - ds.lat[0] ))
+        
 
         lat_b = np.concatenate(([lats.max()+orig_grid/2.], (lats - orig_grid/2.).values))
         lon_b = np.concatenate(([lons.max()+orig_grid/2.], (lons - orig_grid/2.).values))
@@ -1121,23 +864,63 @@ def regrid_xarray(xarray_in, to_grid_res, periodic=True):
     regridder.clean_weight_file()
     xarray_out = xarray_out.rename({'lon':'longitude',
                                     'lat':'latitude'})
-    xarray_out = xr.DataArray(xarray_out.values[::-1], dims=['latitude', 'longitude'],
-                 coords={'latitude':xarray_out.latitude[:,0].values[::-1],
-                         'longitude':xarray_out.longitude[0].values})
-    xarray_out['longitude'] -= xarray_out['longitude'][0]
+    if len(xarray_out.shape) == 2:
+        xarray_out = xr.DataArray(xarray_out.values[::-1], 
+                                  dims=['latitude', 'longitude'],
+                                  coords={'latitude':xarray_out.latitude[:,0].values[::-1],
+                                  'longitude':xarray_out.longitude[0].values})
+    elif len(xarray_out.shape) == 3:
+        xarray_out = xr.DataArray(xarray_out.values[:,::-1], 
+                                  dims=['time','latitude', 'longitude'],
+                                  coords={'time':xarray_out.time,
+                                          'latitude':xarray_out.latitude[:,0].values[::-1],
+                                          'longitude':xarray_out.longitude[0].values})   
+    xarray_out.attrs = xarray_in.attrs
+    xarray_out.name = xarray_in.name
+    if 'is_DataArray' in xarray_out.attrs:
+        del xarray_out.attrs['is_DataArray']
+    xarray_out.attrs['regridded'] = f'{method}_{orig_grid}d_to_{to_grid_res}d'
+#    xarray_out['longitude'] -= xarray_out['longitude'][0] # changed 17-11-20
     #%%
     return xarray_out
 
-def store_hdf_df(dict_of_dfs, file_path):
+def store_hdf_df(dict_of_dfs, file_path=None):
     import warnings
     import tables
+    today = datetime.datetime.today().strftime("%d-%m-%y_%Hhr")
+    if file_path is None:
+        file_path = get_download_path()+ f'/pandas_dfs_{today}.h5'
 
     warnings.filterwarnings('ignore', category=tables.NaturalNameWarning)
     with pd.HDFStore(file_path, 'w') as hdf:
         for key, item in  dict_of_dfs.items():
-            hdf.put(key, item, format='table', data_columns=True)
+            try:
+                hdf.put(key, item, format='table', data_columns=True)
+            except:
+                hdf.put(key, item, data_columns=True)
         hdf.close()
-    return
+    return file_path
+
+def load_hdf5(path_data):
+    '''
+    Loading hdf5 can not be done simultaneously:
+    '''
+    import h5py
+    import time
+    for attempt in range(5):
+        try:
+            hdf = h5py.File(path_data,'r+')
+        except:
+            time.sleep(0.5) # wait 0.5 seconds, perhaps other process is trying
+            # to load it simultaneously
+            continue
+        else:
+            break
+    dict_of_dfs = {}
+    for k in hdf.keys():
+        dict_of_dfs[k] = pd.read_hdf(path_data, k)
+    hdf.close()
+    return dict_of_dfs
 
 def rand_traintest_years(RV, test_yrs=None, method=str, seed=None, 
                          kwrgs_events=None, verb=0):
@@ -1148,6 +931,9 @@ def rand_traintest_years(RV, test_yrs=None, method=str, seed=None,
     leave{int} : chronologically split train and test years
     split{int} : split dataset into single train and test set
     no_train_test_split.
+    
+    if test_yrs are given, all arguments are overwritten and we return the samme
+    train test masks that are in compliance with the test yrs
     '''
 
 
@@ -1155,6 +941,10 @@ def rand_traintest_years(RV, test_yrs=None, method=str, seed=None,
     tested_yrs = [] ; # ex['n_events'] = []
     all_yrs = list(np.unique(RV_ts.index.year))
     n_yrs   = len(all_yrs)
+    
+    if test_yrs is not None:
+        method = 'copied_from_import_ts'
+        n_spl  = test_yrs.shape[0]
     if method[:6] == 'random' or method[:9] == 'ran_strat':
         if seed is None:
             seed = 30 # control reproducibility train/test split
@@ -1171,8 +961,7 @@ def rand_traintest_years(RV, test_yrs=None, method=str, seed=None,
     elif method == 'no_train_test_split': 
         n_spl = 1
 
-    if test_yrs is not None:
-        method = 'copied_from_import_ts'
+
 
     full_time  = pd.to_datetime(RV.fullts.index)
     RV_time  = pd.to_datetime(RV_ts.index.values)
@@ -1353,7 +1142,54 @@ def get_testyrs(df_splits):
         df_split = df_splits.loc[s]
         test_yrs = np.unique(df_split[df_split['TrainIsTrue']==False].index.year)
         traintest_yrs.append(test_yrs)
-    return traintest_yrs
+    return np.array(traintest_yrs)
 
 
+def get_download_path():
+    """Returns the default downloads path for linux or windows"""
+    if os.name == 'nt':
+        import winreg
+        sub_key = r'SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders'
+        downloads_guid = '{374DE290-123F-4565-9164-39C4925E467B}'
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, sub_key) as key:
+            location = winreg.QueryValueEx(key, downloads_guid)[0]
+        return location
+    else:
+        return os.path.join(os.path.expanduser('~'), 'Downloads')
 
+def dfsplits_to_dates(df_splits, s):
+    dates_train = df_splits.loc[s]['TrainIsTrue'][df_splits.loc[s]['TrainIsTrue']].index
+    dates_test  = df_splits.loc[s]['TrainIsTrue'][~df_splits.loc[s]['TrainIsTrue']].index
+    return dates_train, dates_test
+
+def func_dates_min_lag(dates, lag):
+    tfreq = dates[1] - dates[0]
+    oneyr = get_oneyr(pd.to_datetime(dates.values))
+    start_d_min_lag = oneyr[0] - pd.Timedelta(int(lag), unit='d')
+    end_d_min_lag = oneyr[-1] - pd.Timedelta(int(lag), unit='d')
+    if pd.Timestamp(f'{dates[0].year}-01-01') > start_d_min_lag:
+        start_d_min_lag = pd.Timestamp(f'{dates[0].year}-01-01') 
+
+    startyr = pd.date_range(start_d_min_lag, end_d_min_lag, freq=tfreq)
+
+    if startyr.is_leap_year[0]:
+        # ensure that everything before the leap day is shifted one day back in time
+        # years with leapdays now have a day less, thus everything before
+        # the leapday should be extended back in time by 1 day.
+        mask_lpyrfeb = np.logical_and(startyr.month == 2,
+                                             startyr.is_leap_year
+                                             )
+        mask_lpyrjan = np.logical_and(startyr.month == 1,
+                                             startyr.is_leap_year
+                                             )
+        mask_ = np.logical_or(mask_lpyrfeb, mask_lpyrjan)
+        new_dates = np.array(startyr)
+        new_dates[mask_] = startyr[mask_] - pd.Timedelta(1, unit='d')
+        startyr = pd.to_datetime(new_dates)
+   
+    dates_min_lag = make_dates(startyr, np.unique(dates.year))
+
+    
+    # to be able to select date in pandas dataframe
+    dates_min_lag_str = [d.strftime('%Y-%m-%d %H:%M:%S') for d in dates_min_lag]
+    return dates_min_lag_str, dates_min_lag    

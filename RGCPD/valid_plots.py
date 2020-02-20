@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 #from sklearn import metrics
 import functions_pp
 from sklearn.calibration import calibration_curve
+import sklearn.metrics as metrics
 import seaborn as sns
 from itertools import chain
 flatten = lambda l: list(chain.from_iterable(l))
@@ -46,75 +47,369 @@ mpl.rcParams['legend.fontsize'] = 'medium'
 mpl.rcParams['figure.titlesize'] = 'medium'
 
 
+def get_scores_improvement(m_splits, fc, s, lag, metric=None):
+#    import stat_models
+    import warnings
+    warnings.filterwarnings("ignore")
+    m = m_splits[f'split_{s}']
+       
+#    assert hasattr(m, 'n_estimators'), print(m.cv_results_)
 
+        
+#    x_fit_mask, y_fit_mask, x_pred_mask, y_pred_mask = stat_models.get_masks(m.X)
+    
+#    keys = m.X.columns[m.X.dtypes != bool]
+    X_pred = m.X_pred
+    if hasattr(m, 'n_estimators')==False:   
+        m = m.best_estimator_
+    
+    if hasattr(m, 'predict_proba'):
+        y_true = fc.TV.RV_bin
+    else:
+        y_true = fc.TV.RV_ts
+    
+    
+#    X_train = np.logical_and(fc.TV.TrainIsTrue.loc[s], x_pred_mask).loc[X_pred.index]
+    X_train = X_pred[fc.TV.TrainIsTrue.loc[s].loc[X_pred.index]]
+#    X_test = pd.to_datetime([d for d in X_pred.index if d not in X_train[X_train].index])
+    X_test = X_pred[~fc.TV.TrainIsTrue.loc[s].loc[X_pred.index]]
+    y_maskTrainIsTrue = fc.TV.TrainIsTrue.loc[s].loc[fc.TV.dates_RV]
+    y_test = y_true[~y_maskTrainIsTrue].values.squeeze()
+
+    test_scores = np.zeros(m.n_estimators) 
+    train_scores = np.zeros(m.n_estimators) 
+    for i, y_pred in enumerate(m.staged_predict(X_test)):
+        if metric is None:
+            test_scores[i] = m.loss_(y_test, y_pred)
+        else:
+            test_scores[i] = metric(y_test, y_pred)
+            
+    if metric is not None:
+        y_train = y_true[y_maskTrainIsTrue].values.squeeze()
+        for i, y_pred in enumerate(m.staged_predict(X_train)):
+            train_scores[i] = metric(y_train, y_pred)
+    return train_scores, test_scores
+
+
+def plot_deviance(fc, lag=None, split='all', model=None, 
+                  metric=metrics.brier_score_loss):
+    #%%
+    if model is None:
+        model = [n[0] for n in fc.stat_model_l if n[0][:2]=='GB'][0]
+        
+    if lag is None:
+        lag = int(list(fc.dict_models[model].keys())[0].split('_')[1])
+    
+    m_splits = fc.dict_models[model][f'lag_{lag}']
+    
+#    assert hasattr(m_splits['split_0'], 'n_estimators'), '{}'.format(
+#            m_splits['split_0'].cv_results_)
+        
+    if split == 'all':
+        splits = [int(k.split('_')[-1]) for k in m_splits.keys()]
+    else:
+        splits = [split]
+    
+    g = sns.FacetGrid(pd.DataFrame(splits), col=0, col_wrap=2, aspect=2)
+    for col, s in enumerate(splits):
+        
+        m_splits = fc.dict_models[model][f'lag_{lag}']
+        train_score_, test_scores = get_scores_improvement(m_splits, fc, s, lag,
+                                                           metric=metric)
+        
+        ax = g.axes[col]
+        ax.plot(np.arange(train_score_.size) + 1, train_score_, 'b-',
+                 label='Training Deviance')
+        ax.plot(np.arange(train_score_.size) + 1, test_scores, 'r-',
+                 label='Test Deviance')
+        ax.legend()
+        ax.set_xlabel('Boosting Iterations')
+        ax.set_ylabel('Deviance')
+    #%%
+    return g.fig
+    #%%
+def get_pred_split(m_splits, fc, s, lag):
+
+    import warnings
+    warnings.filterwarnings("ignore")
+    m = m_splits[f'split_{s}']
+        
+    if hasattr(m, 'predict_proba'):
+        X_pred = m.X_pred
+        y_true = fc.TV.RV_bin
+        prediction = pd.DataFrame(m.predict_proba(X_pred)[:,1], 
+                              index=y_true.index, columns=[lag])  
+        
+    else:
+        y_true = fc.TV.RV_ts
+        prediction = pd.DataFrame(m.predict(X_pred), 
+                              index=y_true.index, columns=[lag])  
+        
+    
+    TrainIsTrue = fc.TV.TrainIsTrue.loc[s].loc[prediction.index]
+    
+    pred_train = prediction.loc[TrainIsTrue[TrainIsTrue].index].squeeze()
+    pred_test = prediction.loc[TrainIsTrue[~TrainIsTrue].index]
+    y_train = y_true.loc[TrainIsTrue[TrainIsTrue].index]
+    y_test  = y_true.loc[TrainIsTrue[~TrainIsTrue].index]
+    train_score = metrics.mean_squared_error(y_train, pred_train)
+    test_score  = metrics.mean_squared_error(y_test, pred_test)
+    return prediction, y_true, train_score, test_score, m
+
+def visual_analysis(fc, model=None, lag=None, split='all', col_wrap=5,
+                    wspace=0.02):
+    #%%
+    
+    if model is None:
+        model = list(fc.dict_models.keys())[0]
+    if lag is None:
+        lag = int(list(fc.dict_models[model].keys())[0].split('_')[1])
+    
+    m_splits = fc.dict_models[model][f'lag_{lag}']
+
+    if split == 'all':
+        s = 0
+    else:
+        s = split
+    
+    prediction, y_true, train_score, test_score, m = get_pred_split(m_splits, fc, s, lag)
+    
+    
+    import matplotlib.dates as mdates
+    import datetime
+    prediction['year'] = prediction.index.year
+    years = np.unique(prediction.index.year)[:]
+    g = sns.FacetGrid(prediction, col='year', sharex=False,  sharey=True, 
+                      col_wrap=col_wrap, aspect=1.5, size=1.5)
+    proba = float(prediction[lag].max()) <= 1 and float(prediction[lag].min()) >= 0
+        
+    clim = y_true.mean()
+    y_max = max(prediction[lag].max(), y_true.max().values) - clim.mean()
+    y_min = min(prediction[lag].min(), y_true.min().values) + clim.mean()
+    dy = max(y_max, y_min)
+    
+    for col, yr in enumerate(years):
+        ax = g.axes[col]
+        if split == 'all':
+            splits = [int(k.split('_')[-1]) for k in m_splits.keys()]
+            train_scores = [train_score]
+            test_scores = [test_score]
+            for s in splits[:]:
+                prediction, y_true, train_score, test_score, m = get_pred_split(m_splits, fc, s, lag)
+                pred = prediction[(prediction.index.year==yr)][lag]
+                testyrs = np.unique(fc.TrainIsTrue.loc[s][~fc.TrainIsTrue.loc[s]].index.year)
+                dates = pred.index
+                
+                if yr in testyrs:
+                    testplt = ax.plot(dates, pred, linewidth=1.5, linestyle='solid',
+                                      color='red')
+                    ax.scatter(dates, pred, color='red', s=8)
+                else:
+                    ax.plot(dates, pred, linewidth=1, linestyle='dashed', 
+                            color='grey')
+                    ax.scatter(dates, pred, color='grey', s=2)
+                train_scores.append(train_score)
+                test_scores.append(test_score)
+            trainscorestr = 'MSE train: {:.2f} ± {:.2f}'.format(
+                    np.mean(train_scores), np.std(train_scores))
+            testscorestr = 'MSE test: {:.2f} ± {:.2f}'.format(
+                    np.mean(test_scores), np.std(test_scores))
+            text = trainscorestr+'\n'+testscorestr
+        else:
+            pred = prediction[(prediction['year']==yr).values][lag]
+            dates = pred.index
+            ax.scatter(dates, pred)
+            ax.plot(dates, pred)
+            trainscorestr = 'MSE train: {:.2f}'.format(train_score)
+            testscorestr = 'MSE test: {:.2f}'.format(test_score)
+            text = trainscorestr+'\n'+testscorestr
+        ax.legend( (testplt), (['test year']), fontsize='x-small')
+        
+        if col==0 or col == len(years)-1:
+            props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
+            ax.text(0.05, 0.95, text,
+                        fontsize=8,
+                        bbox=props,
+                    horizontalalignment='left',
+                    verticalalignment='top',
+                    transform=ax.transAxes)
+        ax.plot(dates, y_true[y_true.index.year==yr], color='black')
+        ax.hlines(clim, dates.min(), dates.max(), linestyle='dashed',
+                  linewidth=1.5)
+#        dt_years = mdates.YearLocator()   # every year
+        months = mdates.MonthLocator()  # every month
+        yearsFmt = mdates.DateFormatter('%Y-%m')
+        
+        # format the ticks
+        ax.xaxis.set_major_locator(months)
+        ax.xaxis.set_major_formatter(yearsFmt)
+        ax.xaxis.set_minor_locator(months)
+        datemin = datetime.date(dates.min().year, dates.min().month, 1)
+        datemax = datetime.date(dates.max().year, dates.max().month, 31)
+        ax.set_xlim(datemin, datemax)
+        ax.grid(True)
+        ax.tick_params(labelsize=10)
+        if proba:
+            ax.set_ylim(0, 1)
+        else:            
+            ax.set_ylim(float(clim-dy), float(clim+dy))
+    
+    g.fig.suptitle(model + f' lag {lag}', y=1.0)
+    g.fig.subplots_adjust(wspace=wspace)
+        #%%
+    return g.fig
+
+def get_score_matrix(d_expers=dict, model=str, metric=str, lags_t=None):
+    #%%
+    percen = np.array(list(d_expers.keys()))
+    tfreqs = np.array(list(d_expers[percen[0]].keys()))
+    npscore = np.zeros( shape=(percen.size, tfreqs.size) )
+    np_sig = np.zeros( shape=(percen.size, tfreqs.size), dtype=object )
+
+    for j, pkey in enumerate(percen):
+        dict_freq = d_expers[pkey]
+        for k, tkey in enumerate(tfreqs):
+            df_valid = dict_freq[tkey][model][0]
+            df_metric = df_valid.loc[metric]
+            npscore[j,k] = float(df_metric.loc[metric].values)
+            con_low = df_metric.loc['con_low'].values
+            con_high = float(df_metric.loc['con_high'].values)
+            if type(con_low) is np.ndarray:
+                con_low = np.quantile(con_low[0], 0.025) # alpha is 0.05
+            else:
+                con_low = float(df_metric.loc['con_low'].values)
+            np_sig[j,k] = '{:.2f} - {:.2f}'.format(con_low, con_high)
+
+    data = npscore
+    df_data = pd.DataFrame(data, index=percen, columns=tfreqs)
+    df_data = df_data.rename_axis(f'lead time: {lags_t} days', axis=1)
+    df_sign = pd.DataFrame(np_sig, index=percen, columns=tfreqs)
+    
+    dict_of_dfs = {f'df_data_{metric}':df_data,'df_sign':df_sign}
+    path_data = functions_pp.store_hdf_df(dict_of_dfs)
+    return path_data, dict_of_dfs
+
+def plot_score_matrix(path_data=str, col=0,
+                      x_label=None, x_label2=None, ax=None):
+    #%%
+    dict_of_dfs = functions_pp.load_hdf5(path_data=path_data)
+    datakey = [k for k in dict_of_dfs.keys() if k[:7] == 'df_data'][0]
+    metric = datakey.split('_')[-1]
+    df_data = dict_of_dfs[datakey]
+    df_sign = dict_of_dfs['df_sign']
+
+    np_arr = df_sign.to_xarray().to_array().values
+    np_sign = np_arr.swapaxes(0,1)
+    annot = np.zeros_like(df_data.values, dtype="f8").tolist()
+    for i1, r in enumerate(df_data.values):
+        for i2, c in enumerate(r):
+            round_val = np.round(df_data.values[i1,i2], 2).astype('f8')
+            # lower confidence bootstrap higer than 0.0
+            sign = np_sign[i1,i2] 
+
+            annot[i1][i2] = 'BSS={:.2f} \n {}'.format(round_val, sign)
+    
+    ax = None
+    if ax==None:
+        print('ax == None')
+        fig, ax = plt.subplots(constrained_layout=True, figsize=(20,13))
+    
+    ax = sns.heatmap(df_data, ax=ax, vmin=0, vmax=round(max(df_data.max())+0.05, 1), cmap=sns.cm.rocket_r,
+                     annot=np.array(annot), 
+                     fmt="", cbar_kws={'label': f'{metric}'})
+    ax.set_yticklabels(labels=df_data.index, rotation=0)
+    ax.set_ylabel('Percentile threshold [-]')
+    ax.set_xlabel(x_label)
+    ax.set_title(df_data.columns.name)
+    #%%
+                
+    return fig
+    
+   
 def plot_score_expers(d_expers=dict, model=str, metric=str, lags_t=None,
                       color='red', style='solid', col=0,
                       x_label=None, x_label2=None, ax=None):
     #%%
-#    ax = None
+    ax = None
     if ax==None:
         print('ax == None')
-        fig, ax = plt.subplots(constrained_layout=True)
-
-    x_vals = list(d_expers.keys())
-    y_vals = [] ; y_mins = [] ; y_maxs = []
-    for x in x_vals:
-        df_valid = d_expers[x][model][0]
-        df_metric = df_valid.loc[metric]
-        y_vals.append(float(df_metric.loc[metric].values))
-        y_mins.append(float(df_metric.loc['con_low'].values))
-        y_maxs.append(float(df_metric.loc['con_high'].values))
-
-    ax.scatter(x_vals, y_vals, color=color, linestyle=style,
-                    linewidth=3, alpha=1 )
-    # C.I. inteval
-    ax.scatter(x_vals, y_mins, s=70, marker="_", color='black')
-    ax.scatter(x_vals, y_maxs, s=70, marker="_", color='black')
-    ax.vlines(x_vals, y_mins, y_maxs, color='black', linewidth=1)
-
-    ax.hlines(y=0, xmin=min(x_vals), xmax=max(x_vals), linewidth=2)
-    ax.set_xticks(x_vals)
-    ax.set_xticklabels(x_vals)
-
+        fig, ax = plt.subplots(constrained_layout=True, figsize=(10,5))
     
-    if lags_t is not None:
-        if np.unique(lags_t).size > 1:
+    folds = np.array(list(d_expers.keys()))
+    spread_size = 0.3
+    steps = np.linspace(-spread_size,spread_size, folds.size)
+#    freqs = len(d_expers.items()[])
+    for i, fold_key in enumerate(folds):
+        dict_freq = d_expers[fold_key]
+        x_vals_freq = list(dict_freq.keys())
+        x_vals = np.arange(len(x_vals_freq))
+        y_vals = [] ; y_mins = [] ; y_maxs = []
+        for x in x_vals_freq:
+            df_valid = dict_freq[x][model][0]
+            df_metric = df_valid.loc[metric]
+            y_vals.append(float(df_metric.loc[metric].values))
+            y_mins.append(float(df_metric.loc['con_low'].values))
+            y_maxs.append(float(df_metric.loc['con_high'].values))
+        
+        x_vals_shift = x_vals+steps[i]
+
+        
+        ax.scatter(x_vals_shift, y_vals, color=color, linestyle=style,
+                        linewidth=3, alpha=1 )
+        # C.I. inteval
+
+        ax.scatter(x_vals_shift, y_mins, s=70, marker="_", color='black')
+        ax.scatter(x_vals_shift, y_maxs, s=70, marker="_", color='black')
+        ax.vlines(x_vals_shift, y_mins, y_maxs, color='black', linewidth=1)
+                  
+        for x_t,y_t in zip(x_vals_shift, y_mins):
+            ax.text(x_t, y_t-.005, f'{fold_key}', horizontalalignment='center',
+                    verticalalignment='top')
+        
     
-            ax2 = ax.twiny()
-            ax2.set_xbound(ax.get_xbound())
-            ax2.set_xticks(x_vals)
-            ax2.set_xticklabels(lags_t)
-            ax2.grid(False)
-            ax2.set_xlabel(x_label2)
-            text = f'Lead time varies'
-            props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
-            ax.text(0.5, 0.983, text,
-                    fontsize=15,
-                    bbox=props,
-                horizontalalignment='center',
-                verticalalignment='top',
-                transform=ax.transAxes)
-
-        if np.unique(lags_t).size == 1:
-            text = f'Lead time: {int(np.unique(lags_t))} days'
-            props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
-            ax.text(0.5, 0.983, text,
-                    fontsize=15,
-                    bbox=props,
-                horizontalalignment='center',
-                verticalalignment='top',
-                transform=ax.transAxes)
-
-
-    if metric == 'BSS':
-        y_lim = (-0.4, 0.6)
-    elif metric[:3] == 'AUC':
-        y_lim = (0,1.0)
-    elif metric == 'EDI':
-        y_lim = (-1.,1.0)
-    ax.set_ylim(y_lim)
-    ax.set_ylabel(metric)
-    ax.set_xlabel(x_label)
+        ax.hlines(y=0, xmin=min(x_vals)-spread_size, xmax=max(x_vals)+spread_size, linestyle='dotted', linewidth=0.75)
+        ax.set_xticks(x_vals)
+        ax.set_xticklabels(x_vals_freq)
+    
+        
+        if lags_t is not None:
+            if np.unique(lags_t).size > 1 and i==0:
+        
+                ax2 = ax.twiny()
+                ax2.set_xbound(ax.get_xbound())
+                ax2.set_xticks(x_vals)
+                ax2.set_xticklabels(lags_t)
+                ax2.grid(False)
+                ax2.set_xlabel(x_label2)
+                text = f'Lead time varies'
+                props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
+                ax.text(0.5, 0.983, text,
+                        fontsize=15,
+                        bbox=props,
+                    horizontalalignment='center',
+                    verticalalignment='top',
+                    transform=ax.transAxes)
+    
+            if np.unique(lags_t).size == 1 and i==0:
+                text = f'Lead time: {int(np.unique(lags_t))} days'
+                props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
+                ax.text(0.5, 0.983, text,
+                        fontsize=15,
+                        bbox=props,
+                    horizontalalignment='center',
+                    verticalalignment='top',
+                    transform=ax.transAxes)
+    
+    
+        if metric == 'BSS':
+            y_lim = (-0.4, 0.6)
+        elif metric[:3] == 'AUC':
+            y_lim = (0,1.0)
+        elif metric == 'EDI':
+            y_lim = (-1.,1.0)
+        ax.set_ylim(y_lim)
+        ax.set_ylabel(metric)
+        ax.set_xlabel(x_label)
     ax.plot()
     #%%
     return fig
@@ -124,7 +419,7 @@ def plot_score_lags(df_metric, metric, color, lags_tf, linestyle='solid',
                     ax=None):
 
     #%%
-
+#    ax=None
     if ax==None:
         print('ax == None')
         ax = plt.subplot(111)
@@ -144,10 +439,10 @@ def plot_score_lags(df_metric, metric, color, lags_tf, linestyle='solid',
 
 
     x = lags_tf
-    if 0 in lags_tf:
-        tfreq = 2 * (lags_tf[1] - lags_tf[0])
-    else:
-        tfreq = (lags_tf[1] - lags_tf[0])
+#    if 0 in lags_tf:
+#        tfreq = 2 * (lags_tf[1] - lags_tf[0])
+#    else:
+#        tfreq = (lags_tf[1] - lags_tf[0])
 #    tfreq = max([lags_tf[i+1] - lags_tf[i] for i in range(len(lags_tf)-1)])
 
 
@@ -165,19 +460,24 @@ def plot_score_lags(df_metric, metric, color, lags_tf, linestyle='solid',
     ax.set_xlabel('Lead time [days]', fontsize=13, labelpad=0.1)
     ax.grid(b=True, which='major')
 #    ax.set_title('{}-day mean'.format(col))
-    if min(x) == 1:
-        xmin = 0
-        xticks = np.arange(min(x), max(x)+1E-9, 10) ;
-        xticks[0] = 1
-    elif min(x) == 0:
-        xmin = int(tfreq/2)
-        xticks = np.arange(xmin, max(x)+1E-9, 10) ;
-        xticks = np.insert(xticks, 0, 0)
-    else:
-        xticks = np.arange(min(x), max(x)+1E-9, 10) ;
+    
+    xticks = x
+    # old adaptation of lags_i to tfreq, accounting for predicting at end of 
+    # aggregation period (lags - 0.5 * tfreq)
+#    if min(x) == 1:
+#        xmin = 0
+#        xticks = np.arange(min(x), max(x)+1E-9, 10) ;
+#        xticks[0] = 1
+#    elif min(x) == 0:
+#        xmin = int(tfreq/2)
+#        xticks = np.arange(xmin, max(x)+1E-9, 10) ;
+#        xticks = np.insert(xticks, 0, 0)
+#    else:
+#        xticks = np.arange(min(x), max(x)+1E-9, 10) ;
 
 
     ax.set_xticks(xticks)
+    ax.set_xticklabels(xticks)
     ax.set_ylim(y_lim)
     ax.set_ylabel(metric)
     if metric == 'BSS':
@@ -219,7 +519,7 @@ def plot_score_lags(df_metric, metric, color, lags_tf, linestyle='solid',
             if threshold_bin < 1:
                 threshold_bin = int(100*threshold_bin)
             else:
-                threshold_bin = int(threshold_bin)
+                threshold_bin = threshold_bin
             ax.text(0.00, 0.05, r'Event pred. when fc$\geq${}'.format(threshold_bin),
                     horizontalalignment='left', fontsize=10,
                     verticalalignment='center', transform=ax.transAxes,
@@ -436,7 +736,7 @@ def plot_events(RV, color, n_yrs = 10, col=0, ax=None):
 
     if type(n_yrs) == int:
         years = []
-        sorted_ = RV.freq.sort_values().index
+        sorted_ = RV.freq_per_year.sort_values().index
         years.append(sorted_[:int(n_yrs/2)])
         years.append(sorted_[-int(n_yrs/2):])
         years = flatten(years)
@@ -532,7 +832,9 @@ def valid_figures(dict_experiments, expers, models, line_dim='model', group_line
     3 dims to plot: [metrics, experiments, stat_models]
     2 can be assigned to row or col, the third will be lines in the same axes.
     '''
-
+    
+#    group_line_by=None; met='default'; wspace=0.08; col_wrap=None; threshold_bin=fc.threshold_pred
+    
     dims = ['exper', 'models', 'met']
     col_dim = [s for s in dims if s not in [line_dim, 'met']][0]
     if met == 'default':
@@ -613,15 +915,15 @@ def valid_figures(dict_experiments, expers, models, line_dim='model', group_line
 #                    exper = expers[0]
 
 
-
+    
                 df_valid, RV, y_pred_all = dict_experiments[exper][model]
-                tfreq = (y_pred_all.iloc[1].name - y_pred_all.iloc[0].name).days
+                # tfreq = (y_pred_all.iloc[1].name - y_pred_all.iloc[0].name).days
                 lags_i     = list(dict_experiments[exper][model][2].columns.astype(int))
-                lags_tf = [l*tfreq for l in lags_i]
-                if tfreq != 1:
-                    # the last day of the time mean bin is tfreq/2 later then the centerered day
-                    lags_tf = [l_tf- int(tfreq/2) if l_tf!=0 else 0 for l_tf in lags_tf]
-
+                # lags_tf = [l*tfreq for l in lags_i]
+                # if tfreq != 1:
+                #     # the last day of the time mean bin is tfreq/2 later then the centerered day
+                #     lags_tf = [l_tf- int(tfreq/2) if l_tf!=0 else 0 for l_tf in lags_tf]
+                lags_tf = lags_i
 
 
                 if metric in ['AUC-ROC', 'AUC-PR', 'BSS', 'Precision', 'Accuracy']:
@@ -656,7 +958,7 @@ def valid_figures(dict_experiments, expers, models, line_dim='model', group_line
                     if l == 0:
                         ax, dates_ts = plot_events(RV, color=nice_colors[-1], n_yrs=6,
                                          col=col, ax=ax)
-                    plot_ts(RV, y_pred_all, dates_ts, color, line_styles[l], lag_i=1, ax=ax)
+                    plot_ts(RV, y_pred_all, dates_ts, color, line_styles[l], lag_i=lags_i[0], ax=ax)
 
                 # legend conditions
                 same_models = np.logical_and(row==0, col==0)

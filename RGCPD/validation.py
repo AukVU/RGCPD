@@ -7,15 +7,18 @@ Created on Thu Aug 22 13:53:03 2019
 """
 
 
+
+
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from sklearn import metrics
 import seaborn as sns
-from concurrent.futures import ProcessPoolExecutor
 from itertools import chain
 flatten = lambda l: list(chain.from_iterable(l))
+from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 max_cpu = multiprocessing.cpu_count()
 
@@ -43,13 +46,15 @@ mpl.rcParams['font.size'] = 13
 mpl.rcParams['legend.fontsize'] = 'medium'
 mpl.rcParams['figure.titlesize'] = 'medium'
 
-def get_metrics_sklearn(RV, y_pred_all, y_pred_c, alpha=0.05, n_boot=5, 
+
+
+
+def get_metrics_sklearn(y_true, y_pred_all, y_pred_c, alpha=0.05, n_boot=5,
                         blocksize=10, threshold_pred='upper_clim'):
-                        
+
     #%%
 
-    y = RV.RV_bin.squeeze().values
-    clim_prob = np.mean(RV.prob_clim.values)
+    clim_prob = y_true[y_true==1].size / y_true.size
     lags = y_pred_all.columns
     cont_pred = np.unique(y_pred_all).size > 5
 
@@ -80,7 +85,7 @@ def get_metrics_sklearn(RV, y_pred_all, y_pred_c, alpha=0.05, n_boot=5,
     for lag in lags:
         y_pred = y_pred_all[[lag]].values
 
-        metrics_dict = metrics_sklearn(y, y_pred, y_pred_c.values,
+        metrics_dict = metrics_sklearn(y_true, y_pred, y_pred_c.values,
                                        alpha=alpha, n_boot=n_boot, blocksize=blocksize,
                                        clim_prob=clim_prob,
                                        threshold_pred=threshold_pred)
@@ -114,15 +119,15 @@ def get_metrics_sklearn(RV, y_pred_all, y_pred_c, alpha=0.05, n_boot=5,
     if cont_pred:
         df_valid = pd.concat([df_brier, df_auc, df_aucPR, df_KSS, df_prec, df_acc, df_EDI],
                          keys=['BSS', 'AUC-ROC', 'AUC-PR', 'KSS', 'Precision', 'Accuracy', 'EDI'])
-        print("ROC area\t: {:0.3f}".format( float(df_auc.iloc[0][0]) ))
-        print("P-R area\t: {:0.3f}".format( float(df_aucPR.iloc[0][0]) ))
-        print("BSS     \t: {:0.3f}".format( float(df_brier.iloc[0][0]) ))
+#        print("ROC area\t: {:0.3f}".format( float(df_auc.iloc[0][0]) ))
+#        print("P-R area\t: {:0.3f}".format( float(df_aucPR.iloc[0][0]) ))
+#        print("BSS     \t: {:0.3f}".format( float(df_brier.iloc[0][0]) ))
 
     else:
         df_valid = pd.concat([df_KSS, df_prec, df_acc],
                          keys=['KSS', 'Precision', 'Accuracy'])
-    print("Precision       : {:0.3f}".format( float(df_prec.iloc[0][0]) ))
-    print("Accuracy        : {:0.3f}".format( float(df_acc.iloc[0][0]) ))
+#    print("Precision       : {:0.3f}".format( float(df_prec.iloc[0][0]) ))
+#    print("Accuracy        : {:0.3f}".format( float(df_acc.iloc[0][0]) ))
 
 
     #%%
@@ -155,7 +160,7 @@ def get_metrics_bin(y_true, y_pred, t=None):
     except:
         print(y_true)
         print(y_pred_b)
-    
+
     tn, fp, fn, tp = metrics.confusion_matrix(y_true, y_pred_b).ravel()
     if (fp + tn) != 0:
         fpr = fp / (fp + tn)
@@ -302,21 +307,21 @@ def metrics_sklearn(y_true=np.ndarray, y_pred=np.ndarray, y_pred_c=np.ndarray,
     threshold_pred  options: 'clim', 'upper_clim', 'int or float'
                     if 'clim' is passed then all positive prediction is forecasted
                     for all values of y_pred above clim_prob
-                    if 'upper_clim' is passed, from all values that are above 
+                    if 'upper_clim' is passed, from all values that are above
                     the clim_prob, only the upper 75% of the prediction is used
-                    
+
     '''
-    
+
     #    y_true, y_pred, y_pred_c = y_true_c, ts_logit_c, y_pred_c_c
     #%%
 
     y_true = np.array(y_true).squeeze()
     cont_pred = np.unique(y_pred).size > 5
     metrics_dict = {}
-    
+
     if clim_prob is None:
         clim_prob = np.round((y_true[(y_true==1)].size / y_true.size),2)
-    
+
     sorval = np.array(sorted(y_pred))
     # probability to percentile
     if threshold_pred == 'clim':
@@ -337,8 +342,8 @@ def metrics_sklearn(y_true=np.ndarray, y_pred=np.ndarray, y_pred_c=np.ndarray,
             quantile = 1 - y_pred[sorval > threshold_pred/100.].size / y_pred.size
     elif isinstance(threshold_pred, tuple):
         times = threshold_pred[0]
-        quantile = 1 - (y_pred[sorval > times*clim_prob].size / y_pred.size) 
-    percentile_t = 100 * quantile 
+        quantile = 1 - (y_pred[sorval > times*clim_prob].size / y_pred.size)
+    percentile_t = 100 * quantile
 
     y_pred_b = np.array(y_pred > np.percentile(y_pred, percentile_t),dtype=int)
 
@@ -364,43 +369,55 @@ def metrics_sklearn(y_true=np.ndarray, y_pred=np.ndarray, y_pred_c=np.ndarray,
 
         brier_score = metrics.brier_score_loss(y_true, y_pred)
         brier_score_clim = metrics.brier_score_loss(y_true, y_pred_c)
- 
-      
-    
- 
-    old_index = range(0,len(y_pred),1)
-    n_bl = blocksize
-    chunks = [old_index[n_bl*i:n_bl*(i+1)] for i in range(int(len(old_index)/n_bl))]
 
-    # divide subchunks to boostrap to all cpus
-    n_boot_sub = int(round((n_boot / max_cpu) + 0.4, 0))
-    with ProcessPoolExecutor(max_workers=max_cpu) as pool:
-        futures = []
-        unique_seed = 42    
-        for i_cpu in range(max_cpu):
-            unique_seed += 1 # ensure that no same shuffleling is done
-            futures.append(pool.submit(_bootstrap, y_true, y_pred, n_boot_sub, 
-                                       chunks, percentile_t, unique_seed))
-        out = [future.result() for future in futures]
-        
-    
+
+
+    if n_boot > 0:
+        old_index = range(0,len(y_pred),1)
+        n_bl = blocksize
+        chunks = [old_index[n_bl*i:n_bl*(i+1)] for i in range(int(len(old_index)/n_bl))]
+
+
+        # divide subchunks to boostrap to all cpus
+        n_boot_sub = int(round((n_boot / max_cpu) + 0.4, 0))
+        try:
+            with ProcessPoolExecutor(max_workers=max_cpu) as pool:
+                futures = []
+                unique_seed = 42
+                for i_cpu in range(max_cpu):
+                    unique_seed += 1 # ensure that no same shuffleling is done
+                    futures.append(pool.submit(_bootstrap, y_true, y_pred, n_boot_sub,
+                                               chunks, percentile_t, unique_seed))
+                out = [future.result() for future in futures]
+        except:
+            print('parallel bootstrapping failed')
+            unique_seed = 42
+            out = []
+            for i_cpu in range(max_cpu):
+                unique_seed += 1 # ensure that no same shuffleling is done
+                out.append(_bootstrap(y_true, y_pred, n_boot_sub,
+                                           chunks, percentile_t, unique_seed))
+
+
+
     boots_AUC = []
     boots_AUCPR = []
     boots_brier = []
     boots_prec = []
     boots_acc = []
     boots_KSS = []
-    boots_EDI = []     
-    for i_cpu in range(max_cpu):
-        _AUC, _AUCPR, _brier, _prec, _acc, _KSS, _EDI = out[i_cpu]
-        boots_AUC.append(_AUC)
-        boots_AUCPR.append(_AUCPR)
-        boots_brier.append(_brier)
-        boots_prec.append(_prec)
-        boots_acc.append(_acc)
-        boots_KSS.append(_KSS)
-        boots_EDI.append(_EDI)
-        
+    boots_EDI = []
+    if n_boot > 0:
+        for i_cpu in range(max_cpu):
+            _AUC, _AUCPR, _brier, _prec, _acc, _KSS, _EDI = out[i_cpu]
+            boots_AUC.append(_AUC)
+            boots_AUCPR.append(_AUCPR)
+            boots_brier.append(_brier)
+            boots_prec.append(_prec)
+            boots_acc.append(_acc)
+            boots_KSS.append(_KSS)
+            boots_EDI.append(_EDI)
+
     # Computing the lower and upper bound of the 90% confidence interval
     # You can change the bounds percentiles to 0.025 and 0.975 to get
     # a 95% confidence interval instead.
@@ -409,8 +426,8 @@ def metrics_sklearn(y_true=np.ndarray, y_pred=np.ndarray, y_pred_c=np.ndarray,
             boots = flatten(boots)
         sorted_scores = np.array(boots)
         sorted_scores.sort()
-        ci_low = sorted_scores[int(alpha * len(sorted_scores))]
-        ci_high = sorted_scores[int((1-alpha) * len(sorted_scores))]
+        ci_low = sorted_scores[int(alpha/2 * len(sorted_scores))]
+        ci_high = sorted_scores[int((1-alpha/2) * len(sorted_scores))]
         return ci_low, ci_high, sorted_scores
 
     if np.array(boots_AUC).ravel().size != 0:
@@ -462,16 +479,16 @@ def metrics_sklearn(y_true=np.ndarray, y_pred=np.ndarray, y_pred_c=np.ndarray,
     #%%
     return metrics_dict
 
-def _bootstrap(y_true, y_pred, n_boot_sub, chunks, percentile_t, rng_seed):  
+def _bootstrap(y_true, y_pred, n_boot_sub, chunks, percentile_t, rng_seed):
     rng = np.random.RandomState(rng_seed)
     boots_AUC = []
     boots_AUCPR = []
-    boots_brier = []        
+    boots_brier = []
     boots_prec = []
     boots_acc = []
     boots_KSS = []
-    boots_EDI = [] 
-    for i in range(n_boot_sub):        
+    boots_EDI = []
+    for i in range(n_boot_sub):
         # bootstrap by sampling with replacement on the prediction indices
         ran_ind = rng.randint(0, len(chunks) - 1, len(chunks))
         ran_blok = [chunks[i] for i in ran_ind]
@@ -492,14 +509,16 @@ def _bootstrap(y_true, y_pred, n_boot_sub, chunks, percentile_t, rng_seed):
             boots_AUC.append(score_AUC)
             boots_AUCPR.append(score_AUCPR)
             boots_brier.append(score_brier)
-        
+
         out = get_metrics_bin(y_true[indices], y_pred[indices], t=percentile_t)
         (score_prec, recall, FPR, SP, score_acc, f1, score_KSS, score_EDI) = out
         boots_prec.append(score_prec)
         boots_acc.append(score_acc)
         boots_KSS.append(score_KSS)
         boots_EDI.append(score_EDI)
-    return (boots_AUC, boots_AUCPR, boots_brier, boots_prec, boots_acc, boots_KSS, boots_EDI)
+    return (boots_AUC, boots_AUCPR, boots_brier, 
+            boots_prec, boots_acc, boots_KSS, 
+            boots_EDI)
 
 def get_KSS_clim(y_true, y_pred, threshold_clim_events):
     fpr, tpr, thresholds = metrics.roc_curve(y_true, y_pred)
@@ -511,12 +530,16 @@ def get_KSS_clim(y_true, y_pred, threshold_clim_events):
 def get_testyrs(df_splits):
     #%%
     traintest_yrs = []
-    splits = df_splits.index.levels[0]
-    for s in splits:
-        df_split = df_splits.loc[s]
-        test_yrs = np.unique(df_split[df_split['TrainIsTrue']==False].index.year)
-        traintest_yrs.append(test_yrs)
-    return traintest_yrs
+    if hasattr(df_splits.index, 'levels'):
+        splits = np.unique(df_splits.index.get_level_values(level=0))
+        for s in splits:
+            df_split = df_splits.loc[s]
+            test_yrs = np.unique(df_split[df_split['TrainIsTrue']==False].index.year)
+            traintest_yrs.append(test_yrs)
+    else:
+        df_split = df_splits
+        traintest_yrs = np.unique(df_split[df_split['TrainIsTrue']==False].index.year)
+    return np.array(traintest_yrs)
 
 
-    
+

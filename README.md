@@ -13,7 +13,7 @@ The final step is the same, where the 1-d time series are processed by Tigramite
 
 # Example output
 Correlated (left) and 'Causal' (right) SST regions with eastern U.S. temperature. No scientific output.
-![corr_field](https://github.com/semvijverberg/RGCPD/blob/master/docs/images/pcA_none_ac0.01_at0.01_t2mmax_E-US_vs_sst_tigr_corr_mean.png)
+![corr_field](https://github.com/semvijverberg/RGCPD/blob/master/docs/images/pcA_none_ac0.002_at0.05_t2mmax_E-US_vs_sst_tigr_corr_mean.png)
 Clustering of the precursor regions.
 ![precursor_labels](https://github.com/semvijverberg/RGCPD/blob/master/docs/images/pcA_none_ac0.002_at0.05_t2mmax_E-US_vs_sst_labels_mean.png)
 
@@ -45,9 +45,9 @@ If depencies are correct, then all scripts should work. Please use the .yml file
 
 
 ### Create conda environment:
-conda env create -f RGCPD37.yml \
+conda env create -f RGCPD.yml \
 conda activate RGCPD \
-Git clone https://github.com/jakobrunge/tigramite.git \
+Git clone https://github.com/jakobrunge/tigramite.git (you can clone this dir into any folder, e.g. your Download folder)\
 pip install ./tigramite 
 
 

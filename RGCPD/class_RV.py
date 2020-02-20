@@ -11,6 +11,7 @@ import pandas as pd
 import func_fc
 import functions_pp
 import inspect, os
+import core_pp
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 path_test = os.path.join(curr_dir, '..', 'data')
 
@@ -26,6 +27,7 @@ class RV_class:
         #%%
 #        self.RV_ts = pd.DataFrame(df_data[df_data.columns[0]][0][df_data['RV_mask'][0]] )
 #        self.fullts = pd.DataFrame(df_data[df_data.columns[0]][0])
+        self.name = fullts.columns[0]
         self.RV_ts = RV_ts
         self.fullts = fullts
         self.dates_all = fullts.index
@@ -45,12 +47,13 @@ class RV_class:
                 startperiod, endperiod = fit_model_dates
                 startyr = dates_all[0].year
                 endyr   = dates_all[-1].year
-                if dates_all.resolution == 'day':
-                    tfreq = (dates_all[1] - dates_all[0]).days
-                ex = {'startperiod':startperiod, 'endperiod':endperiod,
-                      'tfreq':tfreq}
-                fit_dates = functions_pp.make_RVdatestr(dates_all,
-                                                              ex, startyr, endyr)
+#                if dates_all.resolution == 'day':
+#                    tfreq = (dates_all[1] - dates_all[0]).days
+                start_end_date = (startperiod, endperiod)
+                start_end_year = (startyr, endyr)
+                fit_dates = core_pp.get_subdates(dates_all,
+                                                 start_end_date=start_end_date, 
+                                                 start_end_year=start_end_year)
                 bool_mask = [True if d in fit_dates else False for d in dates_all]
                 fit_model_mask = pd.DataFrame(bool_mask, columns=['fit_model_mask'],
                                                    index=dates_all)
@@ -98,26 +101,15 @@ class RV_class:
 
             filename_ts = kwrgs_events[0]
             kwrgs_events_daily = kwrgs_events[1]
+            # unpack other optional arguments for defining event timeseries 
+            kwrgs = {key:item for key, item in kwrgs_events_daily.items() if key != 'event_percentile'}
             # loading in daily timeseries
             fullts_xr = np.load(filename_ts, encoding='latin1',
                                      allow_pickle=True).item()['RVfullts95']
 
-            # Retrieve information on input timeseries
-            def aggr_to_daily_dates(dates_precur_data):
-                dates = functions_pp.get_oneyr(dates_precur_data)
-                tfreq = (dates[1] - dates[0]).days
-                start_date = dates[0] - pd.Timedelta(f'{int(tfreq/2)}d')
-                end_date   = dates[-1] + pd.Timedelta(f'{int(-1+tfreq/2+0.5)}d')
-                yr_daily  = pd.date_range(start=start_date, end=end_date,
-                                                freq=pd.Timedelta('1d'))
-                years = np.unique(dates_precur_data.year)
-                ext_dates = functions_pp.make_dates(yr_daily, years)
 
-                return ext_dates
-
-
-            dates_RVe = aggr_to_daily_dates(self.dates_RV)
-            dates_alle  = aggr_to_daily_dates(self.dates_all)
+            dates_RVe = self.aggr_to_daily_dates(self.dates_RV)
+            dates_alle  = self.aggr_to_daily_dates(self.dates_all)
 
             df_RV_ts_e = pd.DataFrame(fullts_xr.sel(time=dates_RVe).values,
                                       index=dates_RVe, columns=['RV_ts'])
@@ -141,17 +133,11 @@ class RV_class:
                 # RV_bin_fit is defined such taht we can fit on RV_bin_fit
                 # but validate on RV_bin
                 self.RV_bin_fit = func_fc.Ev_timeseries(df_RV_ts_e,
-                               threshold=self.threshold_ts_fit ,
-                               min_dur=kwrgs_events_daily['min_dur'],
-                               max_break=kwrgs_events_daily['max_break'],
-                               grouped=kwrgs_events_daily['grouped'])[0]
+                               threshold=self.threshold_ts_fit, **kwrgs)[0]
                 self.RV_bin = self.RV_bin_fit.loc[dates_RVe]
             elif only_RV_events == False:
                 self.RV_b_full = func_fc.Ev_timeseries(self.fullts,
-                               threshold=self.threshold ,
-                               min_dur=kwrgs_events_daily['min_dur'],
-                               max_break=kwrgs_events_daily['max_break'],
-                               grouped=kwrgs_events_daily['grouped'])[0]
+                               threshold=self.threshold, **kwrgs)[0]
                 self.RV_bin   = self.RV_b_full.loc[self.dates_RV]
 
             # convert daily binary to window probability binary
@@ -169,7 +155,19 @@ class RV_class:
             self.RV_bin_fit[self.RV_bin_fit>0] = 1
             self.RV_bin[self.RV_bin>0] = 1
     #%%
-
+    @staticmethod
+    # Retrieve information on input timeseries
+    def aggr_to_daily_dates(dates_precur_data):
+        dates = functions_pp.get_oneyr(dates_precur_data)
+        tfreq = (dates[1] - dates[0]).days
+        start_date = dates[0] - pd.Timedelta(f'{int(tfreq/2)}d')
+        end_date   = dates[-1] + pd.Timedelta(f'{int(-1+tfreq/2+0.5)}d')
+        yr_daily  = pd.date_range(start=start_date, end=end_date,
+                                        freq=pd.Timedelta('1d'))
+        years = np.unique(dates_precur_data.year)
+        ext_dates = functions_pp.make_dates(yr_daily, years)
+    
+        return ext_dates
 
 if __name__ == "__main__":
     pass

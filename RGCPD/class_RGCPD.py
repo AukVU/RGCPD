@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import functions_pp
 import plot_maps
 import find_precursors
-from pathlib import Path
 import inspect, os, sys
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 path_test = os.path.join(curr_dir, '..', 'data')
@@ -23,15 +22,56 @@ class RGCPD:
                  import_prec_ts=None, start_end_TVdate=None, tfreq=10,
                  start_end_date=None, start_end_year=None, path_outmain=None, 
                  lags_i=np.array([1]), verbosity=1):
-                 
         '''
-        list_of_name_path : list of name, path tuples.
-        import_prec_ts    : Load in precursor 1-d timeseries in format:
+        Class to study teleconnection of a Response Variable* of interest. 
+        
+        Methods to extract teleconnections/precursors:
+            - correlation maps
+            - EOF analysis
+        
+        Correlation maps
+        One can calculate correlation maps for the 1-dimensional timeseries of
+        interest (RV timeseries), cluster the correlation precursor regions 
+        and extract their spatial mean timeseries. 
+        
+        
+        *Sometimes Response Variable is also called Target Variable.
+
+        Parameters
+        ----------
+        list_of_name_path : list, optional
+            list of (name, path) tuples. If None, test data is loaded.
+            Convention: first entry should be (name, path) of target variable (TV).
+        e.g. list_of_name_path = [('TVname', 'TVpath'), ('prec_name', 'prec_path')]
+        list_for_EOFS : list, optional
+            list of EOF classes, see docs EOF?
+        import_prec_ts : list, optional
+            Load in precursor 1-d timeseries in format:
                           [(name1, path_to_h5_file1), [(name2, path_to_h5_file2)]]
                           precursor_ts should follow the RGCPD traintest format
-        Convention: first entry should be (name, path) of target variable (TV).
-        list_of_name_path = [('TVname', 'TVpath'), ('prec_name', 'prec_path')]
-        TV period : tuple of start- and enddate in format ('mm-dd', 'mm-dd')
+        start_end_TVdate : tuple, optional
+            tuple of start- and enddate for target variable in 
+            format ('mm-dd', 'mm-dd').
+        tfreq : int, optional
+            The default is 10.
+        start_end_date : tuple, optional
+            tuple of start- and enddate for data to load in 
+            format ('mm-dd', 'mm-dd'). default is ('01-01' - '12-31')
+        start_end_year : tuple, optional
+            default is to load all years
+        path_outmain : str, optional
+            Root folder for output. Default is your 
+            '/users/{username}/Download'' path
+        lags_i : nparray, optional
+            The default is np.array([1]).
+        verbosity : int, optional
+            Regulate the amount of feedback given by the code.
+            The default is 1.
+
+        Returns
+        -------
+        initialization of the RGCPD class
+
         '''
         if list_of_name_path is None:
             print('initializing with test data')
@@ -64,9 +104,6 @@ class RGCPD:
         self.path_outmain = path_outmain
         self.figext     = '.pdf'
         self.orig_stdout = sys.stdout
-
-
-
         return
 
     def pp_precursors(self, loadleap=False, seldates=None, selbox=None,
@@ -91,7 +128,15 @@ class RGCPD:
                                              kwrgs_pp=self.kwrgs_pp,
                                              verbosity=self.verbosity)
 
+    def get_clust(self):
+        f = functions_pp
+        self.df_clust, self.ds = f.nc_xr_ts_to_df(self.list_of_name_path[0][1])
+                                        
 
+    def plot_df_clust(self):
+        self.get_clust()
+        plot_maps.plot_labels(self.ds['xrclustered'])
+        
     def pp_TV(self, loadleap=False):
         self.fulltso, self.hash = functions_pp.load_TV(self.list_of_name_path,
                                                        loadleap=loadleap)
@@ -184,6 +229,11 @@ class RGCPD:
                                       '_'.join([self.kwrgs_TV['method'],
                                                 's'+ str(self.kwrgs_TV['seed'])]))
         if os.path.isdir(self.path_outsub1) == False : os.makedirs(self.path_outsub1)
+
+
+    # def get_regions_MI(self, list_for_MI):
+        
+
 
     def calc_corr_maps(self, alpha=0.01, FDR_control=True):
         keys = ['selbox', 'loadleap', 'seldates', 'format_lon']
@@ -386,6 +436,7 @@ class RGCPD:
                                 f'dt{self.precur_aggr}_{self.hash}.h5')
         functions_pp.store_hdf_df({'df_data':self.df_data}, filename)
         print('Data stored in \n{}'.format(filename))
+        self.df_data_filename = filename
         
     def plot_maps_corr(self, precursors=None, mask_xr=None, map_proj=None,
                        row_dim='split', col_dim='lag', clim='relaxed', 

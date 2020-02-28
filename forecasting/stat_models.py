@@ -88,7 +88,7 @@ def logit_skl(y_ts, df_norm, keys=None, kwrgs_logit=None):
 
     # sample weight not yet supported by GridSearchCV (august, 2019)
     strat_cv = StratifiedKFold(5, shuffle=False)
-    model = LogisticRegressionCV(fit_intercept=True, 
+    model = LogisticRegressionCV(fit_intercept=True,
                                  cv=strat_cv,
                                  n_jobs=1,
                                  **kwrgs)
@@ -429,13 +429,12 @@ colors_datasets = sns.color_palette('deep')
 
 line_styles = ['solid', 'dashed', (0, (3, 5, 1, 5, 1, 5)), 'dotted']
 
-def plot_importances(models_splits_lags, lag=0, keys=None, cutoff=6, 
+def plot_importances(models_splits_lags, lag=0, keys=None, cutoff=6,
                      plot=True):
     #%%
     # keys = ['autocorr', '10_1_sst']
     if type(lag) is int:
         df_all = _get_importances(models_splits_lags, lag=lag)
-        
         if plot:
             fig, ax = plt.subplots(constrained_layout=True)
             lag_d = df_all.index[0]
@@ -475,7 +474,7 @@ def plot_importances(models_splits_lags, lag=0, keys=None, cutoff=6,
                 # take show up to cutoff most important features
                 df_pl = df_all.reindex(df_all.mean(0).abs().sort_values(
                                                                 ascending=False).index, axis=1)
-                                                                
+
             else:
                 df_pl = df_all.loc[:,[k for k in sort_index if k in keys]]
             # plot vs lags
@@ -497,8 +496,9 @@ def plot_importances(models_splits_lags, lag=0, keys=None, cutoff=6,
     return df_all
 
 
+
 def _get_importances(models_splits_lags, lag=0):
-                     
+
     #%%
     '''
     get feature importance for single lag
@@ -506,7 +506,8 @@ def _get_importances(models_splits_lags, lag=0):
 
     models_splits = models_splits_lags[f'lag_{lag}']
     feature_importances = {}
-    
+
+
     for splitkey, regressor in models_splits.items():
         all_keys = list(regressor.X_pred.columns[(regressor.X_pred.dtypes != bool)])
         if hasattr(regressor, 'feature_importances_'): # for GBR
@@ -532,7 +533,7 @@ def _get_importances(models_splits_lags, lag=0):
     for name, (importance, count) in feature_importances.items():
         names.append(name)
         importances.append(float(importance))
-    if hasattr(regressor, 'feature_importances_'): 
+    if hasattr(regressor, 'feature_importances_'):
         importances = np.array(importances) / np.sum(importances)
     elif hasattr(regressor, 'coef_'): # for logit
         importances = np.array(importances)
@@ -543,8 +544,8 @@ def _get_importances(models_splits_lags, lag=0):
     # if freq != 1:
     #     # the last day of the time mean bin is tfreq/2 later then the centerered day
     #     lags_tf = [l_tf- int(freq/2) if l_tf!=0 else 0 for l_tf in lags_tf]
-    df = pd.DataFrame([sorted(importances, reverse=True)], columns=names_order, 
-                      index=[lag])  
+    df = pd.DataFrame([sorted(importances, reverse=True)], columns=names_order,
+                      index=[lag])
     df = df.rename_axis(name_values, axis=1)
 
     #%%
@@ -865,11 +866,10 @@ def _get_synergy(GBR_models_split_lags, lag_i=0, plot_pairs=None,
     plt.figure()
     plt.imshow(df_pair.values, cmap=plt.cm.RdBu) ; plt.colorbar()
 #%%
-                             
 def _get_regularization(models_splits_lags, lag_i=0):
-    
+
     models_splits = models_splits_lags[f'lag_{lag_i}']
-    
+
     # np.array( (len(models_splits), )
     result_splits = []
     # best = []
@@ -879,8 +879,8 @@ def _get_regularization(models_splits_lags, lag_i=0):
         scores = models_splits[splitkey].scores_[1]
         Cs_format = ['{:.0E}'.format(v) for v in Cs_]
         df_ = pd.DataFrame(scores, columns=Cs_format)
-        df_ = df_.append(pd.Series(model.Cs_ == model.C_[0], 
-                             index=Cs_format, 
+        df_ = df_.append(pd.Series(model.Cs_ == model.C_[0],
+                             index=Cs_format,
                              dtype=bool),
                              ignore_index=True)
 
@@ -889,15 +889,15 @@ def _get_regularization(models_splits_lags, lag_i=0):
     df = pd.concat(result_splits, keys=range(len(models_splits)))
     df = df.rename_axis(models_splits[splitkey].scoring, axis=1)
     # df.rename_axis(models_splits[splitkey].C_, axis=0)
-    
+
     return df
 
 def plot_regularization(models_splits_lags, lag_i=0):
     #%%
     df = _get_regularization(models_splits_lags, lag_i=lag_i)
     n_spl = np.unique(df.index.get_level_values(0)).size
-    g = sns.FacetGrid(pd.DataFrame(range(n_spl), index=range(n_spl)), 
-                      col=0, col_wrap=2, aspect=1.5, 
+    g = sns.FacetGrid(pd.DataFrame(range(n_spl), index=range(n_spl)),
+                      col=0, col_wrap=2, aspect=1.5,
                       sharex=True, sharey=True)
 
     for i, ax in enumerate(g.axes):
@@ -907,22 +907,22 @@ def plot_regularization(models_splits_lags, lag_i=0):
         lw = np.array([1] * df_p.columns.size)
         lw[df.loc[i].iloc[-1] == 1.] = 3
         df_p.plot(cmap=plt.cm.Reds_r, kind='line',ax=ax,
-                       style=list(lines), 
+                       style=list(lines),
                        legend=False)
         if i == 0:
             ax.legend(fontsize=7, mode='expand')
         for i, l in enumerate(ax.lines):
             plt.setp(l, linewidth=lw[i])
-        
+
         ax.set_ylim(-.3, 0)
         ax.set_ylabel(df_p.columns.name)
-        ax.set_xlabel('LogitRegr CV folds')       
+        ax.set_xlabel('LogitRegr CV folds')
     g.fig.suptitle('Inverse Regularization strength (low is strong)', y=1.00)
-    
+
 # def _get_coef_logit(models_splits_lags, lag_i=0):
 #     #%%
 #     # models_splits = models_splits_lags[f'lag_{lag_i}']
-    
+
 #     # # np.array( (len(models_splits), )
 #     # result_splits = []
 #     # # best = []
@@ -930,7 +930,7 @@ def plot_regularization(models_splits_lags, lag_i=0):
 #     #     pass
 #     GBR_models_split = models_splits_lags[f'lag_{lag_i}']
 #     feature_importances = {}
-    
+
 #     for splitkey, regressor in GBR_models_split.items():
 #         all_keys = list(regressor.X_pred.columns[(regressor.X_pred.dtypes != bool)])
 #         if hasattr(regressor, 'feature_importances_'): # for GBR
@@ -945,13 +945,11 @@ def plot_regularization(models_splits_lags, lag_i=0):
 
 #     names, importances = [], []
 
-    
+
 #     for name, (importance, count) in feature_importances.items():
 
 #         names.append(name)
 #         importances.append(float(importance) / float(count))
-    
-
 #     importances = np.array(importances) / np.sum(importances)
 #     order = np.argsort(importances)
 #     names_order = [names[index] for index in order] ; names_order.reverse()
@@ -960,4 +958,5 @@ def plot_regularization(models_splits_lags, lag_i=0):
 #     # if freq != 1:
 #     #     # the last day of the time mean bin is tfreq/2 later then the centerered day
 #     #     lags_tf = [l_tf- int(freq/2) if l_tf!=0 else 0 for l_tf in lags_tf]
-#     df = pd.DataFrame([sorted(importances, reverse=True)], columns=names_order, index=[lag_i])      
+#     df = pd.DataFrame([sorted(importances, reverse=True)], columns=names_order, index=[lag_i])
+

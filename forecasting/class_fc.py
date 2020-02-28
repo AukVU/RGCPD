@@ -72,6 +72,7 @@ class fcev():
         self.dates_df  = self.df_data.loc[0].index.copy()
         self.precur_aggr = precur_aggr
         self.TV_aggr = TV_aggr
+
         self.splits  = self.df_data.index.levels[0]
         self.tfreq = (self.df_data.loc[0].index[1] - self.df_data.loc[0].index[0]).days
         
@@ -428,10 +429,12 @@ class fcev():
                             sharex=sharex, kwrgs=kwrgs)
         return
 
+
     def plot_feature_importances(self, model=None, lag=None, keys=None, cutoff=6):
         if model is None:
             model = [n[0] for n in self.stat_model_l][0]
         models_splits_lags = self.dict_models[model]
+
         if lag is None:
             lag = self.lags_i
         self.df_importance = stat_models.plot_importances(models_splits_lags, lag=lag,
@@ -446,6 +449,7 @@ class fcev():
 
 
 
+
     def plot_logit_regularization(self, lag_i=0):
         models = [m for m in self.dict_models.keys() if 'logitCV' in m]
         for m in models:
@@ -453,7 +457,6 @@ class fcev():
             stat_models.plot_regularization(models_splits_lags, lag_i=lag_i)
         
 
-    
     def _fit_model(self, stat_model=tuple, verbosity=0):
 
         #%%

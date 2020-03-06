@@ -13,12 +13,14 @@ from tigramite.pcmci import PCMCI
 from tigramite.independence_tests import ParCorr, GPDC, CMIknn, CMIsymb
 from tigramite.models import LinearMediation, Prediction
 
+""" Investigating Smaller effect size """
+
 np.random.seed(42)     # Fix random seed
 links_coeffs = {0: [((0, -1), 0.9), ((1, -1), -0.25)],
-                1: [((1, -1), 0.95), ((3, -1), 0.3)],
-                2: [((2, -1), 0.85), ((1, -2), 0.3), ((3, -3), 0.3)],
-                3: [((3, -1), 0.8)],
-                }
+            1: [((1, -1), 0.95), ((3, -1), 0.3)],
+            2: [((2, -1), 0.85), ((1, -2), 0.3), ((3, -3), 0.3)],
+            3: [((3, -1), 0.8)],
+            }
 T = 100     # time series length
 N = len(links_coeffs)
 tau_max = 5
@@ -26,14 +28,8 @@ realizations = 100
 alpha_level = 0.05
 
 var_names = [r'$Z$', r'$X$', r'$Y$', r'$W$']
-# # Define whole past
-# whole_past = {}
-# for j in range(N):
-#     whole_past[j] = [(var, -lag)
-#                          for var in range(N)
-#                          for lag in range(1, tau_max + 1)
-#                     ]
-def get_sig_links():
+def get_sig_links(T, N, tau_max, realizations, alpha_level):
+
     p_matrices = {'PCMCI':np.ones((realizations, N, N, tau_max+1)),
                   'FullCI':np.ones((realizations, N, N, tau_max+1))}
     val_matrices = {'PCMCI':np.zeros((realizations, N, N, tau_max+1)),
@@ -60,7 +56,7 @@ def get_sig_links():
                   'FullCI':val_matrices['FullCI'].mean(axis=0),}
     return sig_links, ave_val_matrices
 
-sig_links, ave_val_matrices = get_sig_links()
+# sig_links, ave_val_matrices = get_sig_links(T=T, N=N, tau_max=tau_max, realizations=realizations, alpha_level=alpha_level)
 # We estimate how often a link was detected at the given alpha_level and plot this fraction as the width of the links while the average effect size for each link is given as the color:
 # Showing detection power as width of links
 # min_sig = 0.2
@@ -85,3 +81,50 @@ sig_links, ave_val_matrices = get_sig_links()
 #               vmax_edges=vminmax,
 # )
 # plt.show()
+""" Investigating High Dimensionality """
+links_coeffs = {0: [((0, -1), 0.9), ((1, -1), -0.25)],
+                1: [((1, -1), 0.95), ((3, -1), 0.3)],
+                2: [((2, -1), 0.85), ((1, -2), 0.3), ((3, -3), 0.3)],
+                3: [((3, -1), 0.8)],
+                }
+T = 80     # time series length
+tau_max = 5
+realizations = 100
+alpha_level = 0.05
+n_variables = 9
+
+# Add independent autocorrelated variables
+for d in range(4, n_variables):
+    links_coeffs[d] = [((d, -1), 0.2 + np.random.rand()*0.7)]
+    
+var_names = [r'$Z$', r'$X$', r'$Y$', r'$W$'] + list(range(4, n_variables))
+
+N = len(links_coeffs)
+sig_links, ave_val_matrices = get_sig_links(T=T, N=N, tau_max=tau_max, realizations=realizations, alpha_level=alpha_level)
+
+# Showing detection power as width of links
+min_sig = 0.05
+vminmax = 0.5
+link_matrix = (sig_links['PCMCI'] > min_sig)
+tp.plot_graph(val_matrix=ave_val_matrices['PCMCI'],
+              link_matrix=link_matrix, 
+              link_width=sig_links['PCMCI'],
+             arrow_linewidth=70.,
+              vmin_edges=-vminmax,
+              vmax_edges=vminmax,
+              var_names = var_names,
+
+)
+link_matrix = (sig_links['FullCI'] > min_sig)
+tp.plot_graph(val_matrix=ave_val_matrices['FullCI'],
+              link_matrix=link_matrix, 
+              link_width=sig_links['FullCI'], 
+              link_colorbar_label='FullCI',
+              node_colorbar_label='auto-FullCI',
+             arrow_linewidth=70.,
+              vmin_edges=-vminmax,
+              vmax_edges=vminmax,
+             var_names = var_names,
+
+)
+plt.show()

@@ -30,6 +30,7 @@ def loop_train_test(df_data, path_txtoutput, tau_min=0, tau_max=1, pc_alpha=None
     
     
     pcmci_dict = {}
+    pcmci_results_dict = {}
     RV_mask = df_data['RV_mask']
     for s in range(splits.size):
         progress = 100 * (s+1) / splits.size
@@ -37,7 +38,11 @@ def loop_train_test(df_data, path_txtoutput, tau_min=0, tau_max=1, pc_alpha=None
         
         TrainIsTrue = df_data['TrainIsTrue'].loc[s]
         df_data_s = df_data.loc[s][TrainIsTrue.values]
-        var_names = list(df_data.columns[(df_data_s.dtypes != np.bool)])
+        df_data_s = df_data_s.dropna(axis=1, how='all')
+        if any(df_data_s.isna().values.flatten()):
+            print('Warnning: nans detected')
+#        print(np.unique(df_data_s.isna().values))
+        var_names = list(df_data_s.columns[(df_data_s.dtypes != np.bool)])
         df_data_s = df_data_s.loc[:,var_names]
         data = df_data_s.values
         data_mask = RV_mask.loc[s][TrainIsTrue.values].values
@@ -47,34 +52,10 @@ def loop_train_test(df_data, path_txtoutput, tau_min=0, tau_max=1, pc_alpha=None
                         max_combinations, max_conds_py, max_conds_px,  
                         verbosity)
         
-        pcmci_dict[s] = out # tuple containing pcmci, q_matrix, results
+        pcmci_dict[s] = out[0] # tuple containing pcmci, results dict
+        pcmci_results_dict[s] = out[1]
     #%%
-    return pcmci_dict
-
-def get_df_sum(pcmci_dict, alpha_level):
-    #%%
-    splits = np.array(list(pcmci_dict.keys()))
-    df_sum_s = np.zeros( (splits.size) , dtype=object)
-    
-    for s in range(splits.size):
-        
-        pcmci = pcmci_dict[s][0]
-        q_matrix = pcmci_dict[s][1]
-        results = pcmci_dict[s][2]
-        # returns all causal links, not just causal parents/precursors (of lag>0)
-        sig = return_sign_links(pcmci, pq_matrix=q_matrix,
-                                            val_matrix=results['val_matrix'],
-                                            alpha_level=alpha_level)
-
-        all_parents = sig['parents']
-    #    link_matrix = sig['link_matrix']
-    
-        links_RV = all_parents[0]
-    
-        df = bookkeeping_precursors(links_RV, pcmci.var_names)
-        df_sum_s[s] = df
-    df_sum = pd.concat(list(df_sum_s), keys= range(splits.size))
-    return df_sum
+    return pcmci_dict, pcmci_results_dict
 
     #%%
 def run_pcmci(data, data_mask, var_names, path_outsub2, s, tau_min=0, tau_max=1, 
@@ -127,10 +108,10 @@ def run_pcmci(data, data_mask, var_names, path_outsub2, s, tau_min=0, tau_max=1,
                               max_conds_px=max_conds_px,
                               max_conds_py=max_conds_py)
 
-    q_matrix = pcmci.get_corrected_pvalues(p_matrix=results['p_matrix'], fdr_method='fdr_bh')
+    results['q_matrix'] = pcmci.get_corrected_pvalues(p_matrix=results['p_matrix'], fdr_method='fdr_bh')
 
     pcmci.print_significant_links(p_matrix=results['p_matrix'],
-                                   q_matrix=q_matrix,
+                                   q_matrix=results['q_matrix'],
                                    val_matrix=results['val_matrix'],
                                    alpha_level=alpha_level)
     #%%
@@ -143,7 +124,42 @@ def run_pcmci(data, data_mask, var_names, path_outsub2, s, tau_min=0, tau_max=1,
         sys.stdout = orig_stdout
 
 
-    return pcmci, q_matrix, results
+    return pcmci, results
+
+def get_links_pcmci(pcmci_dict, pcmci_results_dict, alpha_level):
+    #%%
+    splits = np.array(list(pcmci_dict.keys()))
+    
+    parents_dict = {}
+    for s in range(splits.size):
+        
+        pcmci = pcmci_dict[s]
+        results = pcmci_results_dict[s]
+        # returns all causal links, not just causal parents/precursors (of lag>0)
+        sig = return_sign_links(pcmci, pq_matrix=results['q_matrix'],
+                                            val_matrix=results['val_matrix'],
+                                            alpha_level=alpha_level)
+
+        all_parents = sig['parents']
+    #    link_matrix = sig['link_matrix']
+    
+        links_RV = all_parents[0]
+        parents_dict[s] = links_RV, pcmci.var_names
+        
+    #%%
+    return parents_dict
+
+def get_df_sum(parents_dict):
+    splits = np.array(list(parents_dict.keys()))
+    df_sum_s = np.zeros( (splits.size) , dtype=object)
+    mapping_links_dict = {}
+    for s in range(splits.size):
+        links_RV, var_names = parents_dict[s] 
+        df, mapping_links = bookkeeping_precursors(links_RV, var_names)
+        df_sum_s[s] = df
+        mapping_links_dict[s] = mapping_links
+    df_sum = pd.concat(list(df_sum_s), keys= range(splits.size))
+    return df_sum, mapping_links_dict
 
 def return_sign_links(pc_class, pq_matrix, val_matrix,
                             alpha_level=0.05):
@@ -164,19 +180,28 @@ def return_sign_links(pc_class, pq_matrix, val_matrix,
 
 def bookkeeping_precursors(links_RV, var_names):
     #%%
+    # if links_RV[0][0] == 0: # index 0 should refer to RV_name
+    RV_name = var_names[0]
+    # else:
+        # RV_name = None
     var_names_ = var_names.copy()
-    links_RV = sorted(links_RV)
-    index = [n.split('..')[1] for n in var_names_[1:]] ; index.insert(0, var_names_[0])
-    link_names = [var_names_[l[0]].split('..')[1] if l[0] !=0 else var_names_[l[0]] for l in links_RV]
+    mapping_links = [(var_names_[l[0]],l[1]) for l in links_RV]
+    lin_RVsor = sorted(links_RV)
+    index = [n.split('..')[1] for n in var_names_[1:]] ; 
+    index.insert(0, var_names_[0])
+    link_names = [var_names_[l[0]].split('..')[1] if l[0] !=0 else var_names_[l[0]] for l in lin_RVsor]
 
     # check if two lags of same region and are tigr significant
-    idx_tigr = [l[0] for l in links_RV] ;
+    idx_tigr = [l[0] for l in lin_RVsor] ;
     var_names_ext = var_names_.copy()
     index_ext = index.copy()
     for r in np.unique(idx_tigr):
         # counting double indices (but with different lags)
         if idx_tigr.count(r) != 1:
-            double = var_names_[r].split('..')[1]
+            if var_names_[r] == RV_name:
+                double = var_names_[r].split('..')[0]
+            else:
+                double = var_names_[r].split('..')[1]
 #            print(double)
             idx = int(np.argwhere(np.array(index)==double)[0])
             # append each double to index for the dataframe
@@ -193,18 +218,19 @@ def bookkeeping_precursors(links_RV, var_names):
     # creating mask (True) of causal links
     mask_causal = np.array([True if i in link_names else False for i in index_ext])
     # retrieving lag of corr map
-    lag_corr_map = np.array([int(n.split('..')[0]) for n in var_names_ext[1:]]) ;
-    lag_corr_map = np.insert(lag_corr_map, 0, 0) # unofficial lag for TV
+    
+    TV_lag = np.repeat(0, var_names_ext.count(RV_name))
+    prec_corr_map = np.array([int(n.split('..')[0]) for n in var_names_ext if n != RV_name]) ;
+    lag_corr_map = np.insert(prec_corr_map, TV_lag, 0) # unofficial lag for TV
+
     # retrieving region number, corresponding to figures
-    region_number = np.array([int(n.split('..')[1]) for n in var_names_ext[1:]])
-    region_number = np.insert(region_number, 0, 0)
-#    # retrieving ?
-#    label = np.array([int(n[1].split('..')[1]) for n in var_names_ext[1:]])
-#    label = np.insert(label, 0, 0)
+    region_number = np.array([int(n.split('..')[1]) for n in var_names_ext if n != RV_name])
+    # unofficial region  number for TV
+    region_number = np.insert(region_number, TV_lag, 0) 
     # retrieving lag of tigramite link
     # all Tigr links, can include same region at multiple lags:
     # looping through all unique tigr var labels format {lag..var_name}
-    lag_tigr_map = {str(links_RV[i][1])+'..'+link_names[i]:links_RV[i][1] for i in range(len(link_names))}
+    lag_tigr_map = {str(lin_RVsor[i][1])+'..'+link_names[i]:lin_RVsor[i][1] for i in range(len(link_names))}
     sorted(lag_tigr_map, reverse=False)
     # fill in the nans where the var_name is not causal
     lag_tigr_ = index_ext.copy() ; track_idx = list(range(len(index_ext)))
@@ -218,9 +244,10 @@ def bookkeeping_precursors(links_RV, var_names):
     for i in track_idx:
         lag_tigr_[i] = np.nan
     lag_tigr_ = np.array(lag_tigr_)
+
     mask_causal = ~np.isnan(lag_tigr_)
 
-#    print(var.shape, lag_corr_map.shape, region_number.shape, mask_causal.shape, lag_caus.shape)
+    # print(var.shape, lag_corr_map.shape, region_number.shape, mask_causal.shape, lag_tigr_.shape)
 
     data = np.concatenate([lag_corr_map[None,:], region_number[None,:], var[None,:],
                             mask_causal[None,:], lag_tigr_[None,:]], axis=0)
@@ -230,8 +257,7 @@ def bookkeeping_precursors(links_RV, var_names):
     df = df.astype({'lag_corr':int,
                                'region_number':int, 'var':str, 'causal':bool, 'lag_tig':float})
     #%%
-    print("\n\n")
-    return df
+    return df, mapping_links
 
 
 ## =============================================================================
@@ -306,7 +332,7 @@ def bookkeeping_precursors(links_RV, var_names):
 #    return 2 * avg_earth_radius * asin(sqrt(d))
 
 
-def print_particular_region_new(links_RV, var_names, s, outdic_actors, map_proj, ex):
+def print_particular_region_new(links_RV, var_names, s, outdic_precur, map_proj, ex):
 
     #%%
     n_parents = len(links_RV)
@@ -332,7 +358,7 @@ def print_particular_region_new(links_RV, var_names, s, outdic_actors, map_proj,
 
 
 
-            actor = outdic_actors[var_name]
+            actor = outdic_precur[var_name]
             prec_labels = actor.prec_labels.sel(split=s)
 
             for_plt = prec_labels.where(prec_labels.values==according_number).sel(lag=corr_lag)
@@ -399,6 +425,7 @@ def plot_regs_xarray(for_plt):
         plotting_wrapper(for_plt.sel(lag=l), ex, filename, kwrgs=kwrgs)
     #%%
     return
+
 
 def plotting_wrapper(plotarr, ex, filename=None,  kwrgs=None):
     import os
@@ -599,5 +626,28 @@ def finalfigure(xrdata, file_name, kwrgs):
     #%%
     return
 
+def store_ts(df_data, df_sum, dict_ds, filename, outdic_precur, add_spatcov=True):
+    import find_precursors
+    import functions_pp
+    
+    
+    splits = df_data.index.levels[0]
+    if add_spatcov:
+        df_sp_s   = np.zeros( (splits.size) , dtype=object)
+        for s in splits:
+            df_split = df_data.loc[s]
+            df_sp_s[s] = find_precursors.get_spatcovs(dict_ds, df_split, s, outdic_precur, normalize=True)
 
+        df_sp = pd.concat(list(df_sp_s), keys= range(splits.size))
+        df_data_to_store = pd.merge(df_data, df_sp, left_index=True, right_index=True)
+        df_sum_to_store = find_precursors.add_sp_info(df_sum, df_sp)
+    else:
+        df_data_to_store = df_data
+        df_sum_to_store = df_sum
+
+    dict_of_dfs = {'df_data':df_data_to_store, 'df_sum':df_sum_to_store}
+
+    functions_pp.store_hdf_df(dict_of_dfs, filename)
+    print('Data stored in \n{}'.format(filename))
+    return
 

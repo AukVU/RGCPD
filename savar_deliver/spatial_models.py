@@ -1,7 +1,7 @@
 # This module contains spatio-temporal models
 
 import numpy as np
-from functions import make_dir, create_random_mode, check_stability
+from functions import make_dir, create_random_mode, check_stability#, is_pos_def
 from c_functions import create_graph, compute_linear_savar, generate_cov_matrix, compute_nonlinear_linear_savar, \
     find_max_lag
 from math import pi, sin
@@ -12,21 +12,24 @@ class savarModel:
     """
     This class holds the savar model with all the information
     """
+
     def __init__(self, links_coeffs: dict, modes_weights: np.ndarray, ny: int, nx: int, T: int,
-                 spatial_covariance: float, spatial_factor: float,  noise_weights: np.ndarray = None,
-                 random_noise: tuple = (0, 1), transient: int = 200, forcing: tuple = None,  n_variables: int = 3,
-                 season: tuple = None,  season_weight: np.ndarray = None, lineartiy: str = "linear",
-                 w_t: bool = False, verbose: bool = True) -> None:
+                 spatial_covariance: float, noise_weights: np.ndarray = None,
+                 variance_noise: float = 1, covariance_noise_method: str = "geometric_mean",
+                 max_loop_noise: int = 10, random_noise: tuple = (0, 1), transient: int = 200, forcing: tuple = None,
+                 n_variables: int = 3, season: tuple = None, season_weight: np.ndarray = None,
+                 lineartiy: str = "linear", w_t: bool = False, verbose: bool = True) -> None:
 
         """
         :type model_des_uniform:
         :param links_coeffs:
         :param weights:
+        :param variance_noise dets de value of the diagonal og the correlation noise \Sigma
+        :param Defines how to map from noise weights to \sigma.
         :param ny (L): ny, number of longitudinal grid points
         :param nx (K): nx: number of latitudinal grid points
         :param T: number of time-steps of the model
         :param spatial_covariance: used to create the noise covariance. Decrease it if is not pos. semidef
-        :param spatial_factor: scalar that reduce the effect of the coefficient
         :param forcing: (forcing weight matrix: np.ndarray(n_var, ny, nx), forcing at short term: int, forcing at long term: int,
         time-step till F = f_1: int, time-step that whcn f = f_2: int)
         :param n_variables: how many climate variables are there, asssuming that they are longitudinally concatenated
@@ -41,12 +44,14 @@ class savarModel:
         self.links_coeffs = links_coeffs
         self.noise_weights = noise_weights
         self.random_noise = random_noise
+        self.max_loop_noise = max_loop_noise
         self.modes_weights = modes_weights
+        self.variance_noise = variance_noise
+        self.covariance_noise_method = covariance_noise_method
         self.ny = ny
         self.nx = nx
         self.T = T
         self.spatial_covariance = spatial_covariance
-        self.spatial_factor = spatial_factor
         self.transient = transient
         self.n_variables = n_variables
         self.verbose = verbose
@@ -56,7 +61,6 @@ class savarModel:
         self.w_t = w_t
         if self.w_t:
             self.transient = 0
-
 
         # Data
         self.data_field = None
@@ -100,13 +104,18 @@ class savarModel:
 
         # Compute data_field \in R^(T+transient, nx, ny)
         if self.noise_weights is not None:
+            # Covariance matrix
             cov = generate_cov_matrix(noise_weights=self.noise_weights, spatial_covariance=self.spatial_covariance,
-                                      use_spatial_cov=True)  # Covariance matrix
-            self.cov=cov
-            data_field = np.random.multivariate_normal(mean=np.zeros(ny * nx), cov=cov, size=T+transient)
+                                      variance=self.variance_noise, method=self.covariance_noise_method)
+
+            self.cov = cov
+
+            data_field = np.random.multivariate_normal(mean=np.zeros(ny * nx), cov=cov, size=T + transient,
+                                                       check_valid="ignore")
         else:
             noise_mean, noise_variance = self.random_noise
-            data_field = (np.random.rand(ny*nx*(T+transient)).reshape((T+transient, nx*ny))*noise_variance)+noise_mean
+            data_field = (np.random.rand(ny * nx * (T + transient)).reshape(
+                (T + transient, nx * ny)) * noise_variance) + noise_mean
 
         if forcing:
             if self.verbose:
@@ -116,7 +125,8 @@ class savarModel:
                                     np.repeat([f_2], T - f_time_2))).reshape((1, 1, T + transient))
 
             # We modify the data_field to ad all the forcing (season an external)
-            external_forcing_field = (w_f.reshape((n_var, ny*nx, 1)) * trend).sum(axis=0)  # \in R^(nx*ny, T+transient)
+            external_forcing_field = (w_f.reshape((n_var, ny * nx, 1)) * trend).sum(
+                axis=0)  # \in R^(nx*ny, T+transient)
 
         if self.season is not None:
             if self.verbose:
@@ -124,11 +134,12 @@ class savarModel:
             # A*sin((2pi/lambda)*x) A = amplitude, lambda = period
             amplitude, period = self.season
             seasonal_trend = np.asarray([amplitude * sin((2 * pi / period) * x)
-                                        for x in range(T + transient)]).reshape((1, 1, T + transient))
+                                         for x in range(T + transient)]).reshape((1, 1, T + transient))
             # use seasonal weight if it is none, then equal for each grid point
-            season_weight = np.ones((nx*ny)) if self.season_weight is \
-                                                       None else self.season_weight.reshape(nx*ny)
-            seasonal_forcing_field = (season_weight.reshape(ny*nx, 1) * seasonal_trend).reshape(nx*ny, T+transient)
+            season_weight = np.ones((nx * ny)) if self.season_weight is \
+                                                  None else self.season_weight.reshape(nx * ny)
+            seasonal_forcing_field = (season_weight.reshape(ny * nx, 1) * seasonal_trend).reshape(nx * ny,
+                                                                                                  T + transient)
 
             # TODO: comprobar dimensions abans de sumar!!!!
 
@@ -146,11 +157,14 @@ class savarModel:
             print("Compute values in time...")
 
         if not self.w_t:  # Not dinamical W
-            data_field, network = compute_linear_savar(data_field, self.modes_weights.reshape(n_var, nx*ny).transpose(),
+            data_field, network = compute_linear_savar(data_field,
+                                                       self.modes_weights.reshape(n_var, nx * ny).transpose(),
                                                        graph, w_time_dependant=False)
         else:
             data_field, network = compute_linear_savar(data_field_noise=data_field,
-                                                       weights=np.transpose(self.modes_weights.reshape((T, n_var, nx*ny)), axes=(0, 2, 1)),
+                                                       weights=np.transpose(
+                                                           self.modes_weights.reshape((T, n_var, nx * ny)),
+                                                           axes=(0, 2, 1)),
                                                        graph=graph, w_time_dependant=True)
 
         if self.verbose:
@@ -191,12 +205,17 @@ class savarModel:
 
         # Compute data_field \in R^(T+transient, nx, ny)
         if self.noise_weights is not None:
+            # Covariance matrix
             cov = generate_cov_matrix(noise_weights=self.noise_weights, spatial_covariance=self.spatial_covariance,
-                                      use_spatial_cov=True)  # Covariance matrix
-            data_field = np.random.multivariate_normal(mean=np.zeros(ny * nx), cov=cov, size=T+transient)
+                                      variance=self.variance_noise, method=self.covariance_noise_method)
+            self.cov = cov
+
+            data_field = np.random.multivariate_normal(mean=np.zeros(ny * nx), cov=cov, size=T + transient,
+                                                       check_valid="ignore")
         else:
             noise_mean, noise_variance = self.random_noise
-            data_field = (np.random.rand(ny*nx*(T+transient)).reshape((T+transient, nx*ny))*noise_variance)+noise_mean
+            data_field = (np.random.rand(ny * nx * (T + transient)).reshape(
+                (T + transient, nx * ny)) * noise_variance) + noise_mean
 
         if forcing:
             if self.verbose:
@@ -206,7 +225,8 @@ class savarModel:
                                     np.repeat([f_2], T - f_time_2))).reshape((1, 1, T + transient))
 
             # We modify the data_field to ad all the forcing (season an external)
-            external_forcing_field = (w_f.reshape((n_var, ny*nx, 1)) * trend).sum(axis=0)  # \in R^(nx*ny, T+transient)
+            external_forcing_field = (w_f.reshape((n_var, ny * nx, 1)) * trend).sum(
+                axis=0)  # \in R^(nx*ny, T+transient)
 
         if self.season is not None:
             if self.verbose:
@@ -214,11 +234,12 @@ class savarModel:
             # A*sin((2pi/lambda)*x) A = amplitude, lambda = period
             amplitude, period = self.season
             seasonal_trend = np.asarray([amplitude * sin((2 * pi / period) * x)
-                                        for x in range(T + transient)]).reshape((1, 1, T + transient))
+                                         for x in range(T + transient)]).reshape((1, 1, T + transient))
             # use seasonal weight if it is none, then equal for each grid point
-            season_weight = np.ones((nx*ny)) if self.season_weight is \
-                                                       None else self.season_weight.reshape(nx*ny)
-            seasonal_forcing_field = (season_weight.reshape(ny*nx, 1) * seasonal_trend).reshape(nx*ny, T+transient)
+            season_weight = np.ones((nx * ny)) if self.season_weight is \
+                                                  None else self.season_weight.reshape(nx * ny)
+            seasonal_forcing_field = (season_weight.reshape(ny * nx, 1) * seasonal_trend).reshape(nx * ny,
+                                                                                                  T + transient)
 
             # TODO: comprobar dimensions abans de sumar!!!!
 
@@ -235,8 +256,9 @@ class savarModel:
         if self.verbose:
             print("Compute values in time...")
 
-        data_field, network = compute_nonlinear_linear_savar(data_field, self.modes_weights.reshape(n_var, nx*ny).transpose(),
-                                                   self.links_coeffs)
+        data_field, network = compute_nonlinear_linear_savar(data_field,
+                                                             self.modes_weights.reshape(n_var, nx * ny).transpose(),
+                                                             self.links_coeffs)
 
         if self.verbose:
             print("Done...")

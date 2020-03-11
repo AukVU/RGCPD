@@ -149,36 +149,52 @@ cdef compute_next_time_step(np.ndarray network_data, np.ndarray graph):
 
 
 def generate_cov_matrix(np.ndarray noise_weights, float spatial_covariance,
-                        bint use_spatial_cov=False, bint verbose = False):
+                        float variance= 1, str method = "geometric_mean"):
 
     """
-    :param use_spatial_cov: if true, then spatial cov is used instead of noise matrix
     :param noise_weights:
-    :param spatial_covariance: 
-    :return: 
+    :param spatial_covariance:
+    :return:
     """
 
     # Basic definitions
+    cdef Py_ssize_t N = noise_weights.shape[0]
     cdef Py_ssize_t L = noise_weights.shape[1]
     cdef Py_ssize_t K = noise_weights.shape[2]
-    cdef np.ndarray[DTYPE_t, ndim=2] cov = np.zeros((L*K, K*L), dtype=DTYPE)  # C style ordered
+
+    if method not in ("geometric_mean", "equal_noise"):
+        raise Exception("method must be geometric_mean or equal_noise")
+
+    # Define matrices used
+    cdef np.ndarray[DTYPE_t, ndim=2] cov
+    cov = np.zeros((L*K, K*L), dtype=DTYPE)
+
+    cdef np.ndarray[DTYPE_t, ndim=1] cov_flat
+    cov_flat = np.zeros((L*K*K*L), dtype=DTYPE)
+
+    cdef np.ndarray[DTYPE_t, ndim=1] flat_weight
 
     # Fill de related areas according to noise weights
     cdef int i
-    cdef np.ndarray[DTYPE_t, ndim=2] n
-    for n in noise_weights:
-        nonzero = n.reshape(L * K).nonzero()[0]
-        for i in nonzero:
-            if not use_spatial_cov:
-                cov[i, nonzero] = spatial_covariance
+    cdef np.ndarray n
+
+    if method == "geometric_mean":
+        for n in noise_weights:
+            flat_weight = n.reshape(L*K)
+            print(flat_weight.max())
+            cov_flat += np.sqrt(np.kron(flat_weight,flat_weight))/N
+        cov = cov_flat.reshape((L*K, K*L))*spatial_covariance
+
+    if method == "equal_noise":
+        for n in noise_weights:
+            nonzero = n.reshape(L * K).nonzero()[0]
+            # print(np.c_[nonzero].shape)
+            for i in nonzero:
                 # same factor for all cells that influence other cells within same weight-block
-            if use_spatial_cov:
-                if verbose:
-                    print("Using spatial covariance")
-                cov[i, nonzero] = n.reshape(L*K)[i]*spatial_covariance
+                cov[i, nonzero] = spatial_covariance
 
     # Set diagonal to 1
-    np.fill_diagonal(cov, 1)
+    np.fill_diagonal(cov, variance)
 
     return cov
 

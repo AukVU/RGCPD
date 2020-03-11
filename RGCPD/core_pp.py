@@ -14,18 +14,21 @@ import itertools
 from dateutil.relativedelta import relativedelta as date_dt
 flatten = lambda l: list(set([item for sublist in l for item in sublist]))
 flatten = lambda l: list(itertools.chain.from_iterable(l))
+from typing import Union
 
 def get_oneyr(datetime):
         return datetime.where(datetime.year==datetime.year[0]).dropna()
 
 
 
-def import_ds_lazy(filename, loadleap=False, seldates=None, selbox=None, 
-                   format_lon='east_west', var=None):
+def import_ds_lazy(filename, loadleap=False, 
+                   seldates: Union[tuple, pd.core.indexes.datetimes.DatetimeIndex]=None, 
+                   selbox: Union[list, tuple]=None, format_lon='only_east', var=None):
+                   
     '''
     selbox has format of (lon_min, lon_max, lat_min, lat_max)
-    # in format east_west
-    # test selbox assumes [west_lon, east_lon, south_lat, north_lat]
+    # in format only_east 
+    # selbox assumes [lowest_east_lon, highest_east_lon, south_lat, north_lat]
     '''
     
     ds = xr.open_dataset(filename, decode_cf=True, decode_coords=True, decode_times=False)
@@ -67,7 +70,7 @@ def import_ds_lazy(filename, loadleap=False, seldates=None, selbox=None,
 #        ds = ds.sortby('latitude')
 
     # get dates
-    if 'time' in ds.dims:
+    if 'time' in ds.squeeze().dims:
         from netCDF4 import num2date
         numtime = ds['time']
         dates = num2date(numtime, units=numtime.units, calendar=numtime.attrs['calendar'])
@@ -455,7 +458,6 @@ def get_subdates(dates, start_end_date, start_end_year=None, lpyr=False):
     return datessubset
 
 #%%
-
 
 
 if __name__ == '__main__':

@@ -36,20 +36,20 @@ def extend_longitude(data):
     return plottable
 
 def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
-                   col_dim='lag', clim='relaxed', hspace=-0.6, wspace=0.2,
+                   col_dim='lag', clim='relaxed', hspace=-0.4, wspace=0.01,
                    size=2.5, cbar_vert=-0.01, units='units', cmap=None,
                    clevels=None, cticks_center=None, title=None,
                    drawbox=None, subtitles=None, zoomregion=None,
-                   lat_labels=True):
+                   lat_labels=True, aspect=None):
     '''
     zoombox = tuple(east_lon, west_lon, south_lat, north_lat)
     '''
     #%%
     # default parameters
-    # row_dim='split'; col_dim='lag'; clim='relaxed'; hspace=-0.6;
-    # size=2.5; cbar_vert=-0.01; units='units'; cmap=None;
-    # clevels=None; cticks_center=None; map_proj = None ; wspace=.0
-    # drawbox=None; subtitles=None; lat_labels=True;
+    # mask_xr=None ; row_dim='split'; col_dim='lag'; clim='relaxed'; 
+    # size=2.5; cbar_vert=-0.01; units='units'; cmap=None; hspace=-0.6; 
+    # clevels=None; cticks_center=None; map_proj=None ; wspace=.0
+    # drawbox=None; subtitles=None; title=None; lat_labels=True; zoomregion=None
 
 
 
@@ -83,11 +83,13 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
     lat = plot_xr.latitude
     lon = plot_xr.longitude
     zonal_width = abs(lon[-1] - lon[0]).values
-
+    if aspect is None:
+        aspect = (lon.size) / lat.size 
+    
 
     g = xr.plot.FacetGrid(plot_xr, col='col', row='row', subplot_kws={'projection': map_proj},
                       sharex=True, sharey=True,
-                      aspect= (lon.size) / lat.size, size=size)
+                      aspect=aspect, size=size)
     figheight = g.fig.get_figheight()
 
     # =============================================================================
@@ -166,13 +168,13 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
                                           subplot_kws={'projection': map_proj}, colors=['black'],
                                           linewidths=np.round(zonal_width/150, 1)+0.3, levels=[float(vmin),float(vmax)],
                                           add_colorbar=False)
-#                try:
-#                    im = plotdata.plot.contourf(ax=g.axes[row,col], transform=ccrs.PlateCarree(),
-#                                        center=0,
-#                                         levels=clevels, cmap=cmap,
-#                                         subplot_kws={'projection':map_proj},add_colorbar=False)
-#                except ValueError:
-#                    print('could not draw contourf, shifting to pcolormesh')
+        #                try:
+        #                    im = plotdata.plot.contourf(ax=g.axes[row,col], transform=ccrs.PlateCarree(),
+        #                                        center=0,
+        #                                         levels=clevels, cmap=cmap,
+        #                                         subplot_kws={'projection':map_proj},add_colorbar=False)
+        #                except ValueError:
+        #                    print('could not draw contourf, shifting to pcolormesh')
 
             # if no signifcant regions, still plot corr values, but the causal plot must remain empty
             if mask_xr is None or all_masked==False or (all_masked and 'tigr' not in str(c_label)):
@@ -245,8 +247,8 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
             if corr_xr.name is not None:
                 if corr_xr.name[:3] == 'sst':
                     g.axes[row,col].add_feature(cfeature.LAND, facecolor='grey', alpha=0.3)
-#            if row == rows.size-1:
-#                last_ax = g.axes[row,col]
+    #            if row == rows.size-1:
+    #                last_ax = g.axes[row,col]
     # lay out settings
 
     plt.tight_layout(pad=1.1-0.02*rows.size, h_pad=None, w_pad=None, rect=None)
@@ -255,7 +257,7 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
     height = g.axes[-1,0].get_position().height / 10
     bottom_ysub = (figheight/40)/(rows.size*2) + cbar_vert
 
-#    bottom_ysub = last_ax.get_position(original=False).bounds[1] # bottom
+    #    bottom_ysub = last_ax.get_position(original=False).bounds[1] # bottom
 
     cbar_ax = g.fig.add_axes([0.25, bottom_ysub,
                               0.5, height]) #[left, bottom, width, height]
@@ -287,7 +289,7 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
     if title is not None:
         g.fig.suptitle(title)
 
-    print("\n")
+    # print("\n")
 
 
     #%%
@@ -300,7 +302,11 @@ def causal_reg_to_xarray(RV_name, df_sum, list_MI):
     Returns list_ds to keep the original dimensions
     '''
 #    outdic_actors_c = outdic_actors.copy()
-    df_c = df_sum.loc[ df_sum['causal']==True ]
+    splits = df_sum.index.levels[0]
+    # only plot regions which were causal in more then 50% of splits
+    df_c = df_sum.loc[ df_sum['causal'] ]
+    # # only plot regions which were causal in more then 50% of splits
+    # df_c = df_sum.loc[ df_sum['count'] > splits.size/2]
     # remove response variable if the ac is a causal link
     splits = df_sum.index.levels[0]
     for s in splits:
@@ -313,14 +319,14 @@ def causal_reg_to_xarray(RV_name, df_sum, list_MI):
 
     # spatial_vars = outdic_actors.keys()
     var_rel_sizes = {i:precur.area_grid.sum() for i,precur in enumerate(list_MI)}
-    sorted_sizes = sorted(var_rel_sizes.items(), key=lambda kv: kv[1], reverse=True)
+    sorted_sizes = sorted(var_rel_sizes.items(), key=lambda kv: kv[1], reverse=False)
     var_large_to_small = [s[0] for s in sorted_sizes]
 
 
 
     def apply_new_mask(new_mask, label_tig, corr_xr, corr_tig):
-#        wghts_splits = np.array(new_mask, dtype=int).sum(0)
-#        wghts_splits = wghts_splits / wghts_splits.max()
+        # wghts_splits = np.array(new_mask, dtype=int).sum(0)
+        # wghts_splits = wghts_splits / wghts_splits.max()
         label_tig.sel(lag=lag_cor).values[~new_mask] = np.nan
         corr_tig.sel(lag=lag_cor).values[~new_mask] = np.nan
         # Old! 11-11-19 - Tig: apply weights and take mean over splits
@@ -337,24 +343,36 @@ def causal_reg_to_xarray(RV_name, df_sum, list_MI):
         precur = list_MI[idx]
         var = precur.name
         ds_var = xr.Dataset()
-        regs_c = df_c.loc[ df_c['var'] == var ]
+        regs_c = df_c.loc[ df_c['var'] == var ].copy()
         
         label_tig = precur.prec_labels.copy()
+        # if show spatcov of var was used: convert all labels to one
+        if regs_c.size==0:
+            regs_c = df_c.loc[ df_c['var'] == var+'_sp' ].copy()
+            if regs_c.index.size <= splits.size:
+                # only spatcov is available:
+                label_tig = label_tig.where(np.isnan(label_tig), other=1.)
+                regs_c['region_number'] += 1
         corr_tig = precur.corr_xr.copy()
         corr_xr  = precur.corr_xr.copy()
-        if df_c.loc[ df_c['var'] == var ].size != 0:
+        if regs_c.size != 0:
             # if causal regions exist:
             for lag_cor in label_tig.lag.values:
 
                 var_tig = label_tig.sel(lag=lag_cor)
                 for lag_t in np.unique(regs_c['lag_tig']):
-                    reg_c_l = regs_c.loc[ regs_c['lag_tig'] == lag_t]
-                    labels = list(reg_c_l.region_number.values)
+                    reg_c_l = regs_c.loc[ regs_c['lag_tig'] == lag_t].copy()
+                    
+                    
 
                     new_mask = np.zeros( shape=var_tig.shape, dtype=bool)
-
-                    for l in labels:
-                        new_mask[var_tig.values == l] = True
+                    for s in splits.values:
+                        try:
+                            labels = list(reg_c_l.loc[s].region_number.values)
+                        except:
+                            labels = []
+                        for l in labels:
+                            new_mask[s][var_tig[s].values == l] = True
 
                 out = apply_new_mask(new_mask, label_tig, corr_xr, corr_tig)
                 label_tig, corr_xr, corr_tig = out
@@ -379,7 +397,7 @@ def causal_reg_to_xarray(RV_name, df_sum, list_MI):
     return dict_ds
 
 def plot_labels_vars_splits(dict_ds, df_sum, map_proj, figpath, paramsstr, RV_name,
-                            filetype='.pdf', mean_splits=True):
+                            filetype='.pdf', mean_splits=True, kwrgs_plot={}):
     #%%
     # =============================================================================
     print('\nPlotting all fields significant at alpha_level_tig, while conditioning on parents'
@@ -416,11 +434,13 @@ def plot_labels_vars_splits(dict_ds, df_sum, map_proj, figpath, paramsstr, RV_na
                 f_name = '{}_{}_vs_{}_labels'.format(paramsstr, RV_name, var) + filetype
 
             filepath = os.path.join(figpath, f_name)
-            plot_labels_RGCPD(ds, df_c, var, lag, map_proj, filepath, mean_splits)
+            plot_labels_RGCPD(ds, df_c, var, lag, map_proj, filepath, 
+                              mean_splits, kwrgs_plot)
     #%%
     return
 
-def plot_labels_RGCPD(ds, df_c, var, lag, map_proj, filepath, mean_splits=True):
+def plot_labels_RGCPD(ds, df_c, var, lag, map_proj, filepath, 
+                      mean_splits=True, kwrgs_plot={}):
     #%%
     ds_l = ds.sel(lag=lag)
     splits = ds.split
@@ -470,7 +490,7 @@ def plot_labels_RGCPD(ds, df_c, var, lag, map_proj, filepath, mean_splits=True):
     else:
         kwrgs_labels['cbar_vert'] = -0.025
 
-
+    kwrgs_labels.update(kwrgs_plot) # add and overwrite manual kwrgs
     if np.isnan(prec_labels.values).all() == False:
 
         plot_corr_maps(prec_labels,
@@ -514,7 +534,7 @@ def plot_labels_RGCPD(ds, df_c, var, lag, map_proj, filepath, mean_splits=True):
     return
 
 def plot_corr_vars_splits(dict_ds, df_sum, map_proj, figpath, paramsstr, RV_name,
-                          filetype='.pdf', mean_splits=True):
+                          filetype='.pdf', mean_splits=True, kwrgs_plot={}):
     #%%
     # =============================================================================
     print('\nPlotting all fields significant at alpha_level_tig, while conditioning on parents'
@@ -546,7 +566,8 @@ def plot_corr_vars_splits(dict_ds, df_sum, map_proj, figpath, paramsstr, RV_name
             else:
                 f_name = '{}_{}_vs_{}_tigr_corr'.format(paramsstr, RV_name, var) + filetype
             filepath = os.path.join(figpath, f_name)
-            plot_corr_regions(ds, df_c, var, lag, map_proj, filepath, mean_splits)
+            plot_corr_regions(ds, df_c, var, lag, map_proj, filepath, 
+                              mean_splits, kwrgs_plot)
     #%%
     return
 
@@ -584,7 +605,8 @@ def plot_labels(prec_labels, cbar_vert=None, col_dim='lag', row_dim='split',
     plot_corr_maps(xrlabels, col_dim=col_dim, row_dim=row_dim, 
                    hspace=hspace, wspace=wspace, **kwrgs_labels)
 
-def plot_corr_regions(ds, df_c, var, lag, map_proj, filepath, mean_splits=True):
+def plot_corr_regions(ds, df_c, var, lag, map_proj, filepath, 
+                      mean_splits=True, kwrgs_plot={}):
     #%%
     ds_l = ds.sel(lag=lag)
     splits = ds.split
@@ -600,8 +622,13 @@ def plot_corr_regions(ds, df_c, var, lag, map_proj, filepath, mean_splits=True):
             mask = (wgts_splits > 0.5).astype('bool')
             corr_splits = ds_l[var+'_'+c[0]]
             corr_mean = corr_splits.mean(dim='split')
-#            list_xr.append(corr_mean)
-            list_xr.append(corr_mean.where(mask))
+            if all(mask.values.flatten()==False) and c[0] == 'corr':
+                # if no regions significant in corr map step:
+                # do not mask 
+                corr_mean = corr_mean
+            else:
+                corr_mean = corr_mean.where(mask)
+            list_xr.append(corr_mean)
             list_xr_m.append(mask)
     else:
         for c in columns:
@@ -631,6 +658,7 @@ def plot_corr_regions(ds, df_c, var, lag, map_proj, filepath, mean_splits=True):
 
         kwrgs = {'cbar_vert':cbar_vert, 'subtitles':subtitles,
                  'units':'Corr Coefficient'}
+        kwrgs.update(kwrgs_plot) # add and overwrite manual kwrgs
         plot_corr_maps(corr_xr, mask_xr, map_proj, **kwrgs)
 
         plt.savefig(filepath, bbox_inches='tight')

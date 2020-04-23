@@ -72,11 +72,6 @@ class fcev():
         self.dates_df  = self.df_data.loc[0].index.copy()
         self.precur_aggr = precur_aggr
         self.TV_aggr = TV_aggr
-<<<<<<< HEAD:RGCPD/func_fc.py
-
-
-=======
->>>>>>> develop:forecasting/class_fc.py
         self.splits  = self.df_data.index.levels[0]
         self.tfreq = (self.df_data.loc[0].index[1] - self.df_data.loc[0].index[0]).days
         
@@ -433,21 +428,10 @@ class fcev():
                             sharex=sharex, kwrgs=kwrgs)
         return
 
-<<<<<<< HEAD:RGCPD/func_fc.py
-
-    def plot_freq_year(self):
-        import valid_plots as df_plots
-        df_plots.plot_freq_per_yr(self.TV)
-
-    def plot_GBR_feature_importances(self, lag=None, keys=None, cutoff=6):
-        model = [n[0] for n in self.stat_model_l if n[0][:2]=='GB'][0]
-        GBR_models_split_lags = self.dict_models[model]
-=======
     def plot_feature_importances(self, model=None, lag=None, keys=None, cutoff=6):
         if model is None:
             model = [n[0] for n in self.stat_model_l][0]
         models_splits_lags = self.dict_models[model]
->>>>>>> develop:forecasting/class_fc.py
         if lag is None:
             lag = self.lags_i
         self.df_importance = stat_models.plot_importances(models_splits_lags, lag=lag,
@@ -462,8 +446,6 @@ class fcev():
 
 
 
-<<<<<<< HEAD:RGCPD/func_fc.py
-=======
     def plot_logit_regularization(self, lag_i=0):
         models = [m for m in self.dict_models.keys() if 'logitCV' in m]
         for m in models:
@@ -472,7 +454,6 @@ class fcev():
         
 
     
->>>>>>> develop:forecasting/class_fc.py
     def _fit_model(self, stat_model=tuple, verbosity=0):
 
         #%%
@@ -777,11 +758,7 @@ def prepare_data(y_ts, df_split, lag_i=int, dates_tobin=None,
 
 
     df_prec = df_prec[x_keys]
-<<<<<<< HEAD:RGCPD/func_fc.py
-
-=======
     #%%
->>>>>>> develop:forecasting/class_fc.py
     # =============================================================================
     # Normalize data using datesRV or all training data in dataframe
     # =============================================================================

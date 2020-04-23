@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
 import sys, os, inspect
+from typing import List, Tuple, Union
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
 subdates_dir = os.path.join(main_dir, 'RGCPD/')
+fc_dir = os.path.join(main_dir, 'forecasting/')
 
 if main_dir not in sys.path:
     sys.path.append(main_dir)
     sys.path.append(subdates_dir)
+    sys.path.append(fc_dir)
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,6 +28,7 @@ import tables
 import h5py
 from forecasting import *
 from statsmodels.tsa import stattools 
+import core_pp
 from core_pp import get_subdates
 
 
@@ -83,9 +88,7 @@ class DataFrameAnalysis:
         # return self.apply_concat_series(df, functions, arg=args)
         raise NotImplementedError
     
-    def timeseries(self, df_serie, time_steps=None, select_years=None):
-        if isinstance(df_serie.index, pd.core.indexes.datetimes.DatetimeIndex):
-            date_time = df_serie.index 
+    def subset_series(self, df_serie, time_steps=None, select_years: Union[int, list] = None):
         if time_steps == None:
             _, conf_intval = self.apply_concat_series(df_serie, self.autocorrelation_stats_meth)
             conf_low = [np.where(conf_intval[i][:, 0] < 0)[0] for i in range(len(conf_intval))]
@@ -95,14 +98,25 @@ class DataFrameAnalysis:
                     numb_times[i].append(idx + 1 - conf_low[i][0])
             cut_off = [conf_low[i][np.where(np.array(numb_times[i]) == 1)][0] for i in range(len(conf_low))]
             time_steps = [20 * i for i in cut_off]
-            y_hat = [df_serie.iloc[:i] for i in time_steps]
+            if hasattr(df_serie.index, 'levels'):
+                serie = [df_serie.iloc[:step,i] for i, step in enumerate(time_steps)]
+            serie = [df_serie.iloc[:i] for i in time_steps]
         else:
-            y_hat = [df_serie.iloc[:i] for i in time_steps]
+            if hasattr(df_serie.index, 'levels'):
+                time_steps = [time_steps] * df_serie.columns.size
+                serie = [df_serie.iloc[:step, i] for i, step in enumerate(time_steps])
+            serie = [df_serie.iloc[:i] for i in time_steps]
 
-        if select_years != None and not isinstance(select_years, list):
-            date_time = self.get_one_year(df_serie, *list(select_years))
-            y_hat = df_serie.iloc[date_time]
-        # return y_hat.index, y_hat
+        if select_years != None:
+            if not isinstance(select_years, list):
+                select_years = [select_years]
+             if hasattr(df_serie.index, 'levels'):
+                date_time = self.get_one_year(df_serie.index, *(select_years))
+                serie = [df_serie.loc[date_time, col] for col in df_seri.columns]
+                return serie
+            date_time = self.get_one_year(df_serie, *(select_years))
+            serie = df_serie.iloc[date_time]
+        return serie
 
     def spectrum(self, y, methods):
         # TODO Fix the try except logic here, freq_dframe gets changed twice.
@@ -305,9 +319,9 @@ class VisualizeAnalysis:
             return plt.subplots(constrained_layout=True)
         else:
             if col % self.col_wrap == 0:
-                return plt.subplots(int(col/self.col_wrap),col, constrained_layout=True)
+                return plt.subplots(int(col/self.col_wrap),self.col_wrap, constrained_layout=True)
             else:
-                return plt.subplots(int(col/self.col_wrap) + 1, col, constrained_layout=True)
+                return plt.subplots(int(col/self.col_wrap) + 1, self.col_wrap, constrained_layout=True)
 
     def subplots_fig_settings(self, df):
         row = self._column_wrap(df)
@@ -321,7 +335,7 @@ class VisualizeAnalysis:
         df.plot(subplots=True,  ax=ax, title=titles)
         plt.show()
 
-    def accuracy(self, values, title):
+    def vis_accuracy(self, values, title):
         auc, aut_corr, auc_cutoffs, sample_cutoff, conf_intval, text, time_freq = values
         fig, ax = self._subplots_func_adjustment()
         x_labels = [ i * time_freq[0] for i in range(sample_cutoff)]
@@ -347,8 +361,8 @@ class VisualizeAnalysis:
             ax.set_title(title, fontsize=10)
         plt.show()
 
-    def timeserie(self, index, y_hat, title):
-        fig, ax = self._subplots_func_adjustment()
+    def vis_timeseries(self, list_of_series):
+        _, ax = self._subplots_func_adjustment(len(list_of_series))
 
         ax.plot(index, y_hat)
         every_nth = round(len( ax.xaxis.get_ticklabels() )/ 3)
@@ -360,7 +374,7 @@ class VisualizeAnalysis:
             ax.set_title(title, fontsize=10)
         plt.show()
     
-    def scatter(self, df, target_var, aggr, title):
+    def vis_scatter(self, df, target_var, aggr, title):
         fig, ax = self._subplots_func_adjustment()
 
         if aggr == 'annual':
@@ -373,7 +387,7 @@ class VisualizeAnalysis:
             ax.set_title(title, fontsize=10)
         plt.show()
     
-    def time_serie_matrix(self, df_period, cross_cor, sig_mask, pval):
+    def vis_time_serie_matrix(self, df_period, cross_cor, sig_mask, pval):
         fig, ax = self._subplots_func_adjustment()
         plt.figure(figsize=(10, 10))
 
@@ -404,7 +418,7 @@ class VisualizeAnalysis:
 
         plt.show()
 
-    def spectrum(self, title,subtitle, results, xlim, ylim=(1e-4,1e3)):
+    def vis_spectrum(self, title,subtitle, results, xlim, ylim=(1e-4,1e3)):
         fig, ax = self._subplots_func_adjustment(col=len(subtitle))
         
         # TODO Better way to plot all results tuples  instead of double for-loops

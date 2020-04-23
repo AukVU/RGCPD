@@ -93,12 +93,12 @@ rg.get_ts_prec()
 # In[13]:
 
 
-rg.df_data
+# rg.df_data
 
-from df_ana_class import DFA
+# from df_ana_class import DFA
 
-df = DFA(df=rg.df_data)
-df.dataframe(df.df)
+# df = DFA(df=rg.df_data)
+# df.dataframe(df.df)
 
 
 

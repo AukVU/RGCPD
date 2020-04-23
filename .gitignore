@@ -500,6 +500,5 @@ MigrationBackup/
 # Custom rules (everything added below won't be overriden by 'Generate .gitignore File' if you use 'Update' option)
 
 .ipynb_checkpoints/
-#jier_analysis/
 *.h5
 Jier_tigermite/

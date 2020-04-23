@@ -151,7 +151,7 @@ def update_dates(cls, ex):
     cls.temporal_freq = '{}days'.format(temporal_freq.days)
     return cls, ex
 
-def load_TV(list_of_name_path, loadleap=False):
+def load_TV(list_of_name_path, loadleap=False, name_ds='ts'):
     '''
     function will load first item of list_of_name_path
     list_of_name_path = [('TVname', 'TVpath'), ('prec_name', 'prec_path')]
@@ -172,7 +172,7 @@ def load_TV(list_of_name_path, loadleap=False):
         fulltso = load_npy(filename, name=name)
     elif filename.split('.')[-1] == 'nc':
         ds = core_pp.import_ds_lazy(filename)
-        fulltso = ds['ts'].sel(cluster=name)
+        fulltso = ds[name_ds].sel(cluster=name)
     hashh = filename.split('_')[-1].split('.')[0]
     fulltso.name = str(list_of_name_path[0][0])
     if loadleap == False:
@@ -181,24 +181,35 @@ def load_TV(list_of_name_path, loadleap=False):
     return fulltso, hashh
 
 
-def nc_xr_ts_to_df(filename):
+def nc_xr_ts_to_df(filename, name_ds='ts'):
     if filename.split('.')[-1] == 'nc':
         ds = core_pp.import_ds_lazy(filename)
     else:
         print('not a NetCDF file')
-    return xrts_to_df(ds['ts']), ds
+    return xrts_to_df(ds[name_ds]), ds
 
 def xrts_to_df(xarray):
-    name = 'tfreq{}_ncl{}'.format(int(xarray['tfreq']), 
-                                  int(xarray['n_clusters']))
-    df = xarray.drop('tfreq').drop('n_clusters').T.to_dataframe(
+    dims = list(xarray.coords.keys())
+    standard_dim = ['latitude', 'longitude', 'time', 'mask', 'cluster']
+    dims = [d for d in dims if d not in standard_dim]
+    if 'n_clusters' in dims:
+        idx = dims.index('n_clusters')
+        dims[idx] = 'ncl'
+        xarray = xarray.rename({'n_clusters':dims[idx]}).copy()
+    var1 = int(xarray[dims[0]])
+    var2 = int(xarray[dims[1]])
+    dim1 = dims[0]
+    dim2 = dims[1]       
+    name = '{}{}_{}{}'.format(dim1, var1, dim2, var2)
+    df = xarray.drop(dim1).drop(dim2).T.to_dataframe(
                                         name=name).unstack(level=1)
     df = df.droplevel(0, axis=1)
     df.index.name = name
     return df
 
 def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
-               start_end_year=None, RV_detrend=True, verbosity=1):
+               start_end_year=None, RV_detrend=True, RV_anomaly=False,
+               verbosity=1):
     #%%
     name = fullts.name
     dates = pd.to_datetime(fullts.time.values)
@@ -240,7 +251,7 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
 
     if RV_detrend == True:
         print('Detrending Respone Variable.')
-        fullts = detrend1D(fullts)
+        fullts = detrend1D(fullts, anomaly=RV_anomaly)
     
     if input_freq == 'daily':
         dates_RV = core_pp.get_subdates(pd.to_datetime(fullts.time.values), start_end_TVdate,
@@ -304,30 +315,37 @@ def import_ds_timemeanbins(filepath, tfreq=1, start_end_date=None,
 
 
 
-def csv_to_npy(ex):
-   #%%
-   import os
-   import pandas as pd
-   import xarray as xr
-   import numpy as np
-   # load data from csv file and save to .npy as xarray format
+def csv_to_df(path:str, sep=','):
+   '''
+   convert csv timeseries to hdf5 (.h5) format. Assumes column order:
+    year, month, day, ts1, ts2, ..., ...,
 
-   path = os.path.join(ex['path_pp'], 'RVts2.5', ex['RVts_filename'])
-   table = pd.read_csv(path)
-   data  = np.array(table)
-   dates = pd.to_datetime(['{}-{}-{}'.format(A[0],A[1],A[2]) for A in data])
+    Parameters
+    ----------
+    path : str
+        path to .csv file.
+    sep : str, optional
+        seperator to seperate columns. The default is ','.
 
-   y_val = data[:,-1]  # ATTENTION: This only works if values are in last column
+    Returns
+    -------
+    df_data with datetime as index
+        DESCRIPTION.
 
-   xrdata = xr.DataArray(data=y_val, coords=[dates], dims=['time'])
+    '''
+    #%%
+    
+   # load data from csv file and save to .h5
 
-   ofile = ex['RVts_filename'].split('.')[0] + '.npy'
-   to_dict = dict( {'RVfullts'     : xrdata } )
-   np.save(os.path.join(ex['path_pp'], 'RVts2.5', ofile), to_dict)
-   ex['RVts_filename'] = ofile
+   path = '/Users/semvijverberg/Downloads/OMI.csv'
+   data = pd.read_csv(path, sep=sep, parse_dates=[[0,1,2]], 
+                       index_col='year_month_day')
+   data.index.name='date'
+   
+   store_hdf_df(dict_of_dfs={'df_data':data}, 
+                file_path=path.replace('.csv', '.h5'))
+   return data
 
-   #%%
-   return ex
 
 
 def time_mean_bins(xr_or_df, to_freq=int, start_end_date=None, start_end_year=None, 
@@ -507,28 +525,41 @@ def timeseries_tofit_bins(xr_or_dt, to_freq, start_end_date=None, start_end_year
         # line below: The +1 = include day 1 in counting
         start_day = (end_day - (dt * np.round(fit_steps_yr, decimals=0))) \
                     + np.timedelta64(1, 'D')
+                    
         if start_day.month==1 and start_day.day==1 and start_day.is_leap_year:
             # if leap year, start_day is adjusted one day backward in time,
             # however, if start_day is already first of januari, this can't be done
             # thus removing one step_yr
             start_day = (end_day - (dt * np.round(fit_steps_yr-1, decimals=0))) \
                     + np.timedelta64(1, 'D')
+        
+        # account for leap_year #1
+        if start_day.is_leap_year and start_day.month <= 2 :
+            # add day in front to compensate for removing a leap day
+            start_day = start_day - np.timedelta64(1, 'D')                    
 
         if start_day.dayofyear < sdate.dayofyear or start_day.year < sdate.year:
-#        if start_day.year < sdate.year:
-            # if startday is before the desired starting period, skip one bin forward in time
+            # if startday is before the desired starting period then 
+            # startday dayofyear < dayofyear of first data available )
+            # skip one bin forward in time
             start_day = (end_day - (dt * np.round(fit_steps_yr-1, decimals=0))) \
                     + np.timedelta64(1, 'D')
-        if start_day.is_leap_year:
-            # add day in front to compensate for removing a leap day
-            start_day = start_day - np.timedelta64(1, 'D')
-
+            # after this if statement, the 'account for leap_year' may again 
+            # be an issue.
+        
+            # account for leap_year #2
+            if start_day.is_leap_year and start_day.month <= 2 :
+                # add day in front to compensate for removing a leap day
+                start_day = start_day - np.timedelta64(1, 'D')
             
+
 
         start_yr = pd.date_range(start=start_day, end=end_day,
                                     freq=(datetime[1] - datetime[0]))
 
         start_yr = core_pp.remove_leapdays(start_yr)
+        
+        
     if input_freq == 'day' and to_freq == 1:
         end_day = seldays_pp.max()
         start_day = seldays_pp.min()
@@ -784,9 +815,12 @@ def selbox_to_1dts(cls, latlonbox):
 
 
 
-def detrend1D(da):
+def detrend1D(da, anomaly=False):
     import scipy.signal as sps
     import xarray as xr
+    if da.dims[0] == 'index':
+        # rename axes to 'time'
+        da = da.rename({'index':'time'})
     dates = pd.to_datetime(da.time.values)
     stepsyr = dates.where(dates.year == dates.year[0]).dropna(how='all')
 
@@ -807,13 +841,23 @@ def detrend1D(da):
         sliceyr = np.arange(i, da.time.size, stepsyr.size)
         arr_oneday = da.isel(time=sliceyr)
         arr_oneday_smooth = data_smooth[sliceyr]
-
+        
+        # sps.detrend fits least squares and an intercept, mean is always removed
         detrended_sm = xr.DataArray(sps.detrend(arr_oneday_smooth),
                             dims=arr_oneday.dims,
                             coords=arr_oneday.coords)
         # subtract trend smoothened signal of arr_oneday values
-        trend = (arr_oneday_smooth - detrended_sm)- np.mean(arr_oneday_smooth, 0)
-        detrended = arr_oneday - trend
+        # add intercept of detrended array
+        trend = (arr_oneday_smooth - detrended_sm) - np.mean(arr_oneday_smooth, 0)       
+        if anomaly == False:
+            # add intercept of detrended array
+            detrended = arr_oneday - trend 
+            # trend = (arr_oneday_smooth - detrended_sm) + np.mean(arr_oneday_smooth, 0)            
+        else:
+            # intercept is by default removed
+            detrended = arr_oneday - trend  - np.mean(arr_oneday_smooth, 0)       
+            # trend = (arr_oneday_smooth - detrended_sm)
+        # detrended = arr_oneday - trend
         output[i::stepsyr.size] = detrended
     dao = xr.DataArray(output,
                             dims=da.dims,
@@ -915,29 +959,57 @@ def store_hdf_df(dict_of_dfs, file_path=None):
                 hdf.put(key, item, format='table', data_columns=True)
             except:
                 hdf.put(key, item, data_columns=True)
+            if item.index.name is not None:
+                hdf.root._v_attrs[key] = str(item.index.name)
         hdf.close()
     return file_path
+
 
 def load_hdf5(path_data):
     '''
     Loading hdf5 can not be done simultaneously:
     '''
-    import h5py
-    import time
-    for attempt in range(5):
+    import h5py, time
+    attempt = 'Fail'
+    c = 0
+    while attempt =='Fail':
+        c += 1
         try:
             hdf = h5py.File(path_data,'r+')
+            dict_of_dfs = {}
+            for k in hdf.keys():
+                dict_of_dfs[k] = pd.read_hdf(path_data, k)
+            hdf.close()
+            attempt = 1
         except:
-            time.sleep(0.5) # wait 0.5 seconds, perhaps other process is trying
-            # to load it simultaneously
-            continue
-        else:
-            break
-    dict_of_dfs = {}
-    for k in hdf.keys():
-        dict_of_dfs[k] = pd.read_hdf(path_data, k)
-    hdf.close()
+            time.sleep(1)
+        assert c!= 5, print('loading in hdf5 failed')
     return dict_of_dfs
+
+# def load_hdf5(path_data):
+#     '''
+#     Loading hdf5 can not be done simultaneously:
+#     '''
+#     import h5py
+#     import time
+#     for attempt in range(5):
+#         try:
+#             hdf = h5py.File(path_data,'r+')
+#         except:
+#             time.sleep(0.5) # wait 0.5 seconds, perhaps other process is trying
+#             # to load it simultaneously
+#             continue
+#         else:
+#             break
+#     dict_of_dfs = {}
+#     for k in hdf.keys():
+#         df = pd.read_hdf(path_data, k)
+#         if k in hdf.attrs.keys():
+#             str_attr_index = str(hdf.attrs[k])
+#             df.index.name = str_attr_index
+#         dict_of_dfs[k] = df
+#     hdf.close()
+#     return dict_of_dfs
 
 def rand_traintest_years(RV, test_yrs=None, method=str, seed=None, 
                          kwrgs_events=None, verb=0):
@@ -1179,33 +1251,36 @@ def dfsplits_to_dates(df_splits, s):
     return dates_train, dates_test
 
 def func_dates_min_lag(dates, lag):
-    tfreq = dates[1] - dates[0]
-    oneyr = get_oneyr(pd.to_datetime(dates.values))
-    start_d_min_lag = oneyr[0] - pd.Timedelta(int(lag), unit='d')
-    end_d_min_lag = oneyr[-1] - pd.Timedelta(int(lag), unit='d')
-    if pd.Timestamp(f'{dates[0].year}-01-01') > start_d_min_lag:
-        start_d_min_lag = pd.Timestamp(f'{dates[0].year}-01-01') 
-
-    startyr = pd.date_range(start_d_min_lag, end_d_min_lag, freq=tfreq)
-
-    if startyr.is_leap_year[0]:
-        # ensure that everything before the leap day is shifted one day back in time
-        # years with leapdays now have a day less, thus everything before
-        # the leapday should be extended back in time by 1 day.
-        mask_lpyrfeb = np.logical_and(startyr.month == 2,
-                                             startyr.is_leap_year
-                                             )
-        mask_lpyrjan = np.logical_and(startyr.month == 1,
-                                             startyr.is_leap_year
-                                             )
-        mask_ = np.logical_or(mask_lpyrfeb, mask_lpyrjan)
-    
-        new_dates = np.array(startyr)
-        if np.logical_and(startyr[0].month==1, startyr[0].day==1)==False:
-            # compensate lag shift for removing leap day
-            new_dates[mask_] = startyr[mask_] - pd.Timedelta(1, unit='d')
-        else:
-            startyr =core_pp.remove_leapdays(startyr)
+    if lag != 0:
+        tfreq = dates[1] - dates[0]
+        oneyr = get_oneyr(pd.to_datetime(dates.values))
+        start_d_min_lag = oneyr[0] - pd.Timedelta(int(lag), unit='d')
+        end_d_min_lag = oneyr[-1] - pd.Timedelta(int(lag), unit='d')
+        if pd.Timestamp(f'{dates[0].year}-01-01') > start_d_min_lag:
+            start_d_min_lag = pd.Timestamp(f'{dates[0].year}-01-01') 
+        
+        startyr = pd.date_range(start_d_min_lag, end_d_min_lag, freq=tfreq)
+        
+        if startyr.is_leap_year[0]:
+            # ensure that everything before the leap day is shifted one day back in time
+            # years with leapdays now have a day less, thus everything before
+            # the leapday should be extended back in time by 1 day.
+            mask_lpyrfeb = np.logical_and(startyr.month == 2,
+                                                 startyr.is_leap_year
+                                                 )
+            mask_lpyrjan = np.logical_and(startyr.month == 1,
+                                                 startyr.is_leap_year
+                                                 )
+            mask_ = np.logical_or(mask_lpyrfeb, mask_lpyrjan)
+        
+            new_dates = np.array(startyr)
+            if np.logical_and(startyr[0].month==1, startyr[0].day==1)==False:
+                # compensate lag shift for removing leap day
+                new_dates[mask_] = startyr[mask_] - tfreq
+            else:
+                startyr =core_pp.remove_leapdays(startyr)
+    else:
+        startyr = get_oneyr(pd.to_datetime(dates.values))
    
     dates_min_lag = make_dates(startyr, np.unique(dates.year))
 
@@ -1214,6 +1289,28 @@ def func_dates_min_lag(dates, lag):
     dates_min_lag_str = [d.strftime('%Y-%m-%d %H:%M:%S') for d in dates_min_lag]
     return dates_min_lag_str, dates_min_lag    
 
+def apply_lsm(var_filepath, lsm_filepath, threshold_lsm=.8):
+    from pathlib import Path
+    path = Path(var_filepath)
+    xarray = core_pp.import_ds_lazy(path.as_posix())
+    lons = xarray.longitude.values
+    lats = xarray.latitude.values
+    selbox = (min(lons), max(lons)+1, min(lats), max(lats)+1)
+    lsm = core_pp.import_ds_lazy(lsm_filepath, selbox=selbox)
+    lsm = lsm.to_array().squeeze() > threshold_lsm
+    xarray['mask'] = (('latitude', 'longitude'), lsm[::-1].values)
+    xarray = xarray.where( xarray['mask'] )
+    xarray[0].plot()
+    xarray = xarray.where(xarray.values != 0.).fillna(-9999)
+    xarray.attrs.pop('is_DataArray')
+    encoding = ( {xarray.name : {'_FillValue': -9999}} )
+    mask =  (('latitude', 'longitude'), (xarray.values[0] != -9999) )
+    xarray.coords['mask'] = mask
+    parts = list(path.parts)
+    parts[5] = 'lsm_' +parts[5]
+    outfile = Path(*parts)
+    # save netcdf
+    xarray.to_netcdf(outfile, mode='w', encoding=encoding)
 
-
-
+def sort_d_by_vals(d):
+    return {k: v for k, v in sorted(d.items(), key=lambda item: item[1])}

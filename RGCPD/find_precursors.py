@@ -9,15 +9,13 @@ Created on Thu Dec  5 12:17:25 2019
 import itertools
 import numpy as np
 import xarray as xr
-#import datetime
-import scipy
 import pandas as pd
-#import core_pp
-from statsmodels.sandbox.stats import multicomp
+
 import functions_pp
-from class_RV import RV_class
-#import plot_maps
+import core_pp
+import plot_maps
 flatten = lambda l: list(itertools.chain.from_iterable(l))
+from typing import List, Tuple, Union
 
 #%%
 
@@ -235,6 +233,7 @@ def cluster_DBSCAN_regions(pos_prec):
 
     #    var = 'sst'
     #    pos_prec = outdic_actors[var]
+    var = pos_prec.name
     corr_xr  = pos_prec.corr_xr
     n_spl  = corr_xr.coords['split'].size
     lags = pos_prec.corr_xr.lag.values
@@ -296,7 +295,7 @@ def cluster_DBSCAN_regions(pos_prec):
             'to relax contrain.\n')
         prec_labels_ord = prec_labels_np
     if mask_and_data.mask.all()==True:
-        print('\nNo significantly correlating gridcells found.\n')
+        print(f'\nNo significantly correlating gridcells found for {var}.\n')
         prec_labels_ord = prec_labels_np
     else:
         prec_labels_ord = np.zeros_like(prec_labels_np)
@@ -382,6 +381,156 @@ def relabel(prec_labels_s, reassign):
         prec_labels_ord[prec_labels_s == reg] = reassign[reg]
     return prec_labels_ord
 
+
+def xrmask_by_latlon(xarray, 
+                     upper_right: Tuple[float, float]=None, 
+                     bottom_right: Tuple[float, float]=None,
+                     upper_left: Tuple[float, float]=None,
+                     bottom_left: Tuple[float, float]=None, 
+                     latmax: float=None, lonmax: float=None, 
+                     latmin: float=None, lonmin: float=None):
+                     
+    '''
+    Applies mask to lat-lon xarray defined by lat lon coordinates. 
+    xarray.where returns values where mask==True.
+    
+    Consensus: everything above latmax/lonmax is masked, or everything below 
+    latmin/lonmin is masked.
+    
+    
+    Parameters
+    ----------
+    xarray : xr.DataArray
+        DESCRIPTION.
+    upper_right : Tuple[float, float], optional
+        upper right masking, defined by tuple of (lonmax, latmax). 
+        The default is None.
+    bottom_right : Tuple[float, float], optional
+        upper left masking, defined by tuple of (lonmax, latmin). 
+        The default is None.
+    upper_left : Tuple[float, float], optional
+        bottom left masking, defined by tuple of (lonmin, latmin). 
+        The default is None.
+    bottom_left : Tuple[float, float], optional
+        bottom left masking, defined by tuple of (lonmin, latmin). 
+        The default is None.
+    
+    latmax : float, optional
+        north of latmax is masked. The default is None.
+    lonmax : float, optional
+        east of lonmax is masked. The default is None.
+    latmin : float, optional
+        DESCRIPTION. The default is None.
+    lonmin : float, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    xarray : xr.DataArray
+        DESCRIPTION.
+
+    '''
+    ll = np.meshgrid(xarray.longitude, xarray.latitude)
+    # north of latmax is masked
+    if latmax is not None and lonmax is None:
+        xarray = xarray.where(ll[1] < latmax)
+    # east of lonmax is masked
+    if lonmax is not None and latmax is None:
+        xarray = xarray.where(ll[0]<lonmax)
+    if latmin is not None and lonmin is None:
+        xarray = xarray.where(ll[1] > latmin)
+    if lonmin is not None and latmin is None:
+        xarray = xarray.where(ll[0] > lonmin)
+    # upper right masking
+    if upper_right is not None:
+        lonmax, latmax = upper_right
+        npmask = np.logical_or(ll[1] < latmax, ll[0]<lonmax)
+        xarray = xarray.where(npmask)
+    # bottom right masking
+    if bottom_right is not None:
+        lonmax, latmin = bottom_right
+        npmask = np.logical_or(ll[1] > latmin, ll[0]<lonmax)
+        xarray = xarray.where(npmask)
+    # bottom left masking
+    if bottom_left is not None:
+        lonmin, latmin  = bottom_left
+        npmask = np.logical_or(ll[1] > latmin, ll[0] > lonmin)
+        xarray = xarray.where(npmask)
+    # upper left masking
+    if upper_left is not None:
+        lonmin, latmax = upper_left
+        npmask = np.logical_or(ll[1] < latmax, ll[0] > lonmin)
+        xarray = xarray.where(npmask)
+    return xarray
+
+def split_region_by_lonlat(prec_labels, label=int, trialplot=False, plot_s=0, 
+                           plot_l=0, kwrgs_mask_latlon={} ):
+    
+    # before:
+    plot_maps.plot_labels(prec_labels.isel(split=plot_s, lag=plot_l))                              
+    splits = list(prec_labels.split.values)
+    lags   = list(prec_labels.lag.values)
+    copy_labels = prec_labels.copy()
+    np_labels = copy_labels.values
+    orig_labels = np.unique(prec_labels.values[~np.isnan(prec_labels.values)])
+    print(f'\nNew label will become {max(orig_labels) + 1}')
+    if max(orig_labels) >= 20:
+        print('\nwarning, more then (or equal to) 20 regions')
+    from itertools import product
+    for s, l in product(splits, lags):
+        i_s = splits.index(s)
+        i_l = lags.index(l)
+        single = copy_labels.sel(split=s, lag=l)
+        mask_label = ~np.isnan(single.where(single.values==label))
+        for key, mask_latlon in kwrgs_mask_latlon.items():
+#            print(key, mask_latlon)
+            mask_label = xrmask_by_latlon(mask_label, 
+                                          **{str(key):mask_latlon})
+        mask_label = np.logical_and(~np.isnan(mask_label), mask_label!=0)
+        # assign new label
+        single.values[mask_label.values] = max(orig_labels) + 1
+        if trialplot:
+            plot_maps.plot_labels(single)
+            break
+        np_labels[i_s, i_l] = single.values
+    copy_labels.values = np_labels
+    # after
+    plot_maps.plot_labels(copy_labels.isel(split=plot_s, lag=plot_l))
+    return copy_labels, max(orig_labels) + 1
+
+def manual_relabel(prec_labels, replace_label: int=None, with_label: int=None):
+    '''
+    Can Automatically relabel based on prevailence. 
+    
+    If replace_label and with_label are not given:
+        
+    Smallest prevailence of first 10 labels is replaced with maximum prevailence
+    label of last 15 labels
+    
+    '''
+    
+    copy_labels = prec_labels.copy()
+    all_labels = prec_labels.values[~np.isnan(prec_labels.values)]
+    uniq_labels = np.unique(all_labels)
+    prevail = {l:list(all_labels).count(l) for l in uniq_labels}
+    prevail = functions_pp.sort_d_by_vals(prevail)
+    l_keys = list(prevail.keys())
+    # smallest 10 
+    if with_label is None:
+        half_len = int(.5*len(l_keys))
+        with_label = min(l_keys[:min(10,half_len)])
+    if replace_label is None:
+        half_len = int(.5*len(l_keys))
+        replace_label = max(list(prevail.keys())[half_len:])
+        
+    reassign = {replace_label:with_label}
+    np_labels = copy_labels.values
+    for i, reg in enumerate(reassign.keys()):
+        np_labels[np_labels == reg] = reassign[reg]
+    copy_labels.values = np_labels
+    
+    return copy_labels
+    
 def spatial_mean_regions(precur, precur_aggr=None, kwrgs_load=None):
     #%%
 
@@ -504,7 +653,7 @@ def df_data_prec_regs(list_MI, TV, df_splits): #, outdic_precur, df_splits, TV #
         var_names_corr = [] ; pos_prec_list = [] ; cols = [[TV.name]]
     
         for var_idx, pos_prec in enumerate(list_MI):
-            var = pos_prec.name
+            # var = pos_prec.name
             if pos_prec.ts_corr[s].size != 0:
                 ts_train = pos_prec.ts_corr[s].values
                 pos_prec_list.append(ts_train)
@@ -522,16 +671,22 @@ def df_data_prec_regs(list_MI, TV, df_splits): #, outdic_precur, df_splits, TV #
         # add the full 1D time series of interest as first entry:
         fulldata = np.column_stack((TV.fullts, fulldata))
         df_data_s[s] = pd.DataFrame(fulldata, columns=flatten(cols), index=index_dates)
-    print(f'There are {n_regions_list} regions for {var} (list of different splits)')
+    
+    print(f'There are {n_regions_list} regions in total (list of different splits)')
     df_data  = pd.concat(list(df_data_s), keys= range(splits.size), sort=False)
     #%%
     return df_data
 
 
-def import_precur_ts(import_prec_ts, df_splits, to_freq, start_end_date,
-                     start_end_year):
+def import_precur_ts(list_import_ts : List[tuple], 
+                     df_splits: pd.DataFrame,  
+                     start_end_date: Tuple[str, str],
+                     start_end_year: Tuple[int, int],
+                     cols: list=None,
+                     precur_aggr: int=1):
     '''
-    import_prec_ts has format tuple (name, path_data)
+    list_import_ts has format List[tuples],
+    [(name, path_data)]
     '''
     #%%
 #    df_splits = rg.df_splits
@@ -542,63 +697,75 @@ def import_precur_ts(import_prec_ts, df_splits, to_freq, start_end_date,
     orig_traintest = functions_pp.get_testyrs(df_splits)
     df_data_ext_s   = np.zeros( (splits.size) , dtype=object)
     counter = 0
-    for i, (name, path_data) in enumerate(import_prec_ts):
-        df_data_e_all = functions_pp.load_hdf5(path_data)['df_data'].iloc[:,1:]
-        ext_traintest = functions_pp.get_testyrs(df_data_e_all[['TrainIsTrue']])
-        _check_traintest = all(np.equal(orig_traintest.flatten(), ext_traintest.flatten()))
-        assert _check_traintest, ('Train test years of df_splits are not the '
-                                  'same as imported timeseries')
+    for i, (name, path_data) in enumerate(list_import_ts):
+
+
+        df_data_e_all = functions_pp.load_hdf5(path_data)['df_data'].iloc[:,:]
+        if cols is None:
+            cols = list(df_data_e_all.columns[(df_data_e_all.dtypes != bool).values])
+        dates_subset = core_pp.get_subdates(df_data_e_all.index, start_end_date, 
+                                            start_end_year)
+        df_data_e_all = df_data_e_all.loc[dates_subset]
         
-        cols_ext = list(df_data_e_all.columns[(df_data_e_all.dtypes != bool).values])
-        # cols_ext must be of format '{lag_days}..{label_int}..{var_name}'
-        # or '{lag_days}..{var_name}'. 
-        # If only var_name is in str (no seperation by {..}, then lag_days=0)
-        # note label_int should be unique
-        rename_cols = {}
-        col_sep = [c.split('..') for c in cols_ext]
-        label_int = 100
-        for i, c in enumerate(col_sep):
-            # if no seperation, the col is simply the var_name
-            #c[-1]  is the var_name
-            var_name = c[-1]
-            if len(c) == 1:
-                lag = 0
-                new_col = f'{lag}..{label_int}..{var_name}'
-                label_int +=1
-            if len(c) == 2:
-                #c[0] is assumed the lag in days
-                lag = c[0]
-                # label int is assigned to confirm the PCMCI format
-                new_col = f'{lag}..{label_int}..{var_name}'
-                label_int +=1
-            if len(c) == 3:
-                #c[0] is assumed the lag in days
-                lag = c[0]
-                #c[1] is assumed a unique label
-                own_label = c[1]
-                new_col = f'{lag}..{int(own_label)}..{var_name}'
-            rename_cols[cols_ext[i]] = new_col
-        df_data_e_all = df_data_e_all.rename(columns=rename_cols)
+        if 'TrainIsTrue' in df_data_e_all.columns:
+            # check if traintest split is correct
+            ext_traintest = functions_pp.get_testyrs(df_data_e_all[['TrainIsTrue']])
+            _check_traintest = all(np.equal(orig_traintest.flatten(), ext_traintest.flatten()))
+            assert _check_traintest, ('Train test years of df_splits are not the '
+                                      'same as imported timeseries')
+        
+        # cols_ext = list(df_data_e_all.columns[(df_data_e_all.dtypes != bool).values])
+        # # cols_ext must be of format '{lag_days}..{label_int}..{var_name}'
+        # # or '{lag_days}..{var_name}'. 
+        # # If only var_name is in str (no seperation by {..}, then lag_days=0)
+        # # note label_int should be unique
+        # rename_cols = {}
+        # col_sep = [c.split('..') for c in cols_ext]
+        # label_int = 100
+        # for i, c in enumerate(col_sep):
+        #     # if no seperation, the col is simply the var_name
+        #     #c[-1]  is the var_name
+        #     var_name = c[-1]
+        #     if len(c) == 1:
+        #         lag = 0
+        #         new_col = f'{lag}..{label_int}..{var_name}'
+        #         label_int +=1
+        #     if len(c) == 2:
+        #         #c[0] is assumed the lag in days
+        #         lag = c[0]
+        #         # label int is assigned to confirm the PCMCI format
+        #         new_col = f'{lag}..{label_int}..{var_name}'
+        #         label_int +=1
+        #     if len(c) == 3:
+        #         #c[0] is assumed the lag in days
+        #         lag = c[0]
+        #         #c[1] is assumed a unique label
+        #         own_label = c[1]
+        #         new_col = f'{lag}..{int(own_label)}..{var_name}'
+        #     rename_cols[cols_ext[i]] = new_col
+        # df_data_e_all = df_data_e_all.rename(columns=rename_cols)
         
         for s in range(splits.size):
-            # skip first col because it is the RV ts
-            df_data_e = df_data_e_all.loc[s]
-            cols_ext = list(df_data_e_all.columns[(df_data_e_all.dtypes != bool).values])
-                    
-            df_data_ext_s[s] = df_data_e[cols_ext]
+            if 'TrainIsTrue' in df_data_e_all.columns:
+                df_data_e = df_data_e_all.loc[s]
+            else:
+                df_data_e = df_data_e_all
+                
+            
+            df_data_ext_s[s] = df_data_e[cols]
             tfreq_date_e = (df_data_e.index[1] - df_data_e.index[0]).days
             
-            if to_freq != tfreq_date_e:
+            if precur_aggr != tfreq_date_e:
                 try:
                     df_data_ext_s[s] = functions_pp.time_mean_bins(df_data_ext_s[s], 
-                                                         to_freq,
+                                                         precur_aggr,
                                                         start_end_date,
                                                         start_end_year)[0]
                 except KeyError as e:
                     print('KeyError captured, likely the requested dates '
                           'given by start_end_date and start_end_year are not' 
                           'found in external pandas timeseries.\n{}'.format(str(e)))
-        print(f'loaded in exterinal timeseres: {cols_ext}')
+        print(f'loaded in exterinal timeseres: {cols}')
                                                         
         if counter == 0:
             df_data_ext = pd.concat(list(df_data_ext_s), keys=range(splits.size))

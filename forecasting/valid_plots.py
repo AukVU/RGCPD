@@ -15,18 +15,22 @@ import functions_pp
 from sklearn.calibration import calibration_curve
 import sklearn.metrics as metrics
 import seaborn as sns
-from itertools import chain
+from itertools import permutations, product, chain
 flatten = lambda l: list(chain.from_iterable(l))
 
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib as mpl
 from matplotlib import cycler
+import matplotlib.ticker as ticker
+from matplotlib.lines import Line2D
 nice_colors = ['#EE6666', '#3388BB', '#9988DD',
                  '#EECC55', '#88BB44', '#FFBBBB']
 colors_nice = cycler('color',
                 nice_colors)
 colors_datasets = [np.array(c) for c in sns.color_palette('deep')]
 
-line_styles = ['solid', 'dashed', (0, (3, 5, 1, 5, 1, 5)), 'dotted']
+# line_styles = ['solid', 'dashed', (0, (3, 5, 1, 5, 1, 5)), 'dotted']
+line_styles = ['-', '--', '-.', ':', '']
 # dashdotdotted = (0, (3, 5, 1, 5, 1, 5)))
 
 
@@ -60,6 +64,7 @@ def get_scores_improvement(m_splits, fc, s, lag, metric=None):
     
 #    keys = m.X.columns[m.X.dtypes != bool]
     X_pred = m.X_pred
+    TrainIsTrue = m.df_norm['TrainIsTrue']
     if hasattr(m, 'n_estimators')==False:   
         m = m.best_estimator_
     
@@ -69,10 +74,10 @@ def get_scores_improvement(m_splits, fc, s, lag, metric=None):
         y_true = fc.TV.RV_ts
     
     
-#    X_train = np.logical_and(fc.TV.TrainIsTrue.loc[s], x_pred_mask).loc[X_pred.index]
-    X_train = X_pred[fc.TV.TrainIsTrue.loc[s].loc[X_pred.index]]
+    
+    X_train = X_pred[TrainIsTrue.loc[X_pred.index]]
 #    X_test = pd.to_datetime([d for d in X_pred.index if d not in X_train[X_train].index])
-    X_test = X_pred[~fc.TV.TrainIsTrue.loc[s].loc[X_pred.index]]
+    X_test = X_pred[~TrainIsTrue.loc[X_pred.index]]
     y_maskTrainIsTrue = fc.TV.TrainIsTrue.loc[s].loc[fc.TV.dates_RV]
     y_test = y_true[~y_maskTrainIsTrue].values.squeeze()
 
@@ -102,8 +107,6 @@ def plot_deviance(fc, lag=None, split='all', model=None,
     
     m_splits = fc.dict_models[model][f'lag_{lag}']
     
-#    assert hasattr(m_splits['split_0'], 'n_estimators'), '{}'.format(
-#            m_splits['split_0'].cv_results_)
         
     if split == 'all':
         splits = [int(k.split('_')[-1]) for k in m_splits.keys()]
@@ -158,6 +161,29 @@ def get_pred_split(m_splits, fc, s, lag):
 
 def visual_analysis(fc, model=None, lag=None, split='all', col_wrap=5,
                     wspace=0.02):
+    '''
+    
+
+    Parameters
+    ----------
+    fc : class_fc
+        DESCRIPTION.
+    model : str, optional
+        DESCRIPTION. The default is None.
+    lag : int, optional
+        lag in days. The default is None.
+    split : int or 'all', optional
+        DESCRIPTION. The default is 'all'.
+    col_wrap : int, optional
+        DESCRIPTION. The default is 4.
+    wspace : TYPE, optional
+        DESCRIPTION. The default is 0.02.
+
+    Returns
+    -------
+    None.
+
+    '''
     #%%
     
     if model is None:
@@ -262,47 +288,62 @@ def visual_analysis(fc, model=None, lag=None, split='all', col_wrap=5,
         #%%
     return g.fig
 
-def get_score_matrix(d_expers=dict, model=str, metric=str, lags_t=None, 
+def get_score_matrix(d_expers=dict, metric=str, lags_t=None, 
                      file_path=None):
     #%%
     percen = np.array(list(d_expers.keys()))
     tfreqs = np.array(list(d_expers[percen[0]].keys()))
-    npscore = np.zeros( shape=(percen.size, tfreqs.size) )
-    np_sig = np.zeros( shape=(percen.size, tfreqs.size), dtype=object )
+    folds  = np.array(list(d_expers[percen[0]][tfreqs[0]].keys()))
+    npscore = np.zeros( shape=(folds.size, percen.size, tfreqs.size) )
+    np_sig = np.zeros( shape=(folds.size, percen.size, tfreqs.size), 
+                      dtype=object )
 
     for j, pkey in enumerate(percen):
         dict_freq = d_expers[pkey]
         for k, tkey in enumerate(tfreqs):
-            df_valid = dict_freq[tkey][model][0]
-            df_metric = df_valid.loc[metric]
-            npscore[j,k] = float(df_metric.loc[metric].values)
-            con_low = df_metric.loc['con_low'].values
-            con_high = float(df_metric.loc['con_high'].values)
-            if type(con_low) is np.ndarray:
-                con_low = np.quantile(con_low[0], 0.025) # alpha is 0.05
-            else:
-                con_low = float(df_metric.loc['con_low'].values)
-            np_sig[j,k] = '{:.2f} - {:.2f}'.format(con_low, con_high)
+            for i, fold in enumerate(folds):
+                df_valid = dict_freq[tkey][fold][0]
+                df_metric = df_valid.loc[metric]
+                mean = float(df_metric.loc[metric].values)
+                CI   = (df_metric.loc['con_low'].values,
+                        float(df_metric.loc['con_high'].values))
+                npscore[i,j,k] = mean
+                con_low = CI[0]
+                con_high = CI[1]
+                if type(con_low) is np.ndarray:
+                    con_low = np.quantile(con_low[0], 0.025) # alpha is 0.05
+                else:
+                    con_low = float(con_low)
+                np_sig[i,j,k] = '{:.2f} - {:.2f}'.format(con_low, con_high)          
 
     data = npscore
-    df_data = pd.DataFrame(data, index=percen, columns=tfreqs)
+    index = pd.MultiIndex.from_product([folds, percen],names=['fold', 'percen'])
+                          
+    df_data = pd.DataFrame(data.reshape(-1, len(tfreqs)), index=index, 
+                           columns=tfreqs)
     df_data = df_data.rename_axis(f'lead time: {lags_t} days', axis=1)
-    df_sign = pd.DataFrame(np_sig, index=percen, columns=tfreqs)
+    df_sign = pd.DataFrame(np_sig.reshape(-1, len(tfreqs)), 
+                           index=index, columns=tfreqs)
     
-    dict_of_dfs = {f'df_data_{metric}':df_data,'df_sign':df_sign}
+    dict_of_dfs = {f'df_data_{metric}_{lags_t}':df_data,'df_sign':df_sign}
     
     path_data = functions_pp.store_hdf_df(dict_of_dfs, file_path=file_path)
+    #%%
     return path_data, dict_of_dfs
 
-def plot_score_matrix(path_data=str, col=0,
-                      x_label=None, ax=None):
+def plot_score_matrix(path_data=str, x_label=None, ax=None):
+                     
     #%%
     dict_of_dfs = functions_pp.load_hdf5(path_data=path_data)
     datakey = [k for k in dict_of_dfs.keys() if k[:7] == 'df_data'][0]
-    metric = datakey.split('_')[-1]
+    metric = datakey.split('_')[-2]
     df_data = dict_of_dfs[datakey]
     df_sign = dict_of_dfs['df_sign']
-
+    first_fold = df_data.index.get_level_values(0)[0]
+    
+    df_data = df_data.xs(first_fold, level='fold')
+    df_sign = df_sign.xs(first_fold, level='fold')
+    
     np_arr = df_sign.to_xarray().to_array().values
     np_sign = np_arr.swapaxes(0,1)
     annot = np.zeros_like(df_data.values, dtype="f8").tolist()
@@ -319,8 +360,9 @@ def plot_score_matrix(path_data=str, col=0,
     ax = None
     if ax==None:
         print('ax == None')
-        fig, ax = plt.subplots(constrained_layout=True, figsize=(20,13))
-    
+        h = 4 * df_data.index.get_level_values(1).size
+        fig, ax = plt.subplots(constrained_layout=True, figsize=(20,h))
+    df_data = df_data.sort_index(axis=0, level=1, ascending=False)
     ax = sns.heatmap(df_data, ax=ax, vmin=0, vmax=round(max(df_data.max())+0.05, 1), cmap=sns.cm.rocket_r,
                      annot=np.array(annot), 
                      fmt="", cbar_kws={'label': f'{metric}'})
@@ -333,93 +375,82 @@ def plot_score_matrix(path_data=str, col=0,
     return fig
     
    
-def plot_score_expers(d_expers=dict, model=str, metric=str, lags_t=None,
-                      color='red', style='solid', col=0,
-                      x_label=None, x_label2=None, ax=None):
+def plot_score_expers(path_data=str, x_label=None):
+                      
+                     
     #%%
-    ax = None
-    if ax==None:
-        print('ax == None')
-        fig, ax = plt.subplots(constrained_layout=True, figsize=(10,5))
     
-    folds = np.array(list(d_expers.keys()))
-    spread_size = 0.3
-    steps = np.linspace(-spread_size,spread_size, folds.size)
-#    freqs = len(d_expers.items()[])
-    for i, fold_key in enumerate(folds):
-        dict_freq = d_expers[fold_key]
-        x_vals_freq = list(dict_freq.keys())
-        x_vals = np.arange(len(x_vals_freq))
-        y_vals = [] ; y_mins = [] ; y_maxs = []
-        for x in x_vals_freq:
-            df_valid = dict_freq[x][model][0]
-            df_metric = df_valid.loc[metric]
-            y_vals.append(float(df_metric.loc[metric].values))
-            y_mins.append(float(df_metric.loc['con_low'].values))
-            y_maxs.append(float(df_metric.loc['con_high'].values))
+    dict_of_dfs = functions_pp.load_hdf5(path_data=path_data)
+    datakey = [k for k in dict_of_dfs.keys() if k[:7] == 'df_data'][0]
+    metric  = datakey.split('_')[-2]
+    lag     = datakey.split('_')[-1]
+    df_data = dict_of_dfs[datakey]
+    
+    mean = df_data.mean(axis=0, level=1)
+    y_min = df_data.min(axis=0, level=1)
+    y_max = df_data.max(axis=0, level=1)
         
-        x_vals_shift = x_vals+steps[i]
-
+    # index to rows in FacetGrid
+    grid_data = np.stack( [np.repeat(mean.index[:,None], 1),
+                           np.repeat(1, mean.index.size)])
+    df = pd.DataFrame(grid_data.T, columns=['index', 'None'])
+    g = sns.FacetGrid(df, row='index', height=3, aspect=3.5,
+                      sharex=False,  sharey=False)    
+    color='red'
+    for r, row_label in enumerate(mean.index):
+        ax = g.axes[r,0]
+        df_freq = mean.loc[row_label]
+        df_min  = y_min.loc[row_label]
+        df_max  = y_max.loc[row_label]
+                   
+        for f in np.unique(df_data.index.get_level_values(0)):
+            ax.scatter(df_freq.index, df_data.loc[f].loc[row_label].values, 
+                       color='black', marker="_", s=70,
+                       alpha=.3 )
+            
+        ax.scatter(df_freq.index, df_freq.values, s=90, marker="_",
+                   color=color, alpha=1 )
+            
+        ax.scatter(df_freq.index, df_min.values, s=90, 
+                   marker="_", color='black')
+        ax.scatter(df_freq.index, df_max.values, s=90, 
+                   marker="_", color='black')
+        # ax.vlines(df_freq.index, df_min.values, df_max.values, color='black', linewidth=1)
         
-        ax.scatter(x_vals_shift, y_vals, color=color, linestyle=style,
-                        linewidth=3, alpha=1 )
-        # C.I. inteval
-
-        ax.scatter(x_vals_shift, y_mins, s=70, marker="_", color='black')
-        ax.scatter(x_vals_shift, y_maxs, s=70, marker="_", color='black')
-        ax.vlines(x_vals_shift, y_mins, y_maxs, color='black', linewidth=1)
-                  
-        for x_t,y_t in zip(x_vals_shift, y_mins):
-            ax.text(x_t, y_t-.005, f'{fold_key}', horizontalalignment='center',
-                    verticalalignment='top')
         
-    
-        ax.hlines(y=0, xmin=min(x_vals)-spread_size, xmax=max(x_vals)+spread_size, linestyle='dotted', linewidth=0.75)
-        ax.set_xticks(x_vals)
-        ax.set_xticklabels(x_vals_freq)
-    
-        
-        if lags_t is not None:
-            if np.unique(lags_t).size > 1 and i==0:
-        
-                ax2 = ax.twiny()
-                ax2.set_xbound(ax.get_xbound())
-                ax2.set_xticks(x_vals)
-                ax2.set_xticklabels(lags_t)
-                ax2.grid(False)
-                ax2.set_xlabel(x_label2)
-                text = f'Lead time varies'
-                props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
-                ax.text(0.5, 0.983, text,
-                        fontsize=15,
-                        bbox=props,
-                    horizontalalignment='center',
-                    verticalalignment='top',
-                    transform=ax.transAxes)
-    
-            if np.unique(lags_t).size == 1 and i==0:
-                text = f'Lead time: {int(np.unique(lags_t))} days'
-                props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
-                ax.text(0.5, 0.983, text,
-                        fontsize=15,
-                        bbox=props,
-                    horizontalalignment='center',
-                    verticalalignment='top',
-                    transform=ax.transAxes)
-    
-    
+        if r == 0:
+            text = f'Lead time: {int(np.unique(lag))} days'
+            props = dict(boxstyle='round', facecolor='wheat', edgecolor='black', alpha=0.5)
+            ax.text(0.5, 1.05, text,
+                    fontsize=14,
+                    bbox=props,
+                horizontalalignment='center',
+                verticalalignment='bottom',
+                transform=ax.transAxes)
+        if row_label == 'std':
+            text = '+1 std (~84th percentile)'
+        else:
+            text = f'{row_label}th percentile'
+        props = dict(boxstyle='round', facecolor=None, edgecolor='black', alpha=0.5)
+        ax.text(0.015, .98, text,
+                fontsize=10,
+                bbox=props,
+            horizontalalignment='left',
+            verticalalignment='top',
+            transform=ax.transAxes)
         if metric == 'BSS':
-            y_lim = (-0.4, 0.6)
+            y_lim = (-0.4, 0.4)
         elif metric[:3] == 'AUC':
             y_lim = (0,1.0)
         elif metric == 'EDI':
             y_lim = (-1.,1.0)
         ax.set_ylim(y_lim)
-        ax.set_ylabel(metric)
-        ax.set_xlabel(x_label)
-    ax.plot()
+        ax.set_ylabel(metric, labelpad=-2)
+        if r == mean.index.size-1:
+            ax.set_xlabel(x_label, labelpad=4)
+    
     #%%
-    return fig
+    return g.fig
 
 def plot_score_lags(df_metric, metric, color, lags_tf, linestyle='solid',
                     clim=None, cv_lines=False, col=0, threshold_bin=None,
@@ -486,38 +517,43 @@ def plot_score_lags(df_metric, metric, color, lags_tf, linestyle='solid',
         ax.hlines(y=y_b, xmin=min(x), xmax=max(x), linewidth=1)
 
     if metric in ['Precision', 'Accuracy'] and threshold_bin is not None:
-        if threshold_bin == 'clim':
-        # binary metrics calculated for clim prevailance
-            ax.text(0.00, 0.05, r'Event pred. when fc $\geq$ clim. prob.',
-                    horizontalalignment='left', fontsize=10,
-                    verticalalignment='center', transform=ax.transAxes,
-                    rotation=0, rotation_mode='anchor', alpha=0.5)
-            # old : percentile_t = 100 * clim_prev
-        elif threshold_bin == 'upper_clim':
-            # binary metrics calculated for top 75% of 'above clim prob'
-            ax.text(0.00, 0.05, r'Event pred. when fc$\geq$1.25 * clim. prob.',
-                    horizontalalignment='left', fontsize=10,
-                    verticalalignment='center', transform=ax.transAxes,
-                    rotation=0, rotation_mode='anchor', alpha=0.5)
+        with_numbers = any(char.isdigit() for char in threshold_bin)
+        if with_numbers == False:
+            # it is a string
+            if 'clim' in threshold_bin:
+            # binary metrics calculated for clim prevailance
+                ax.text(0.00, 0.05, r'Event pred. when fc $\geq$ clim. prob.',
+                        horizontalalignment='left', fontsize=10,
+                        verticalalignment='center', transform=ax.transAxes,
+                        rotation=0, rotation_mode='anchor', alpha=0.5)
+            elif 'upper_clim' in threshold_bin:
+                # binary metrics calculated for top 75% of 'above clim prob'
+                ax.text(0.00, 0.05, r'Event pred. when fc$\geq$1.25 * clim. prob.',
+                        horizontalalignment='left', fontsize=10,
+                        verticalalignment='center', transform=ax.transAxes,
+                        rotation=0, rotation_mode='anchor', alpha=0.5)
             # old: bin_threshold = 100 * (1 - 0.75*clim_prev)
             # old:  percentile_t = bin_threshold
-        elif isinstance(threshold_bin, int) or isinstance(threshold_bin, float):
-            if threshold_bin < 1:
-                threshold_bin = int(100*threshold_bin)
-            else:
-                threshold_bin = threshold_bin
-            ax.text(0.00, 0.05, r'Event pred. when fc$\geq${}'.format(threshold_bin),
-                    horizontalalignment='left', fontsize=10,
-                    verticalalignment='center', transform=ax.transAxes,
-                    rotation=0, rotation_mode='anchor', alpha=0.5)
-        elif isinstance(threshold_bin, tuple):
-            times = threshold_bin[0]
+
+        elif '(' in threshold_bin and with_numbers:
+            # dealing with tuple, deciphering.. 
+            times = float(threshold_bin.split('(')[1].split(',')[0])
             ax.text(0.00, 0.05, r'Event pred. when fc$\geq${} * clim. prob.'.format(times),
                     horizontalalignment='left', fontsize=10,
                     verticalalignment='center', transform=ax.transAxes,
                     rotation=0, rotation_mode='anchor', alpha=0.5)
+        elif with_numbers:
+            threshold_bin = threshold_bin.replace('b', '').replace('\'', '')
+            if float(threshold_bin) < 1:
+                threshold_bin = int(100*threshold_bin)
+            else:
+                threshold_bin = int(threshold_bin)
+            ax.text(0.00, 0.05, r'Event pred. when fc$\geq${}%'.format(threshold_bin),
+                    horizontalalignment='left', fontsize=10,
+                    verticalalignment='center', transform=ax.transAxes,
+                    rotation=0, rotation_mode='anchor', alpha=0.5)
             
-    if metric in ['AUC-ROC', 'AUC-PR', 'Precision']:
+    if metric in ['AUC-ROC', 'AUC-PR', 'Precision', 'Accuracy']:
         ax.text(max(x), y_b-0.05, 'Benchmark rand. pred.',
                 horizontalalignment='right', fontsize=12,
                 verticalalignment='center',
@@ -533,19 +569,26 @@ def plot_score_lags(df_metric, metric, color, lags_tf, linestyle='solid',
     return ax
 
 
-def rel_curve_base(RV, lags_tf, n_bins=5, col=0, ax=None):
+def rel_curve_base(df_RV, n_bins=5, col=0, ax=None):
     #%%
 
-
+    # ax=None
 
     if ax==None:
         print('ax == None')
         fig, ax = plt.subplots(1, facecolor='white')
-
+        ax.set_xticklabels(['']*n_bins)
+        ax.set_fc('white')
+        
+    divider = make_axes_locatable(ax)
+    axhist = divider.append_axes("bottom", size="50%", pad=0.25)
+    axhist.set_fc('white')
     ax.set_fc('white')
 
     ax.patch.set_edgecolor('black')
+    axhist.patch.set_edgecolor('black')
     ax.patch.set_linewidth('0.5')
+    axhist.patch.set_linewidth('0.5')
     ax.grid(b=True, which = 'major', axis='both', color='black',
             linestyle='--', alpha=0.2)
 
@@ -554,13 +597,14 @@ def rel_curve_base(RV, lags_tf, n_bins=5, col=0, ax=None):
     perfect = np.arange(0,1+1E-9,(1/n_bins))
     pos_text = np.array((0.50, 0.50+0.025))
     ax.plot(perfect,perfect, color='black', alpha=0.5)
-    trans_angle = plt.gca().transData.transform_angles(np.array((44.3,)),
+    trans_angle = plt.gca().transData.transform_angles(np.array((32,)),
                                                        pos_text.reshape((1, 2)))[0]
-    ax.text(pos_text[0], pos_text[1], 'perfectly reliable', fontsize=14,
+    ax.text(pos_text[0], pos_text[1], 'perfectly reliable', fontsize=12,
                    rotation=trans_angle, rotation_mode='anchor')
-    obs_clim = RV.prob_clim.mean()[0]
-    ax.text(obs_clim+0.2, obs_clim-0.05, 'Obs. clim',
-                horizontalalignment='center', fontsize=14,
+    
+    obs_clim = df_RV['prob_clim'].mean()
+    ax.text(obs_clim+0.2, obs_clim-0.07, 'Obs. clim',
+                horizontalalignment='center', fontsize=10,
          verticalalignment='center', rotation=0, rotation_mode='anchor')
     ax.hlines(y=obs_clim, xmin=0, xmax=1, label=None, color='grey',
               linestyle='dashed')
@@ -568,12 +612,12 @@ def rel_curve_base(RV, lags_tf, n_bins=5, col=0, ax=None):
               linestyle='dashed')
 
     # forecast clim
-#    pred_clim = y_pred_all.mean().values
-#    ax.vlines(x=np.mean(pred_clim), ymin=0, ymax=1, label=None)
-#    ax.vlines(x=np.min(pred_clim), ymin=0, ymax=1, label=None, alpha=0.2)
-#    ax.vlines(x=np.max(pred_clim), ymin=0, ymax=1, label=None, alpha=0.2)
+    #    pred_clim = y_pred_all.mean().values
+    #    ax.vlines(x=np.mean(pred_clim), ymin=0, ymax=1, label=None)
+    #    ax.vlines(x=np.min(pred_clim), ymin=0, ymax=1, label=None, alpha=0.2)
+    #    ax.vlines(x=np.max(pred_clim), ymin=0, ymax=1, label=None, alpha=0.2)
     ax.text(np.min(obs_clim)-0.025, obs_clim.mean()+0.3, 'Obs. clim',
-            horizontalalignment='center', fontsize=14,
+            horizontalalignment='center', fontsize=10,
      verticalalignment='center', rotation=90, rotation_mode='anchor')
     # resolution = reliability line
     BSS_clim_ref = perfect - obs_clim
@@ -585,14 +629,15 @@ def rel_curve_base(RV, lags_tf, n_bins=5, col=0, ax=None):
         dy = np.mean(dist_perf[1:] - dist_perf[:-1])
         dx = np.mean(x[1:] - x[:-1])
         angle = np.rad2deg(math.atan(dy/dx))
+        # hardcode adapting code due to splitting axes, pythagoras fails
         return angle
     angle = get_angle_xy(x, dist_perf)
     pos_text = (x[int(4/n_bins)], dist_perf[int(2/n_bins)]+0.04)
     trans_angle = plt.gca().transData.transform_angles(np.array((angle,)),
                                       np.array(pos_text).reshape((1, 2)))[0]
-#    ax.text(pos_text[0], pos_text[1], 'resolution=reliability',
-#            horizontalalignment='center', fontsize=14,
-#     verticalalignment='center', rotation=trans_angle, rotation_mode='anchor')
+    #    ax.text(pos_text[0], pos_text[1], 'resolution=reliability',
+    #            horizontalalignment='center', fontsize=14,
+    #     verticalalignment='center', rotation=trans_angle, rotation_mode='anchor')
     # BSS > 0 ares
     ax.fill_between(x, dist_perf, perfect, color='grey', alpha=0.5)
     ax.fill_betweenx(perfect, x, np.repeat(obs_clim, x.size),
@@ -601,75 +646,73 @@ def rel_curve_base(RV, lags_tf, n_bins=5, col=0, ax=None):
     ax.fill_between(x, dist_perf, np.repeat(obs_clim, x.size), color='grey', alpha=0.2)
     if col == 0:
         ax.set_ylabel('Observed frequency')
+        axhist.set_ylabel('Count', labelpad=17)
     else:
         ax.tick_params(labelleft=False)
-    ax.set_xlabel('Forecast probability')
     ax.set_ylim(-0.02,1.02)
     ax.set_xlim(-0.02,1.02)
+    
     #%%
-    return ax, n_bins
+    return [ax, axhist], n_bins
     #%%
-def rel_curve(RV, y_pred_all, color, lags_tf, n_bins, linestyle='solid', mean_lags=True, ax=None):
+def rel_curve(df_RV, y_pred_all, lags_relcurve, n_bins, color, line_style=None,
+              legend='single', ax=None):
+              
     #%%
-
+    # ax=None
     if ax==None:
-        ax, n_bins = rel_curve_base(RV, lags_tf)
+        axes, n_bins = rel_curve_base(df_RV)
+        ax, axhist = axes
+    else:
+        ax, axhist = ax
+        ax.set_xticklabels(['']*n_bins)
+
 
     strategy = 'uniform' # 'quantile' or 'uniform'
     fop = [] ; mpv = []
-    for l, lag in enumerate(lags_tf):
+    for l, lag in enumerate(lags_relcurve):
 
-        fraction_of_positives, mean_predicted_value = calibration_curve(RV.RV_bin, y_pred_all[lag],
-                                                                       n_bins=n_bins, strategy=strategy)
+        out = calibration_curve(df_RV['RV_binary'],   y_pred_all[lag],
+                                n_bins=n_bins, strategy=strategy)
+        fraction_of_positives, mean_predicted_value = out
         fop.append(fraction_of_positives)
         mpv.append(mean_predicted_value)
     fop = np.array(fop)
     mpv = np.array(mpv)
-    if len(fop.shape) == 2:
-        # al bins are present, we can take a mean over lags
-        # plot forecast
-        mean_mpv = np.mean(mpv, 0) ; mean_fop = np.mean(fop, 0)
-        fop_std = np.std(fop, 0)
+    
+   
+    for l, lag in enumerate(lags_relcurve):
+        if len(lags_relcurve) > 1:
+            line_style = line_styles[l]
+        ax.plot(mpv[l], fop[l], color=color, linestyle=line_style, 
+                label=f'lag {lag}', marker='s', markersize=3)
+        # print(line_styles)
+        # print(l)
+        # print(line_styles[l])
+        axhist.hist(y_pred_all[lag], range=(0,1), bins=2*n_bins, color=color,
+                    histtype="step", linestyle=line_style, label=None)
+        
+        axhist.set_xlim(-0.02,1.02)
+    if legend == 'single':
+        color_leg = color
     else:
-        bins = np.arange(0,1+1E-9,1/n_bins)
-        b_prev = 0
-        dic_mpv = {}
-        dic_fop = {}
-        for i, b in enumerate(bins[1:]):
+        color_leg = 'grey'
+        
+    lines = [line_styles[l] for l in range(len(lags_relcurve))]
+    lines = [Line2D([0], [0], color=color_leg, linewidth=2, linestyle=l) for l in lines]
+    ax.legend(lines, [f'lag {lag}' for lag in lags_relcurve], fontsize=9)
 
-            list_mpv = []
-            list_fop = []
-            for i_lags, m_ in enumerate(mpv):
-                m_ = list(m_)
-                # if mpv falls in bin, it is added to the list, which will added to
-                # the dict_mpv
-
-                list_mpv.append([val for val in m_ if (val < b and val > b_prev)])
-                list_fop.append([fop[i_lags][m_.index(val)] for idx,val in enumerate(m_) if (val < b and val > b_prev)])
-            dic_mpv[i] = flatten(list_mpv)
-            dic_fop[i] = flatten(list_fop)
-            b_prev = b
-        mean_mpv = np.zeros( (n_bins) )
-        mean_fop = np.zeros( (n_bins) )
-        fop_std  = np.zeros( (n_bins) )
-        for k, item in dic_mpv.items():
-            mean_mpv[k] = np.mean(item)
-            mean_fop[k] = np.mean(dic_fop[k])
-            fop_std[k]  = np.std(dic_fop[k])
-
-    ax.plot(mean_mpv, mean_fop, color=color, linestyle=linestyle, label=None) ;
-
-    ax.fill_between(mean_mpv, mean_fop+fop_std,
-                    mean_fop-fop_std, label=None,
-                    alpha=0.2, color=color) ;
+    # axhist.yaxis.set_major_formatter(ticker.FormatStrFormatter('%0.0e'))
+    # axhist.tick_params(axis='y', labelsize=8)
+    axhist.ticklabel_format(style='sci', scilimits=(0, 1), useMathText=True)
+    axhist.yaxis.offsetText.set_fontsize(8)
+    
+    
     ax.set_ylim(-0.02,1.02)
     ax.set_xlim(-0.02,1.02)
-    color_line = ax.lines[-1].get_c() # get color
-    # determine size freq
-    freq = np.histogram(y_pred_all[lag], bins=n_bins)[0]
-    n_freq = freq / RV.RV_ts.size
-    ax.scatter(mean_mpv, mean_fop, s=n_freq*2000,
-               color=color_line, alpha=0.5)
+    axhist.set_xlabel('Mean predicted value')
+
+
 
 
     #%%
@@ -707,7 +750,7 @@ def plot_oneyr_events(df, event_percentile, test_year):
             label = None
         ax.fill_between(plotpaper.index, threshold, plotpaper[col].values.squeeze(),
                          where=(plotpaper[col].values.squeeze() > threshold),
-                     interpolate=True, color="crimson", label=label)
+                     interpolate=True, color=color, label=label, alpha=.5)
         ax.legend(fontsize='x-large', fancybox=True, facecolor='grey',
                   frameon=True, framealpha=0.3)
         ax.set_title('Timeseries and Events', fontsize=18)
@@ -811,39 +854,148 @@ def plot_freq_per_yr(RV):
     #%%
 
 
-def valid_figures(dict_experiments, expers, models, line_dim='model', group_line_by=None,
-                  met='default', wspace=0.08, col_wrap=None, threshold_bin=None):
+def merge_valid_info(list_of_fc, store=True):
+    dict_merge_all = {}
+    for fc in list_of_fc:
+        datasetname = fc.dataset.replace(' ', '__')
+        expername   = fc.experiment.replace(' ', '__')
+        uniq_label = datasetname+'..'+fc.stat_model[0]+'..'+expername
+        dict_merge_all[uniq_label+'...df_valid'] = fc.dict_sum[0]
+        dict_merge_all[uniq_label+'...df_RV'] = fc.dict_sum[1]
+        dict_merge_all[uniq_label+'...y_pred_all'] = fc.dict_sum[2]
+    
+    if store:
+        if hasattr(fc, 'filename')==False:
+            fc._get_outpaths()
+        functions_pp.store_hdf_df(dict_merge_all, file_path=fc.filename+'.h5')
+    return dict_merge_all
+
+def valid_figures(dict_merge_all, line_dim='model', group_line_by=None,
+                  met='default', wspace=0.08, col_wrap=None, figaspect=1.4,
+                  skip_redundant_title=False, 
+                  lags_relcurve: list=None):
    
     '''
     3 dims to plot: [metrics, experiments, stat_models]
     2 can be assigned to row or col, the third will be lines in the same axes.
     '''
     
-    # group_line_by=None; met='default'; wspace=0.08; col_wrap=None; threshold_bin=fc.threshold_pred
+    # group_line_by=None; met='default'; wspace=0.08; col_wrap=None; skip_redundant_title=True; lags_relcurve=None; figaspect=2
     #%%
     dims = ['exper', 'models', 'met']
     col_dim = [s for s in dims if s not in [line_dim, 'met']][0]
     if met == 'default':
-        met = ['AUC-ROC', 'AUC-PR', 'BSS', 'Precision', 'Rel. Curve', 'ts']
+        met = ['AUC-ROC', 'BSS', 'Rel. Curve', 'Precision']
+    
+   
+    all_expers = list(dict_merge_all.keys())
+    uniq_labels = [k.split('...')[0] for k in all_expers][::3]
+    dict_all = {}
+    for k in uniq_labels:
+        # retrieve sub dataframe of forecast
+        df_valid = dict_merge_all[k+'...df_valid']
+        df_RV = dict_merge_all[k+'...df_RV']
+        y_pred_all = dict_merge_all[k+'...y_pred_all']
+        dict_all[k] = (df_valid, df_RV, y_pred_all)
+        
+    comb   = list(dict_all.keys())
+    
+    datasets = [c.split('..')[0] for c in comb]
+    models   = [c.split('..')[1] for c in comb]
+    expers   = [c.split('..')[2] for c in comb]
+    dims     = [datasets, models, expers]
 
+   
 
+    def line_col_arrangement(lines_req, option1, option2, comb):
+        
+        duplicates = [lines_req.count(l) != 1 for l in lines_req]
+        if any(duplicates) == False:
+            # not all duplicates in lines_req
+            if np.unique(option1).size==1 and np.unique(option2).size!=1:
+                # option1 has only 1 repeated value
+                # append option2 to line, and create col for option1
+                lines = [option2[i]+'..'+l for i, l in enumerate(lines_req)]
+                cols = np.unique(option1)
+            if np.unique(option1).size==1 and np.unique(option2).size==1:
+                # option1 and option2 have both only 1 repeated value
+                # create single col for this combination:
+                lines = np.unique(lines_req)
+                cols = [option1[i]+'..'+option2[i] for i in range(len(comb))]
+                cols = np.unique(cols)
+            elif np.unique(option2).size!=1 and np.unique(option2).size==1:
+                lines = [option1[i]+'..'+l for i, l in enumerate(lines_req)]
+                cols = np.unique(option2)
+            # else:
+            #     cols= list(itertools.product(np.unique(option1), 
+            #                              np.unique(option2)))
+            #     cols = [c[0] + '..' + c[1] for c in cols]
+        elif all([lines_req.count(l) == len(lines_req) for l in lines_req]):
+            # all duplicates
+           cols = []
+           for c in comb:
+               cols.append('..'.join([p for p in c.split('..') if p not in lines_req]))
+           cols = np.unique(cols)   
+           lines = np.unique(lines_req)
+        else:
+            cols = []
+            for c in comb:
+                cols.append('..'.join([p for p in c.split('..') if p not in lines_req]))
+            cols = np.unique(cols)
+            if np.unique(option2).size > 1:
+                sor = [option2.count(v) for v in option2]
+                cols = [x for _,x in sorted(zip(sor,cols), reverse=False)]
+            elif np.unique(option1).size > 1:
+                sor = [option1.count(v) for v in option1]
+                cols = [x for _,x in sorted(zip(sor,cols), reverse=False)]
 
-    if line_dim == 'model':
-        lines = models
-        cols  = expers
-    elif line_dim == 'exper':
-        lines = expers
-        cols  = models
-    assert line_dim in ['model', 'exper'], ('illegal key for line_dim, '
-                           'choose \'exper\' or \'model\'')
+            lines = np.unique(lines_req)
+        return lines, cols 
+    
 
-    if len(cols) == 1 and group_line_by is not None:
-        group_s = len(group_line_by)
-        cols = group_line_by
+    if line_dim is not None:
+        assert line_dim in ['model', 'exper', 'dataset'], ('illegal key for line_dim, '
+                               'choose \'exper\' or \'model\'')
+        
+        if line_dim == 'model':
+            lines_req = models
+            left = [datasets, expers]
+        elif line_dim == 'exper':
+            lines_req = expers
+            left = [datasets, models]
+        elif line_dim == 'dataset':
+            lines_req = datasets
+            left = [models, expers]
+
+   
+        lines, cols = line_col_arrangement(lines_req, *left, comb)
+        cols = cols[::-1]
+    
+    elif group_line_by is not None:
+        assert group_line_by in ['model', 'exper', 'dataset'], ('illegal key for line_dim, '
+                               'choose \'exper\' or \'model\'')
+        
+        if group_line_by == 'model':
+            cols_req = models
+            left = [datasets, expers]
+        elif group_line_by == 'exper':
+            cols_req = expers
+            left = [datasets, models]
+        elif group_line_by == 'dataset':
+            cols_req = datasets
+            left = [models, expers]
+            
+        
+        group_s = np.unique(cols_req).size
+        cols = np.unique(cols_req)
         lines_grouped = []
-        for i in range(0,len(lines),group_s):
-            lines_grouped.append(lines[i:i+group_s])
-
+        for i, gs in enumerate(range(0,len(comb),group_s)):
+            lines_full = comb[gs:gs+group_s]
+            lines_col = [l.replace(cols[i], '') for l in lines_full]
+            lines_grouped.append(lines_col)
+        # lines = flatten(lines_grouped)
+        
+            
 
 
     grid_data = np.zeros( (2, len(met)), dtype=str)
@@ -853,22 +1005,39 @@ def valid_figures(dict_experiments, expers, models, line_dim='model', group_line
 
     df = pd.DataFrame(grid_data.T, columns=['met', col_dim])
     if len(cols) != 1 or col_wrap is None:
-        g = sns.FacetGrid(df, row='met', col=col_dim, height=3, aspect=1.4,
+        g = sns.FacetGrid(df, row='met', col=col_dim, height=3, aspect=figaspect,
                       sharex=False,  sharey=False)
         # Only if 1 column is requisted, col_wrap is allowed
     if len(cols) == 1 and col_wrap is not None:
 
-        g = sns.FacetGrid(df, col='met', height=3, aspect=1.4,
+        g = sns.FacetGrid(df, col='met', height=3, aspect=figaspect,
                       sharex=False,  sharey=False, col_wrap=col_wrap)
 
 
-
+    def style_label(dims, label, all_labels, skip_redundant_title):
+        if skip_redundant_title and len(all_labels) > 1:
+            # remove string if it is always the same, i.e. redundant
+            for dim in dims:
+                if np.unique(dim).size == 1:
+                    d = dim[0]
+                    if d in label:
+                        label = label.replace(d, '')
+        if label[:2] == '..':
+            label = label.replace(label[:2], '')
+        if label[-2:] == '..':
+            label = label.replace(label[-2:], '')
+        label = label.replace('__',' ').replace('..', ' ')
+        return label.replace('__',' ').replace('..', ' ')
 
     for col, c_label in enumerate(cols):
 
         if col_wrap is None:
-            g.axes[0,col].set_title(c_label)
-        if len(models) == 1 and group_line_by is not None:
+
+            styled_col_label = style_label(dims, c_label, cols, skip_redundant_title)
+
+            g.axes[0,col].set_title(styled_col_label)
+        
+        if group_line_by is not None:
             lines = lines_grouped[col]
 
 
@@ -882,77 +1051,85 @@ def valid_figures(dict_experiments, expers, models, line_dim='model', group_line
 
             for l, line in enumerate(lines):
 
-                if line_dim == 'model':
-                    model = line
-                    exper = c_label
+                if line_dim == 'model' or line_dim=='dataset':
+                    color = nice_colors[l]
+                elif line_dim == 'exper':
+                    color = colors_datasets[l]
+                elif group_line_by is not None:
                     color = nice_colors[l]
 
-                elif line_dim == 'exper':
-                    model = c_label
-                    exper = line
-                    if len(models) == 1 and group_line_by is not None:
-                        exper = line
-                        model = models[0]
-                    color = colors_datasets[l]
+                    
+                
+                string_exp = line +'..'+ c_label.replace(' ','..') 
+                diff_order = list(permutations(string_exp.split('..'), 3))
+                diff_order = ['..'.join(sublist) for sublist in diff_order]
+                got_it = False ; 
+                for av, req in product(comb,diff_order):
+                    if av == req:
+                        # print(av,string_exp)
+                        df_valid, df_RV, y_pred_all = dict_all[av]
+                    # df_RV = RV.prob_clim.merge(RV.RV_bin, left_index=True, right_index=True)
+                    # print(string_exp, k, '\n', df_valid.loc['BSS'].loc['BSS'])
+                        got_it = True 
+                        break
 
+                        
+                if got_it == True:
+                    # if experiment not present, continue loop, but skip this
+                    # string_exp
 
-
+                    lags_tf     = y_pred_all.columns.astype(int)
+                    # =========================================================
+                    # # plot metrics in df_valid
+                    # =========================================================
+                    if metric in ['AUC-ROC', 'AUC-PR', 'BSS', 'Precision', 'Accuracy']:
+                        df_metric = df_valid.loc[metric]
+                        if metric in ['AUC-PR', 'Precision', 'Accuracy']:
+                            RV_bin = df_RV['RV_binary']
+                            clim = RV_bin.values[RV_bin==1].size / RV_bin.size
+                            if metric == 'Accuracy':
+                                import validation as valid
+                                # threshold upper 3/4 of above clim
+                                threshold = int(100 * (1 - 0.75*clim))
+                                f_ = valid.get_metrics_confusion_matrix
+                                df_ran = f_(RV_bin.squeeze().values, 
+                                            y_pred_all.loc[:,:0],
+                                            thr=[threshold], n_shuffle=400)
+                                clim = df_ran[threshold/100]['fc shuf'].loc[:,'Accuracy'].mean()
     
-                df_valid, RV, y_pred_all = dict_experiments[exper][model]
-                # tfreq = (y_pred_all.iloc[1].name - y_pred_all.iloc[0].name).days
-                lags_i     = list(dict_experiments[exper][model][2].columns.astype(int))
-                # lags_tf = [l*tfreq for l in lags_i]
-                # if tfreq != 1:
-                #     # the last day of the time mean bin is tfreq/2 later then the centerered day
-                #     lags_tf = [l_tf- int(tfreq/2) if l_tf!=0 else 0 for l_tf in lags_tf]
-                lags_tf = lags_i
-
-
-                if metric in ['AUC-ROC', 'AUC-PR', 'BSS', 'Precision', 'Accuracy']:
-                    df_metric = df_valid.loc[metric]
-                    if metric in ['AUC-PR', 'Precision', 'Accuracy']:
-                        clim = RV.RV_bin.values[RV.RV_bin==1].size / RV.RV_bin.size
-                        if metric == 'Accuracy':
-                            import validation as valid
-                            # threshold upper 3/4 of above clim
-                            threshold = int(100 * (1 - 0.75*clim))
-                            df_ran = valid.get_metrics_confusion_matrix(RV, y_pred_all.loc[:,:0],
-                                                    thr=[threshold], n_shuffle=400)
-                            clim = df_ran[threshold/100]['fc shuf'].loc[:,'Accuracy'].mean()
-
-                    else:
-                        clim = None
-                    plot_score_lags(df_metric, metric, color, lags_tf,
-                                    linestyle=line_styles[l], clim=clim,
-                                    cv_lines=False, col=col, 
-                                    threshold_bin=threshold_bin, ax=ax)
-                                    
-                if metric == 'Rel. Curve':
-                    if l == 0:
-                        ax, n_bins = rel_curve_base(RV, lags_tf, col=col, ax=ax)
-                    print(l,line)
-
-                    rel_curve(RV, y_pred_all, color, lags_i, n_bins,
-                              linestyle=line_styles[l], mean_lags=True,
-                              ax=ax)
-
-                if metric == 'ts':
-                    if l == 0:
-                        ax, dates_ts = plot_events(RV, color=nice_colors[-1], n_yrs=6,
-                                         col=col, ax=ax)
-                    plot_ts(RV, y_pred_all, dates_ts, color, line_styles[l], lag_i=lags_i[0], ax=ax)
-
-                # legend conditions
-                same_models = np.logical_and(row==0, col==0)
-                grouped_lines = np.logical_and(row==0, group_line_by is not None)
-                if same_models or grouped_lines:
-
-
-                    ax.legend(ax.lines, lines,
-                          loc = 'lower left', fancybox=True,
-                          handletextpad = 0.2, markerscale=0.1,
-                          borderaxespad = 0.1,
-                          handlelength=2.5, handleheight=1, prop={'size': 12})
+                        else:
+                            clim = None
+                        plot_score_lags(df_metric, metric, color, lags_tf,
+                                        linestyle=line_styles[l], clim=clim,
+                                        cv_lines=False, col=col, 
+                                        threshold_bin=df_valid.index.name, ax=ax)
+                    # =========================================================
+                    # # plot reliability curve
+                    # =========================================================
+                    if metric == 'Rel. Curve':
+                        if l == 0:
+                            doubleax, n_bins = rel_curve_base(df_RV, col=col, ax=ax)
+                        if len(lines) > 1:
+                            legend = 'multiple' 
+                        else:
+                            legend = 'single' 
+                        if lags_relcurve is None:
+                            lags_relcurve = [lags_tf[int(lags_tf.size/2)]]
+                        rel_curve(df_RV, y_pred_all, lags_relcurve, n_bins,
+                                  color=color, line_style=line_styles[l],
+                                  legend=legend, ax=doubleax)
+    
+    
+                    # legend conditions
+                    lines_leg = [style_label(dims, l, lines, skip_redundant_title) for l in lines]
+                    same_models = all([row==0, col==0, line==lines[-1]])
+                    grouped_lines = np.logical_and(row==0, group_line_by is not None)
+                    if same_models or grouped_lines:
+                        ax.legend(ax.lines, lines_leg,
+                              loc = 'lower left', fancybox=True,
+                              handletextpad = 0.2, markerscale=0.1,
+                              borderaxespad = 0.1,
+                              handlelength=2.5, handleheight=1, prop={'size': 12})
 
     #%%
     g.fig.subplots_adjust(wspace=wspace)

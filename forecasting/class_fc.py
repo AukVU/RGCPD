@@ -524,14 +524,10 @@ class fcev():
                             sharex=sharex, kwrgs=kwrgs)
         return
 
-<<<<<<< HEAD
-    def plot_feature_importances(self, model=None, lag=None, keys=None, cutoff=6):
-=======
 
     def plot_feature_importances(self, model=None, lag=None, keys=None,
                                  cutoff=10):
 
->>>>>>> 15ea5de9d524d02bbef4eb7c0cc86a68284b2ecf
         if model is None:
             model = [n[0] for n in self.stat_model_l][0]
         models_splits_lags = self.dict_models[model]
@@ -567,10 +563,6 @@ class fcev():
         return df_ana.loop_df(df, function=func, sharex=sharex, sharey=sharey,
                              colwrap=2, hspace=hspace, kwrgs=kwrgs_func)
 
-<<<<<<< HEAD
-    
-=======
->>>>>>> 15ea5de9d524d02bbef4eb7c0cc86a68284b2ecf
     def _fit_model(self, stat_model=tuple, verbosity=0):
 
         #%%

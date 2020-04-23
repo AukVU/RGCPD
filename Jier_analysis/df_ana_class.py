@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
-import sys, os, inspect
+import inspect
+import os
+import sys
+import warnings
 from typing import List, Tuple, Union
+
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
 subdates_dir = os.path.join(main_dir, 'RGCPD/')
@@ -11,27 +15,30 @@ if main_dir not in sys.path:
     sys.path.append(subdates_dir)
     sys.path.append(fc_dir)
 
-import pandas as pd
-import numpy as np
+import h5py
+import matplotlib as mpl
 import matplotlib.pyplot as plt
+import mtspec
+import numpy as np
+import pandas as pd
+import scipy as sp
+import seaborn as sns
+import tables
+import xarray
+from matplotlib import cycler
+from scipy import stats
+from statsmodels.tsa import stattools
+
+from RGCPD.core_pp import get_subdates
+from forecasting import *
+
 pd.options.plotting.matplotlib.register_converters = True # apply custom format as well to matplotlib
 plt.style.use('seaborn')
-import scipy as sp
-from scipy import stats
-import seaborn as sns
-import matplotlib as mpl
-from matplotlib import cycler
-import xarray
-import mtspec
-import  warnings
-import tables
-import h5py
-from forecasting import *
-from statsmodels.tsa import stattools 
-import core_pp
-from core_pp import get_subdates
 
 
+# TODO MAKE BASE CLASSES FOR DFANALYSIS AND VISUALANALYSIS SUCH THAT CHILD CLASS CAN INHERIT DEFAULT VALUES
+# TODO FIND WAY TO VISUALISE PARAMS NEEDED IN CHILD CLASS THAT OTHERWISE ONLY BE ACCESSIBLE IN PARENT CLASS
+# TODO MAKE ANY FUNCTIONS WORK WITH REGULAR TS AND MULT LEVEL TS FROM PARENT AND CHILD CLASSES
 class DataFrameAnalysis:
     def __init__(self):
         self.keys = None
@@ -89,6 +96,7 @@ class DataFrameAnalysis:
         raise NotImplementedError
     
     def subset_series(self, df_serie, time_steps=None, select_years: Union[int, list] = None):
+        # TODO FIND BETTER WAY TO FIND THE "20" AUTOMATICALLY THAN JUST HARD CODED
         if time_steps == None:
             _, conf_intval = self.apply_concat_series(df_serie, self.autocorrelation_stats_meth)
             conf_low = [np.where(conf_intval[i][:, 0] < 0)[0] for i in range(len(conf_intval))]
@@ -104,13 +112,13 @@ class DataFrameAnalysis:
         else:
             if hasattr(df_serie.index, 'levels'):
                 time_steps = [time_steps] * df_serie.columns.size
-                serie = [df_serie.iloc[:step, i] for i, step in enumerate(time_steps])
+                serie = [df_serie.iloc[:step, i] for i, step in enumerate(time_steps)]
             serie = [df_serie.iloc[:i] for i in time_steps]
 
         if select_years != None:
             if not isinstance(select_years, list):
                 select_years = [select_years]
-             if hasattr(df_serie.index, 'levels'):
+            if hasattr(df_serie.index, 'levels'):
                 date_time = self.get_one_year(df_serie.index, *(select_years))
                 serie = [df_serie.loc[date_time, col] for col in df_seri.columns]
                 return serie
@@ -260,22 +268,22 @@ class DataFrameAnalysis:
                 print("Twice ValueError generated ", sys.exc_info(), v_err_1, v_err_2)
                 sys.exit(1)
         return no_leap_month
-
-
-    def load_hdf(self, file_path):
+    
+    @staticmethod
+    def load_hdf(file_path):
         hdf = h5py.File(file_path, 'r+')
         dict_of_dfs = {k:pd.read_hdf(file_path, k) for k in hdf.keys()}
         hdf.close()
         return dict_of_dfs
-
-    def save_hdf(self, dict_of_dfs, file_path):
+    
+    @staticmethod
+    def save_hdf( dict_of_dfs, file_path):
         with pd.HDFStore(file_path, 'w') as hdf :
             for k, items in dict_of_dfs.items():
                 hdf.put(k, items,  format='table', data_columns=True)
         return 
 
 class VisualizeAnalysis:
-    # TODO untangle the inheritance and make two stand alone classes to avoid inheritance cluster fuck.
     def __init__(self, col_wrap=3, sharex='col', sharey='row'):
         self.nice_colors = ['#EE6666', '#3388BB', '#9988DD',
                  '#EECC55', '#88BB44', '#FFBBBB']
@@ -299,7 +307,7 @@ class VisualizeAnalysis:
         mpl.rcParams['legend.fontsize'] = 'medium'
         mpl.rcParams['figure.titlesize'] = 'medium'
         self.col_wrap = col_wrap
-        self.gridspec_kw = {'vspace':0.5, 'hspace':0.4}
+        self.gridspec_kw = {'wspace':0.5, 'hspace':0.4}
         self.sharex = sharex
         self.sharey = sharey
 
@@ -328,14 +336,14 @@ class VisualizeAnalysis:
         return plt.subplots(row, self.col_wrap, sharex=self.sharex, 
         sharey=self.sharey, figsize= (3* self.col_wrap, 2.5* row), gridspec_kw=self.gridspec_kw, constrained_layout=True)
 
-    def dataframe(self, df):
-        fig, ax = self.subplots_fig_settings(df)
+    def vis_dataframe(self, df):
+        _, ax = self.subplots_fig_settings(df)
         titles = list(df.columns)
         # fig.suptitle(str(function))
         df.plot(subplots=True,  ax=ax, title=titles)
         plt.show()
 
-    def vis_accuracy(self, values, title):
+    def vis_accuracy(self, values):
         auc, aut_corr, auc_cutoffs, sample_cutoff, conf_intval, text, time_freq = values
         fig, ax = self._subplots_func_adjustment()
         x_labels = [ i * time_freq[0] for i in range(sample_cutoff)]
@@ -361,17 +369,19 @@ class VisualizeAnalysis:
             ax.set_title(title, fontsize=10)
         plt.show()
 
-    def vis_timeseries(self, list_of_series):
-        _, ax = self._subplots_func_adjustment(len(list_of_series))
-
-        ax.plot(index, y_hat)
-        every_nth = round(len( ax.xaxis.get_ticklabels() )/ 3)
-        for n, label in enumerate(ax.xaxis.get_ticklabels()):
-            if n % every_nth != 0 :
-                label.set_visible(False)
-        ax.tick_params(axis='both', which='major', labelsize=8)
-        if title:
-            ax.set_title(title, fontsize=10)
+    def vis_timeseries(self, list_of_pdseries):
+        _, axis = self._subplots_func_adjustment(len(list_of_pdseries))
+        # TODO MAKE IT PLOT NORMAL TS AS MULT LEV TS
+        for i, series in enumerate(list_of_pdseries):
+            ax = axis.flatten()[i]
+            ax.plot(series.index, series)
+            every_nth = round(len( ax.xaxis.get_ticklabels() )/ self.col_wrap)
+            for n, label in enumerate(ax.xaxis.get_ticklabels()):
+                if n % every_nth != 0 :
+                    label.set_visible(False)
+            ax.tick_params(axis='both', which='major', labelsize=8)
+            # if series.name:
+            #     ax.set_title(series.name, fontsize=10)
         plt.show()
     
     def vis_scatter(self, df, target_var, aggr, title):

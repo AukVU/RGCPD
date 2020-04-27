@@ -20,6 +20,7 @@ import xarray as xr
 import plot_maps
 import uuid
 
+
 def labels_to_latlon(time_space_3d, labels, output_space_time, indices_mask, mask2d):
     xrspace = time_space_3d[0].copy()
     output_space_time[indices_mask] = labels
@@ -402,13 +403,4 @@ def regrid_array(xr_or_filestr, to_grid, periodic=False):
         plot_maps.plot_labels(xr_regrid.where(xr_regrid.values==3))
     return xr_regrid
 
-def mask_latlon(xarray, latmax=None, lonmax=None):
-    ll = np.meshgrid(xarray.longitude, xarray.latitude)
-    if latmax is not None and lonmax is None:
-        xarray = xarray.where(ll[1] < latmax)
-    if lonmax is not None and latmax is None:
-        xarray = xarray.where(ll[0]<lonmax)
-    if latmax is not None and lonmax is not None:
-        npmask = np.logical_or(ll[1] < latmax, ll[0]<lonmax)
-        xarray = xarray.where(npmask)
-    return xarray
+

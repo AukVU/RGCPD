@@ -3,7 +3,7 @@ import inspect
 import os
 import sys
 import warnings
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Dict
 
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
@@ -35,10 +35,10 @@ from forecasting import *
 pd.options.plotting.matplotlib.register_converters = True # apply custom format as well to matplotlib
 plt.style.use('seaborn')
 
-
+# TODO MAKE ANY FUNCTIONS WORK WITH REGULAR TS AND MULT LEVEL TS FROM PARENT AND CHILD CLASSES
 # TODO MAKE BASE CLASSES FOR DFANALYSIS AND VISUALANALYSIS SUCH THAT CHILD CLASS CAN INHERIT DEFAULT VALUES
 # TODO FIND WAY TO VISUALISE PARAMS NEEDED IN CHILD CLASS THAT OTHERWISE ONLY BE ACCESSIBLE IN PARENT CLASS
-# TODO MAKE ANY FUNCTIONS WORK WITH REGULAR TS AND MULT LEVEL TS FROM PARENT AND CHILD CLASSES
+# TODO FIND BETTER WAY TO FIND THE "20" AUTOMATICALLY THAN JUST HARD CODED IN SUBSET SERIES FUNC
 class DataFrameAnalysis:
     def __init__(self):
         self.keys = None
@@ -67,6 +67,20 @@ class DataFrameAnalysis:
             max_lag = time_serie.size
         return stattools.acf(time_serie.values, nlags=max_lag - 1, unbiased=False, alpha=alpha, fft=True)
     
+    @staticmethod
+    def load_hdf(file_path):
+        hdf = h5py.File(file_path, 'r+')
+        dict_of_dfs = {k:pd.read_hdf(file_path, k) for k in hdf.keys()}
+        hdf.close()
+        return dict_of_dfs
+    
+    @staticmethod
+    def save_hdf( dict_of_dfs, file_path):
+        with pd.HDFStore(file_path, 'w') as hdf :
+            for k, items in dict_of_dfs.items():
+                hdf.put(k, items,  format='table', data_columns=True)
+        return 
+    
     def __get_keys(self, data_frame, keys):
         if keys == None:
             # retrieve only float series
@@ -75,7 +89,6 @@ class DataFrameAnalysis:
             keys = type_check[type_check].index
         return keys
 
-    
     def loop_df_ana(self, df, function, keys=None, to_np=False, kwargs=None):
         # Should be analysis from any function which return non-tuple like results
         keys = self.__get_keys(df, keys)
@@ -96,9 +109,11 @@ class DataFrameAnalysis:
         raise NotImplementedError
     
     def subset_series(self, df_serie, time_steps=None, select_years: Union[int, list] = None):
-        # TODO FIND BETTER WAY TO FIND THE "20" AUTOMATICALLY THAN JUST HARD CODED
         if time_steps == None:
-            _, conf_intval = self.apply_concat_series(df_serie, self.autocorrelation_stats_meth)
+            if hasattr(df_serie.index, 'levels'):
+                df_serie = df_serie.loc[0]
+            else:
+                _, conf_intval = self.apply_concat_series(df_serie[df_serie.columns[df_serie.dtypes != bool]], self.autocorrelation_stats_meth)
             conf_low = [np.where(conf_intval[i][:, 0] < 0)[0] for i in range(len(conf_intval))]
             numb_times = [[] for _ in range(len(conf_low))]
             for i in range(len(conf_low)):
@@ -108,101 +123,147 @@ class DataFrameAnalysis:
             time_steps = [20 * i for i in cut_off]
             if hasattr(df_serie.index, 'levels'):
                 serie = [df_serie.iloc[:step,i] for i, step in enumerate(time_steps)]
-            serie = [df_serie.iloc[:i] for i in time_steps]
+            else:
+                serie = [df_serie.iloc[:i] for i in time_steps]
         else:
             if hasattr(df_serie.index, 'levels'):
                 time_steps = [time_steps] * df_serie.columns.size
                 serie = [df_serie.iloc[:step, i] for i, step in enumerate(time_steps)]
-            serie = [df_serie.iloc[:i] for i in time_steps]
+            else:
+                serie = [df_serie.iloc[:i] for i in time_steps]
 
         if select_years != None:
             if not isinstance(select_years, list):
                 select_years = [select_years]
             if hasattr(df_serie.index, 'levels'):
                 date_time = self.get_one_year(df_serie.index, *(select_years))
-                serie = [df_serie.loc[date_time, col] for col in df_seri.columns]
+                serie = [df_serie.loc[date_time, col] for col in df_serie.columns]
                 return serie
-            date_time = self.get_one_year(df_serie, *(select_years))
+            else:
+                date_time = self.get_one_year(df_serie, *(select_years))
             serie = df_serie.iloc[date_time]
         return serie
 
-    def spectrum(self, y, methods):
-        # TODO Fix the try except logic here, freq_dframe gets changed twice.
-        try:
-            freq_dframe = None
-            one_year_size = None 
-            if methods == None:
-                methods = {'periodogram': self.periodogram, 'mtspec':self.multi_tape_spectr}
-            
-            assert isinstance(methods, dict), "Methods needs to be dict datatype"
-            if isinstance(y, pd.Series) or isinstance(y, pd.DataFrame):
-                freq_dframe = (y.index[1] - y.index[0]).days
-
-                one_year_size = self.get_one_year(y.index).size
-                xlim = (freq_dframe, one_year_size * freq_dframe)
-            else:
-                freq_dframe = 1
-                raise ValueError('Data not Dataframe object or pandas Series')
-        except AssertionError as as_err:
-            print(as_err)
-        except ValueError as v_err:
-            print(v_err)
-        finally:
-            xlim = (freq_dframe, 365)
-            results = {}
-            for label, func in methods.items():
-                freq, spec =  self.apply_concat_series(y, func=func, arg=1)
-                period = [1 * freq_dframe / freq[i][1:] for i in range(len(freq))]
-                spec = [ spec[i][1:] for i in range(len(spec))]
-                results[label] = [period, spec]          
-        return [results, xlim]
+    def spectrum(self, y, year_max=.5, methods:Dict[str, object]):
+  
+        freq_dframe = None
+        one_year_size = None 
+        if hasattr(y.index, 'levels'):
+            y = y.loc[0]
+        if methods == None:
+            # methods = {'periodogram': self.periodogram, 'mtspec':self.multi_tape_spectr}
+            methods = {'periodogram': self.periodogram}
+        
+        if isinstance(y, pd.Series) or isinstance(y, pd.DataFrame):
+            freq_dframe = self._calc_freq_df(y)
+            # one_year_size = self.get_one_year(y.index).size
+            # xlim = (freq_dframe, one_year_size * freq_dframe)
+    
+        results = {}
+        for label, func in methods.items():
+            freq, spec =  self.apply_concat_series(y, func=func, arg=1)
+            periods = [self._freq_to_period(freq[i][1:],freq_dframe)  for i in range(len(freq))]
+            idx = [int(np.argwhere(periods[i]-year_max ==min(abs(periods[i] - year_max)))[0]) for i in range(len(freq))]
+            period  = [periods[i][:idx[i] + 1] for i in range(len(freq))]
+            spec = [ spec[i][1:idx[i] + 2] for i in range(len(spec))]
+            results[label] = [period, spec]          
+        return results
 
     def accuracy(self, y, sample='auto', auc_cutoff=None):
-        acc, conf_intval = self.autocorrelation_stats_meth(y)
-        cut_off  = 0
+        # TODO FIX HARD CODED NUMBERS OF MULTIPLICATION SAMPLE SIZE OR CUT OFF
+        if hasattr(y.index, 'levels'):
+            y = y.loc[0]
+        acc, conf_intval = self.apply_concat_series(y[y.columns[y.dtypes != bool]], self.autocorrelation_stats_meth)
+        tfreq = ((y.index[1] - y.index[0]).days, 'time [days]') if isinstance(y.index , pd.core.indexes.datetimes.DatetimeIndex) else (1,'timesteps')
+
         if sample =='auto':
-            val_below_zero = np.where(conf_intval[:, 0] < 0)[0]
-            numb_of_occurence  = np.array([idx + 1 - val_below_zero[0] for idx in val_below_zero])
-            cut_off = int(val_below_zero[np.where(numb_of_occurence == 1)[0][0]])
-            sample = 2 * cut_off
+            conf_low = [np.where(conf_intval[i][:, 0] < 0)[0] for i in range(len(conf_intval))]
+            numb_times = [[] for _ in range(len(conf_low))]
+            
+            for i in range(len(conf_low)):
+                for idx in conf_low[i]:
+                    numb_times[i].append(idx + 1 - conf_low[i][0])
+            try:
+                cut_off = [conf_low[i][np.where(np.array(numb_times[i]) == 1)][0] for i in range(len(conf_low))]
+
+            except:
+                cut_off = tfreq[0] * 20
+
+            if isinstance(cut_off, list):
+                sample = [2 * cut_off[i] for i in range(len(cut_off))]
+            else:
+                sample = 2 * cut_off
         else:
-            sample = 5
+            cut_off = int(sample / 2)
+
         if auc_cutoff == None or isinstance(auc_cutoff, int):
             auc_cutoff = cut_off
-            auc = np.trapz(acc[:auc_cutoff], x=range(auc_cutoff))
-            text = f'AUC {auc} range lag {auc_cutoff}'
+            auc = [np.trapz(acc[i][:auc_cutoff[i]], x=range(auc_cutoff[i])) for i in range(len(conf_intval)) ]
+            text = [f'AUC {auc[i]} range lag {auc_cutoff[i]}' for i in range(len(auc_cutoff))]
+
+        elif isinstance(auc_cutoff, tuple):
+            auc = [np.trapz(acc[i][auc_cutoff[i][0]:auc_cutoff[i][1]], x=range(auc_cutoff[i][0], auc_cutoff[i][0])) for i in range(len(conf_intval)) ]
+            text = [f'AUC {auc} range lag {auc_cutoff[i][0]}-{auc_cutoff[i][1]}' for i in range(len(auc_cutoff)) ]
+        return [auc, acc,  auc_cutoff, sample, conf_intval, text, tfreq]
+
+    def _calc_freq_df(self, y):
+        freq = (y.index[1], y.index[0]).days
+        if freq in [28, 29, 30, 31]:
+            freq = 'month'
+        elif isinstance(freq, int):
+            freq = int(365 / freq)
         else:
-            auc = np.trapz(acc[auc_cutoff[0]:auc_cutoff[1]], x=range(auc_cutoff[0], auc_cutoff[1]))
-            text = f'AUC {auc} range lag {auc_cutoff[0]}-{auc_cutoff[1]}'
-        return [auc, acc,  auc_cutoff, sample, conf_intval, text,((y.index[1] - y.index[0]).days, 'time [days]') if isinstance(y.index , pd.core.indexes.datetimes.DatetimeIndex) else (1,'timesteps')]
+            freq = 1
+        return freq
 
-    def resample(self,df, window_size=20, lag=0, columns=list):
+    def _freq_to_period(self, xfreq, freq):
+        if freq =='month':
+            periods = 1 / (xfreq * 12)
+        elif isinstance(freq, int):
+            periods = 1 / ( xfreq * freq)
+        return np.round(freq, 3)
 
-        splits = df.index.levels[0]
-        df_train_is_true = df['TrainIsTrue']
-        test_list = [ df[columns].loc[split][df_train_is_true[split] == False] for split in range(splits.size) ]
+    def _period_to_freq(self, periods, freq):
+        if freq =='month':
+            freq = 1 / (periods * 12)
+        else:
+            freq = 1 / (periods * freq)
+        return np.round(freq, 1)
 
-        df_test = pd.concat(test_list).sort_index()
-        for pre_cursor in df_test.columns[1:]:
-            df_test[pre_cursor] = df_test[pre_cursor].shift(periods=- lag)
-        
-        return df_test.resample(f'{window_size}D').mean()
+    def resample(self,df, window_size=20, lag=0, columns=List, to_freq_=False, freq='M'):
+        if to_freq_ == True:
+            return self._resample_per_freq(df, to_freq=freq)
+        else:
+            splits = df.index.levels[0]
+            df_train_is_true = df['TrainIsTrue']
+            test_list = [ df[columns].loc[split][df_train_is_true[split] == False] for split in range(splits.size) ]
 
-    def select_period(self, df, targ_var_mask, start_date, end_date, start_end_year, leap_year, rename=False):
-        
-        dates_full_origin = df.loc[0].index 
-        dates_target_var_origin = df.loc[0].index[df.loc[0]['RV_mask'] == True ]
-        df_resample  = self.resample(df=df)
-        df_period  = get_subdates(dates_target_var_origin, start_date, end_date, start_end_year, leap_year)
+            df_test = pd.concat(test_list).sort_index()
+            # for pre_cursor in df_test.columns[1:]:
+            #     df_test[df_test.columns[1:]] = df_test[df_test[pre_cursor].shift(periods=- lag)
+            df_test[df_test.columns[1:]] = df_test[df_test[df_test.columns[1:]]].shift(periods=- lag)
+            return df_test.resample(f'{window_size}D').mean()
+    
+    def _re_smaple_per_freq(self, df, to_freq='M'):
+        return df.resample(to_freq).mean()
 
+    def select_period(self, df, start_end_date, start_end_year, leap_year, targ_var_mask='RV_mask', rename=False):
+        if hasattr(df.index, 'levels'):
+            dates_target_var_origin = df.loc[0].index[df.loc[0][targ_var_mask] == True ]
+            df_period  = get_subdates(dates_target_var_origin, start_end_date, start_end_year, leap_year)
+        else:
+            raise ValueError('Provided not multi index data', sys.exc_info())
         if rename:
              df_period = df_period.rename(rename, axis= 1)
              return df_period
-        
         return df_period
 
-    def apply_concat_dFrame(self, df, field, func, col_name):
-        return pd.concat((df, df[field].apply(lambda cell : pd.Series(func(cell), index=col_name))), axis=1)
+    def apply_concat_dFrame(self, df, field, func, col_name, concat=False):
+        if concat:
+            return pd.concat((df, df[field].apply(lambda cell : pd.Series(func(cell), index=col_name))), axis=1)
+        else:
+            df_copy = df.copy()
+            return df_copy[field].apply(lambda cell : pd.Series(func(cell), index=col_name))
 
     def apply_concat_series(self, series, func, arg=None):
         return zip(*series.apply(func, args=(arg,)))
@@ -228,7 +289,7 @@ class DataFrameAnalysis:
         def pearson_pval(x, y):
             return stats.pearsonr(x, y)[1]
 
-        if isinstance(data, pd.DataFrame):
+        if isinstance(data, pd.DataFrame) or isinstance(data, pd.Series):
             pval_matrix = data.corr(method=pearson_pval).to_numpy()
             sig_mask = pval_matrix < alpha
             cross_cor = data.corr(method='pearson')
@@ -237,7 +298,10 @@ class DataFrameAnalysis:
             raise ValueError('Please provide correct datatype', sys.exc_info())
 
     def get_one_year(self, pd_date_time, *args):
-        pd_date_time = pd.to_datetime(pd_date_time)
+        if hasattr(pd_date_time, 'levels'):
+            pd_date_time = pd_date_time.levels[1]
+        else:
+            pd_date_time = pd.to_datetime(pd_date_time)
         first_year =  pd_date_time.year[0]
         if len(args) != 0:
             dates = [pd_date_time.where(pd_date_time.year == arg).dropna() for arg in args]
@@ -255,7 +319,6 @@ class DataFrameAnalysis:
                 no_leap_month = date_time[mask==False]
             else: 
                 raise ValueError('Not dataframe datatype')
-            
         except ValueError as v_err_1:
             try:
                 if isinstance(date_time_or_xr, xarray):
@@ -266,22 +329,9 @@ class DataFrameAnalysis:
                     raise ValueError('Not xarray datatype')
             except ValueError as v_err_2:
                 print("Twice ValueError generated ", sys.exc_info(), v_err_1, v_err_2)
-                sys.exit(1)
         return no_leap_month
     
-    @staticmethod
-    def load_hdf(file_path):
-        hdf = h5py.File(file_path, 'r+')
-        dict_of_dfs = {k:pd.read_hdf(file_path, k) for k in hdf.keys()}
-        hdf.close()
-        return dict_of_dfs
-    
-    @staticmethod
-    def save_hdf( dict_of_dfs, file_path):
-        with pd.HDFStore(file_path, 'w') as hdf :
-            for k, items in dict_of_dfs.items():
-                hdf.put(k, items,  format='table', data_columns=True)
-        return 
+
 
 class VisualizeAnalysis:
     def __init__(self, col_wrap=3, sharex='col', sharey='row'):
@@ -343,45 +393,44 @@ class VisualizeAnalysis:
         df.plot(subplots=True,  ax=ax, title=titles)
         plt.show()
 
-    def vis_accuracy(self, values):
-        auc, aut_corr, auc_cutoffs, sample_cutoff, conf_intval, text, time_freq = values
-        fig, ax = self._subplots_func_adjustment()
-        x_labels = [ i * time_freq[0] for i in range(sample_cutoff)]
-
+    def vis_accuracy(self, values, title):
+        # TODO FIND OUT WHY DO WE NEED TO DIVIDE BY 5
+        auc, aut_corr, auc_cutoffs, sample_cutoff, conf_intval, text, time_freq= values
+        fig, ax = self._subplots_func_adjustment(col=len(sample_cutoff))
+        x_labels = [[] for _ in range(len(sample_cutoff)) ]
+        for i in range(len(sample_cutoff)): 
+            for x in range(sample_cutoff[i]):
+                x_labels[i].append(x* time_freq[0])
+        
         # High confindence interval
-        high_conf = [min(1, h) for h in conf_intval[:, 1][:sample_cutoff] ]
+        high_conf = [min(1, h) for i in range(len(sample_cutoff)) for h in conf_intval[i][:, 1][:sample_cutoff[i]]  ]
         # Low confidennce interval
-        low_conf = [min(1, l) for l in conf_intval[:, 0][:sample_cutoff]]
-        numb_labels = max(1, int(sample_cutoff / 5))
+        low_conf = [min(1, k) for i in range(len(sample_cutoff)) for k in conf_intval[i][:, 0][:sample_cutoff[i]] ]
+        numb_labels = [max(1, int(sample_cutoff[i] / 5)) for i in range(len(sample_cutoff))]
+  
+        for i in range(len(sample_cutoff)):
+            ax[i].plot(x_labels[i], high_conf[:len(x_labels[i])], color='orange')
+            ax[i].plot(x_labels[i], low_conf[:len(x_labels[i])], color='orange')
+            ax[i].plot(x_labels[i], aut_corr[i][:len(x_labels[i])] )
+            ax[i].scatter(x_labels[i], aut_corr[i][:len(x_labels[i])] )
+            ax[i].hlines(y= 0, xmin=min(x_labels[i]), xmax=max(x_labels[i]))
+            ax[i].text(0.99, 0.99, text[i], transform=ax[i].transAxes, horizontalalignment='right', fontdict={'fontsize':8})
+            ax[i].set_xticks(x_labels[i][::numb_labels[i]])
+            ax[i].set_xticklabels(x_labels[i][::numb_labels[i]], fontsize=10)
+            ax[i].set_xlabel(time_freq[1], fontsize=10)
 
-        ax.plot(x_labels, high_conf, color='orange')
-        ax.plot(x_labels, low_conf, color='orange')
-        ax.plot(x_labels, aut_corr[:sample_cutoff])
-        ax.scatter(x_labels, aut_corr[:sample_cutoff])
-
-        ax.hlines(y= 0, xmin=min(x_labels), xmax=max(x_labels))
-        ax.text(0.99, 0.99, text, transform=ax.transAxes, horizontalalignment='right', fontdict={'fontsize':8})
-        ax.set_xticks(x_labels[::numb_labels])
-        ax.set_xticklabels(x_labels[::numb_labels], fontsize=10)
-        ax.set_xlabel(time_freq[1], fontsize=10)
-
-        if title:
-            ax.set_title(title, fontsize=10)
+            if title:
+                ax[i].set_title(title[i], fontsize=10)
         plt.show()
 
     def vis_timeseries(self, list_of_pdseries):
-        _, axis = self._subplots_func_adjustment(len(list_of_pdseries))
-        # TODO MAKE IT PLOT NORMAL TS AS MULT LEV TS
-        for i, series in enumerate(list_of_pdseries):
-            ax = axis.flatten()[i]
-            ax.plot(series.index, series)
-            every_nth = round(len( ax.xaxis.get_ticklabels() )/ self.col_wrap)
-            for n, label in enumerate(ax.xaxis.get_ticklabels()):
-                if n % every_nth != 0 :
-                    label.set_visible(False)
-            ax.tick_params(axis='both', which='major', labelsize=8)
-            # if series.name:
-            #     ax.set_title(series.name, fontsize=10)
+        _, ax = self._subplots_func_adjustment(col=len(list_of_pdseries))
+        for series in list_of_pdseries:
+            with pd.plotting.plot_params.use('x_compat', True):
+                if hasattr(series.index, 'levels'):
+                    series.unstack(level=0)[series.columns].plot(subplots=True, ax=ax)
+                else:
+                    series[series.columns].plot(subplots=True, ax =ax)
         plt.show()
     
     def vis_scatter(self, df, target_var, aggr, title):
@@ -397,8 +446,8 @@ class VisualizeAnalysis:
             ax.set_title(title, fontsize=10)
         plt.show()
     
-    def vis_time_serie_matrix(self, df_period, cross_cor, sig_mask, pval):
-        fig, ax = self._subplots_func_adjustment()
+    def vis_time_serie_matrix(self, df_period, cross_corr, sig_mask, pval):
+        _, ax = self._subplots_func_adjustment()
         plt.figure(figsize=(10, 10))
 
         # Generate mask for upper triangle matrix 
@@ -450,7 +499,7 @@ class VisualizeAnalysis:
                 counter -=  1
         if title is not None:
             fig.suptitle(title, fontsize=10)
-        return fig, ax
+        plt.show()
            
     def significance_annotation(self, corr, pvals):
         corr_str = np.zeros_like( corr, dtype=str ).tolist()

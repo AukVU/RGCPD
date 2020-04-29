@@ -89,7 +89,7 @@ rg.quick_view_labels(median=True)
 
 rg.get_ts_prec()
 
-
+sys.exit()
 # In[13]:
 
 

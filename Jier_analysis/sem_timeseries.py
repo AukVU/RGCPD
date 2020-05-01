@@ -92,14 +92,14 @@ def plot_manip_stat(df_data, manipulations, plot_function):
 
         func_, kwrgs_ = plot_function
         # fig = df_j_ana.loop_df(df_j_man, func_, kwargs=kwrgs_, sharex='none')
-        # res, xlim = df_j_ana.spectrum(df_j_man, {'periodogram': df_j_ana.periodogram})
+        # res, fdf, freq, idx_ = df_j_ana.spectrum(df_j_man, {'periodogram': df_j_ana.periodogram})
         # df_serie = df_j_ana.subset_series(df_j_man)
         # df_vis.vis_timeseries(df_serie)
         # value = df_j_ana.accuracy(df_j_man)
         # df_vis.vis_accuracy(value, list(df_j_man.columns))
-        # df_vis.vis_spectrum(title=title, subtitle=list(df_j_man.columns), results=res, xlim=xlim)
+        # df_vis.vis_spectrum(title=title, subtitle=list(df_j_man.columns), results=res, freqdf=fdf, freq=freq, idx_=idx_)
         # sys.exit()
-        fig = df_ana.loop_df(df_man, func_, kwrgs=kwrgs_, sharex='none')
+        # fig = df_ana.loop_df(df_man, func_, kwrgs=kwrgs_, sharex='none')
         # sys.exit()
         # 
    
@@ -110,10 +110,10 @@ def plot_manip_stat(df_data, manipulations, plot_function):
 # plot_manip_stat(df_art, manipulations, (df_ana.plot_timeseries, {}) )      
 # plot_manip_stat(df_art, manipulations, (df_j_ana.timeseries, {}) )
 # sys.exit()
-# plot_manip_stat(df_art, manipulations, (df_ana.plot_spectrum, {}) )
+plot_manip_stat(df_art, manipulations, (df_ana.plot_spectrum, {}) )
 
 # plot_manip_stat(df_art, manipulations, (df_ana.build_ts_matric, {}) )
-# plt.show()
+plt.show()
 sys.exit()
 
 

@@ -8,9 +8,12 @@ import os, inspect, sys
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
 sys.path.append(main_dir)
-print(main_dir)
+subdates_dir = os.path.join(main_dir, 'RGCPD/')
+sys.path.append(subdates_dir)
+# print(main_dir)
 # get_ipython().run_line_magic('load_ext', 'autoreload')
 # get_ipython().run_line_magic('autoreload', '2')
+
 from RGCPD import RGCPD
 from RGCPD import BivariateMI
 
@@ -89,11 +92,12 @@ rg.quick_view_labels(median=True)
 
 rg.get_ts_prec()
 
-sys.exit()
+# sys.exit()
 # In[13]:
 
 
 # rg.df_data
+sys.exit()
 
 # from df_ana_class import DFA
 

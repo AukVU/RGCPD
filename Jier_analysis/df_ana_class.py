@@ -144,20 +144,17 @@ class DataFrameAnalysis:
             serie = df_serie.iloc[date_time]
         return serie
 
-    def spectrum(self, y, year_max=.5, methods:Dict[str, object]):
+    def spectrum(self, y,  methods:Dict[str, object], year_max=0.5):
   
         freq_dframe = None
-        one_year_size = None 
         if hasattr(y.index, 'levels'):
             y = y.loc[0]
         if methods == None:
-            # methods = {'periodogram': self.periodogram, 'mtspec':self.multi_tape_spectr}
             methods = {'periodogram': self.periodogram}
         
         if isinstance(y, pd.Series) or isinstance(y, pd.DataFrame):
-            freq_dframe = self._calc_freq_df(y)
-            # one_year_size = self.get_one_year(y.index).size
-            # xlim = (freq_dframe, one_year_size * freq_dframe)
+            f = (y.index[1] - y.index[0]).days
+            freq_dframe = self._calc_freq_df(f)
     
         results = {}
         for label, func in methods.items():
@@ -167,7 +164,7 @@ class DataFrameAnalysis:
             period  = [periods[i][:idx[i] + 1] for i in range(len(freq))]
             spec = [ spec[i][1:idx[i] + 2] for i in range(len(spec))]
             results[label] = [period, spec]          
-        return results
+        return [results, freq_dframe, freq, idx]
 
     def accuracy(self, y, sample='auto', auc_cutoff=None):
         # TODO FIX HARD CODED NUMBERS OF MULTIPLICATION SAMPLE SIZE OR CUT OFF
@@ -206,8 +203,7 @@ class DataFrameAnalysis:
             text = [f'AUC {auc} range lag {auc_cutoff[i][0]}-{auc_cutoff[i][1]}' for i in range(len(auc_cutoff)) ]
         return [auc, acc,  auc_cutoff, sample, conf_intval, text, tfreq]
 
-    def _calc_freq_df(self, y):
-        freq = (y.index[1], y.index[0]).days
+    def _calc_freq_df(self, freq):
         if freq in [28, 29, 30, 31]:
             freq = 'month'
         elif isinstance(freq, int):
@@ -221,7 +217,7 @@ class DataFrameAnalysis:
             periods = 1 / (xfreq * 12)
         elif isinstance(freq, int):
             periods = 1 / ( xfreq * freq)
-        return np.round(freq, 3)
+        return np.round(periods, 3)
 
     def _period_to_freq(self, periods, freq):
         if freq =='month':
@@ -477,7 +473,7 @@ class VisualizeAnalysis:
 
         plt.show()
 
-    def vis_spectrum(self, title,subtitle, results, xlim, ylim=(1e-4,1e3)):
+    def vis_spectrum(self, title, subtitle, results, freqdf, freq, idx_):
         fig, ax = self._subplots_func_adjustment(col=len(subtitle))
         
         # TODO Better way to plot all results tuples  instead of double for-loops
@@ -486,18 +482,29 @@ class VisualizeAnalysis:
         for _,values in results.items():
             for idx in range(len(subtitle)):
                 ax[idx].plot(values[0][idx], values[1][idx], ls='-', c=self.nice_colors[counter], label=label)
+
                 ax[idx].set_title(subtitle[idx])
-                ax[idx].loglog()
-                ax[idx].set_ylim(ylim)
-                loc_maj = mpl.ticker.LogLocator(base=10.0, numticks=int(-1E-99 + xlim[-1]/100) + 1)
-                loc_min = mpl.ticker.LogLocator(base=10.0,subs=tuple(np.arange(0,1,0.1)[1:]),numticks=int(-1E-99+xlim[-1]/100) + 1)
-                ax[idx].xaxis.set_major_locator(loc_maj)
-                ax[idx].xaxis.set_minor_locator(loc_min)
-                ax[idx].xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
-                ax[idx].set_xlim(xlim)
-                ax[idx].legend(loc=0, fontsize='small')
+                ax[idx].set_xscale('log')
+                ax[idx].set_xticks(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)])
+                ax[idx].set_xticklabels(np.array(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)], dtype=int))
+                ax[idx].set_xlim((values[0][idx][0], values[0][idx][-1]))
+                ax[idx].set_xlabel('Periods [years]', fontsize=9)
+                ax[idx].tick_params(axis='both', labelsize=8)
+
+                ax2 = ax[idx].twiny()
+                ax2.plot(values[0][idx], values[1][idx], ls='-', c=self.nice_colors[counter], label=label)
+                ax2.set_xscale('log')
+                ax2.set_xticks(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)])
+                ax2.set_xticklabels(np.round(freq[idx][1:idx_[idx] + 2][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)], 3))
+                ax2.set_xlim((values[0][idx][0], values[0][idx][-1])) 
+                ax2.tick_params(axis='both', labelsize=8)
+                if freqdf == 'month':
+                    ax2.set_xlabel('Frequency [1 /months]', fontsize=8)
+                else:
+                    ax2.set_xlabel(f'Frequency [1/ {freqdf} days]', fontsize=6)
+                ax[idx].legend(loc=0, fontsize='xx-small')
                 counter -=  1
-        if title is not None:
+        if title != None:
             fig.suptitle(title, fontsize=10)
         plt.show()
            

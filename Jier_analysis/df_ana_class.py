@@ -39,6 +39,9 @@ plt.style.use('seaborn')
 # TODO MAKE BASE CLASSES FOR DFANALYSIS AND VISUALANALYSIS SUCH THAT CHILD CLASS CAN INHERIT DEFAULT VALUES
 # TODO FIND WAY TO VISUALISE PARAMS NEEDED IN CHILD CLASS THAT OTHERWISE ONLY BE ACCESSIBLE IN PARENT CLASS
 # TODO FIND BETTER WAY TO FIND THE "20" AUTOMATICALLY THAN JUST HARD CODED IN SUBSET SERIES FUNC
+class DataFrameAnalysisBase:
+    pass 
+
 class DataFrameAnalysis:
     def __init__(self):
         self.keys = None
@@ -112,8 +115,7 @@ class DataFrameAnalysis:
         if time_steps == None:
             if hasattr(df_serie.index, 'levels'):
                 df_serie = df_serie.loc[0]
-            else:
-                _, conf_intval = self.apply_concat_series(df_serie[df_serie.columns[df_serie.dtypes != bool]], self.autocorrelation_stats_meth)
+            _, conf_intval = self.apply_concat_series(df_serie[df_serie.columns[df_serie.dtypes != bool]], self.autocorrelation_stats_meth)
             conf_low = [np.where(conf_intval[i][:, 0] < 0)[0] for i in range(len(conf_intval))]
             numb_times = [[] for _ in range(len(conf_low))]
             for i in range(len(conf_low)):
@@ -144,9 +146,11 @@ class DataFrameAnalysis:
             serie = df_serie.iloc[date_time]
         return serie
 
-    def spectrum(self, y,  methods:Dict[str, object], year_max=0.5):
+    def spectrum(self, y,  methods:Dict[str, object]=None, year_max=0.5):
   
         freq_dframe = None
+        freq= None
+        idx = None
         if hasattr(y.index, 'levels'):
             y = y.loc[0]
         if methods == None:
@@ -327,7 +331,8 @@ class DataFrameAnalysis:
                 print("Twice ValueError generated ", sys.exc_info(), v_err_1, v_err_2)
         return no_leap_month
     
-
+class VisualizAnalysisBase:
+    pass
 
 class VisualizeAnalysis:
     def __init__(self, col_wrap=3, sharex='col', sharey='row'):
@@ -383,10 +388,11 @@ class VisualizeAnalysis:
         sharey=self.sharey, figsize= (3* self.col_wrap, 2.5* row), gridspec_kw=self.gridspec_kw, constrained_layout=True)
 
     def vis_dataframe(self, df):
-        _, ax = self.subplots_fig_settings(df)
-        titles = list(df.columns)
-        # fig.suptitle(str(function))
-        df.plot(subplots=True,  ax=ax, title=titles)
+        # _, ax = self.subplots_fig_settings(df)
+        if hasattr(df.index, 'levels'):
+            df.unstack(0).plot(subplots=True)
+        else:
+            df.plot(subplots=True)
         plt.show()
 
     def vis_accuracy(self, values, title):
@@ -424,9 +430,9 @@ class VisualizeAnalysis:
         for series in list_of_pdseries:
             with pd.plotting.plot_params.use('x_compat', True):
                 if hasattr(series.index, 'levels'):
-                    series.unstack(level=0)[series.columns].plot(subplots=True, ax=ax)
+                    series.unstack(level=0).plot(subplots=True, ax=ax)
                 else:
-                    series[series.columns].plot(subplots=True, ax =ax)
+                    series.plot(subplots=True, ax =ax)
         plt.show()
     
     def vis_scatter(self, df, target_var, aggr, title):
@@ -475,12 +481,15 @@ class VisualizeAnalysis:
 
     def vis_spectrum(self, title, subtitle, results, freqdf, freq, idx_):
         fig, ax = self._subplots_func_adjustment(col=len(subtitle))
-        
+        # print(ax.shape)
+        # sys.exit()
         # TODO Better way to plot all results tuples  instead of double for-loops
         counter = len(results)
         label = list(results.keys())
+
         for _,values in results.items():
             for idx in range(len(subtitle)):
+                # ax = ax.flatten()[0]
                 ax[idx].plot(values[0][idx], values[1][idx], ls='-', c=self.nice_colors[counter], label=label)
 
                 ax[idx].set_title(subtitle[idx])
@@ -520,6 +529,8 @@ class VisualizeAnalysis:
                     corr_str[i1][i2]= '{:.2f}'.format(c)
         return np.array(corr_str)
     
+class DFA:
+    pass
 
 if __name__ == "__main__":
     # df_ana = DataFrameAnalysis()

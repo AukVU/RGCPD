@@ -5,6 +5,7 @@
 
 
 import os, inspect, sys
+import pandas as pd
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
 sys.path.append(main_dir)
@@ -97,10 +98,17 @@ rg.get_ts_prec()
 
 
 # rg.df_data
-sys.exit()
 
-# from df_ana_class import DFA
-
+from df_ana_class import DataFrameAnalysis, VisualizeAnalysis
+DF = DataFrameAnalysis()
+VS = VisualizeAnalysis()
+df = pd.DataFrame(rg.df_data)
+# serie = DF.subset_series(df)
+# VS.vis_timeseries(serie)
+# VS.vis_dataframe(df)
+# print(df.index)
+series = DF.spectrum(df)
+# VS.vis_spectrum(title="Test", subtitle=list(df.columns), results=series[0], freqdf=series[1], freq=series[2], idx_=series[3])
 # df = DFA(df=rg.df_data)
 # df.dataframe(df.df)
 

@@ -8,15 +8,21 @@ import os, inspect, sys
 import pandas as pd
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
-sys.path.append(main_dir)
 subdates_dir = os.path.join(main_dir, 'RGCPD/')
-sys.path.append(subdates_dir)
+df_ana_dir = os.path.join(main_dir, 'df_analysis/df_analysis/')
+
+if main_dir not in sys.path:
+    sys.path.append(main_dir)
+    sys.path.append(subdates_dir)
+    sys.path.append(df_ana_dir)
 # print(main_dir)
 # get_ipython().run_line_magic('load_ext', 'autoreload')
 # get_ipython().run_line_magic('autoreload', '2')
 
 from RGCPD import RGCPD
 from RGCPD import BivariateMI
+import df_ana as sa 
+import matplotlib.pyplot as plt
 
 
 # In[2]:
@@ -103,11 +109,14 @@ from df_ana_class import DataFrameAnalysis, VisualizeAnalysis
 DF = DataFrameAnalysis()
 VS = VisualizeAnalysis()
 df = pd.DataFrame(rg.df_data)
+# df.apply(lambda c :   sa.plot_timeseries(c), axis=0)
+# plt.show()
 # serie = DF.subset_series(df)
-# VS.vis_timeseries(serie)
+
+# VS.vis_timeseries(serie, df[df.columns[df.dtypes != bool]])
 # VS.vis_dataframe(df)
 # print(df.index)
-series = DF.spectrum(df)
+# series = DF.spectrum(df)
 # VS.vis_spectrum(title="Test", subtitle=list(df.columns), results=series[0], freqdf=series[1], freq=series[2], idx_=series[3])
 # df = DFA(df=rg.df_data)
 # df.dataframe(df.df)

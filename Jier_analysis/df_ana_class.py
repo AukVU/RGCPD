@@ -112,39 +112,30 @@ class DataFrameAnalysis:
         raise NotImplementedError
     
     def subset_series(self, df_serie, time_steps=None, select_years: Union[int, list] = None):
-        if time_steps == None:
-            if hasattr(df_serie.index, 'levels'):
-                df_serie = df_serie.loc[0]
+        
+        if hasattr(df_serie.index, 'levels'):
+            df_serie = df_serie.loc[0]
+        if time_steps == None and select_years == None:
             _, conf_intval = self.apply_concat_series(df_serie[df_serie.columns[df_serie.dtypes != bool]], self.autocorrelation_stats_meth)
             conf_low = [np.where(conf_intval[i][:, 0] < 0)[0] for i in range(len(conf_intval))]
             numb_times = [[] for _ in range(len(conf_low))]
             for i in range(len(conf_low)):
                 for idx in conf_low[i]:
                     numb_times[i].append(idx + 1 - conf_low[i][0])
-            cut_off = [conf_low[i][np.where(np.array(numb_times[i]) == 1)][0] for i in range(len(conf_low))]
-            time_steps = [20 * i for i in cut_off]
-            if hasattr(df_serie.index, 'levels'):
-                serie = [df_serie.iloc[:step,i] for i, step in enumerate(time_steps)]
-            else:
-                serie = [df_serie.iloc[:i] for i in time_steps]
-        else:
-            if hasattr(df_serie.index, 'levels'):
-                time_steps = [time_steps] * df_serie.columns.size
-                serie = [df_serie.iloc[:step, i] for i, step in enumerate(time_steps)]
-            else:
-                serie = [df_serie.iloc[:i] for i in time_steps]
+            cut_off = [conf_low[i][np.where(np.array(numb_times[i]) == 1)][0]  if len(numb_times[i]) != 0 else 100 for i in range(len(conf_low)) ]
+            time_steps = [min(df_serie.index.size, 10 * i) for i in cut_off]
+            date_times = [df_serie.iloc[:step, i].index for i, step in enumerate(time_steps)]
 
-        if select_years != None:
+        elif select_years != None and time_steps == None:
             if not isinstance(select_years, list):
                 select_years = [select_years]
-            if hasattr(df_serie.index, 'levels'):
-                date_time = self.get_one_year(df_serie.index, *(select_years))
-                serie = [df_serie.loc[date_time, col] for col in df_serie.columns]
-                return serie
-            else:
-                date_time = self.get_one_year(df_serie, *(select_years))
-            serie = df_serie.iloc[date_time]
-        return serie
+            date_times = self.get_one_year(df_serie.index, *(select_years))
+        # WHY use this logic here??
+        if time_steps != None and select_years == None:
+            # time_steps = [time_steps] * df_serie[df_serie.columns[df_serie.dtypes != bool]].columns.size
+            date_times = [date_times[i][:step] for i, step  in enumerate(time_steps)]
+      
+        return date_times
 
     def spectrum(self, y,  methods:Dict[str, object]=None, year_max=0.5):
   
@@ -384,15 +375,20 @@ class VisualizeAnalysis:
 
     def subplots_fig_settings(self, df):
         row = self._column_wrap(df)
-        return plt.subplots(row, self.col_wrap, sharex=self.sharex, 
-        sharey=self.sharey, figsize= (3* self.col_wrap, 2.5* row), gridspec_kw=self.gridspec_kw, constrained_layout=True)
+        layout=(-1, self.col_wrap)
+        sharex=self.sharex
+        sharey=self.sharey
+        figsize= (3* self.col_wrap, 2.5* row)
+        gridspec_kw=self.gridspec_kw
+        constrained_layout=True
+        return [layout, sharex, sharey, figsize, gridspec_kw, constrained_layout]
 
     def vis_dataframe(self, df):
-        # _, ax = self.subplots_fig_settings(df)
+        layout, sharex, sharey, figsize, _, _ = self.subplots_fig_settings(df)
         if hasattr(df.index, 'levels'):
-            df.unstack(0).plot(subplots=True)
+            df.unstack(0).plot(subplots=True, layout=layout, sharex=sharex, sharey=sharey, figsize=figsize )
         else:
-            df.plot(subplots=True)
+            df.plot(subplots=True, layout=layout, sharex=sharex, sharey=sharey, figsize=figsize)
         plt.show()
 
     def vis_accuracy(self, values, title):
@@ -425,14 +421,22 @@ class VisualizeAnalysis:
                 ax[i].set_title(title[i], fontsize=10)
         plt.show()
 
-    def vis_timeseries(self, list_of_pdseries):
-        _, ax = self._subplots_func_adjustment(col=len(list_of_pdseries))
-        for series in list_of_pdseries:
-            with pd.plotting.plot_params.use('x_compat', True):
-                if hasattr(series.index, 'levels'):
-                    series.unstack(level=0).plot(subplots=True, ax=ax)
-                else:
-                    series.plot(subplots=True, ax =ax)
+    def vis_timeseries(self, date_times, df):
+     
+        _, ax = self._subplots_func_adjustment(col=len(date_times))
+        for i in range(len(date_times)):
+            if hasattr(df.index, 'levels'):
+                for fold in df.index.levels[0]:
+                    # print(df.loc[(fold, date_times[i]),])
+                    ax[i].plot(date_times[i], df.loc[(fold, date_times[i]),], alpha=.5, label=f'fold{fold}')
+                ax[i].legend(prop={'size':6})
+            else:
+                ax[i].plot(date_times[i], df.loc[date_times[i]])
+            every_nth = round(len(ax[i].xaxis.get_ticklabels())/3)
+            for n, label in enumerate(ax[i].xaxis.get_ticklabels()):
+                if n % every_nth != 0:
+                    label.set_visible(False)
+            ax[i].tick_params(axis='both', which='major', labelsize=8)
         plt.show()
     
     def vis_scatter(self, df, target_var, aggr, title):
@@ -481,40 +485,42 @@ class VisualizeAnalysis:
 
     def vis_spectrum(self, title, subtitle, results, freqdf, freq, idx_):
         fig, ax = self._subplots_func_adjustment(col=len(subtitle))
-        # print(ax.shape)
-        # sys.exit()
+        rows, cols = ax.shape
+     
         # TODO Better way to plot all results tuples  instead of double for-loops
         counter = len(results)
         label = list(results.keys())
 
         for _,values in results.items():
-            for idx in range(len(subtitle)):
-                # ax = ax.flatten()[0]
-                ax[idx].plot(values[0][idx], values[1][idx], ls='-', c=self.nice_colors[counter], label=label)
+            for row in range(rows):
+                for idx in range(cols):
+                    ax[row, idx].plot(values[0][idx], values[1][idx], ls='-', c=self.nice_colors[counter], label=label)
 
-                ax[idx].set_title(subtitle[idx])
-                ax[idx].set_xscale('log')
-                ax[idx].set_xticks(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)])
-                ax[idx].set_xticklabels(np.array(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)], dtype=int))
-                ax[idx].set_xlim((values[0][idx][0], values[0][idx][-1]))
-                ax[idx].set_xlabel('Periods [years]', fontsize=9)
-                ax[idx].tick_params(axis='both', labelsize=8)
+                    ax[row,idx].set_title(subtitle[idx])
+                    ax[row,idx].set_xscale('log')
 
-                ax2 = ax[idx].twiny()
-                ax2.plot(values[0][idx], values[1][idx], ls='-', c=self.nice_colors[counter], label=label)
-                ax2.set_xscale('log')
-                ax2.set_xticks(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)])
-                ax2.set_xticklabels(np.round(freq[idx][1:idx_[idx] + 2][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)], 3))
-                ax2.set_xlim((values[0][idx][0], values[0][idx][-1])) 
-                ax2.tick_params(axis='both', labelsize=8)
-                if freqdf == 'month':
-                    ax2.set_xlabel('Frequency [1 /months]', fontsize=8)
-                else:
-                    ax2.set_xlabel(f'Frequency [1/ {freqdf} days]', fontsize=6)
-                ax[idx].legend(loc=0, fontsize='xx-small')
-                counter -=  1
-        if title != None:
-            fig.suptitle(title, fontsize=10)
+                    ax[row,idx].set_xticks(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)])
+                    ax[row,idx].set_xticklabels(np.array(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)], dtype=int))
+                    ax[row,idx].set_xlim((values[0][idx][0], values[0][idx][-1]))
+
+                    ax[row,idx].set_xlabel('Periods [years]', fontsize=9)
+                    ax[row,idx].tick_params(axis='both', labelsize=8)
+
+                    ax2 = ax[row, idx].twiny()
+                    ax2.plot(values[0][idx], values[1][idx], ls='-', c=self.nice_colors[counter], label=label)
+                    ax2.set_xscale('log')
+                    ax2.set_xticks(values[0][idx][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)])
+                    ax2.set_xticklabels(np.round(freq[idx][1:idx_[idx] + 2][np.logical_or(values[0][idx] % 2 == 0, values[0][idx] % 1 == 0)], 3))
+                    ax2.set_xlim((values[0][idx][0], values[0][idx][-1])) 
+                    ax2.tick_params(axis='both', labelsize=8)
+                    if freqdf == 'month':
+                        ax2.set_xlabel('Frequency [1 /months]', fontsize=6)
+                    else:
+                        ax2.set_xlabel(f'Frequency [1/ {freqdf} days]', fontsize=6)
+                    ax[row, idx].legend(loc=0, fontsize='xx-small')
+                    counter -=  1
+        # if title != None:
+        #     fig.suptitle(title, fontsize=10)
         plt.show()
            
     def significance_annotation(self, corr, pvals):

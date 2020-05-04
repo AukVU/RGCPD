@@ -177,11 +177,13 @@ def plot_timeseries(y, timesteps: list=None,
    
     
     if hasattr(y.index,'levels'):
+        print("yes")
         y_ac = y.loc[0]
     else:
         y_ac = y
         
     if type(y_ac.index) == pd.core.indexes.datetimes.DatetimeIndex:
+        print("changed")
         datetimes = y_ac.index
     
     if timesteps is None and selyears is None:
@@ -203,7 +205,7 @@ def plot_timeseries(y, timesteps: list=None,
             selyears = [selyears]
         datetimes = get_oneyr(y.index, *selyears)
         
-    if timesteps is not None and selyears is None:
+    if timesteps != None and selyears == None:
         datetimes = datetimes[:timesteps]
     
     if ax is None:

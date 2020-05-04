@@ -40,10 +40,8 @@ plt.style.use('seaborn')
 # TODO FIND WAY TO VISUALISE PARAMS NEEDED IN CHILD CLASS THAT OTHERWISE ONLY BE ACCESSIBLE IN PARENT CLASS
 # TODO FIND BETTER WAY TO FIND THE "20" AUTOMATICALLY THAN JUST HARD CODED IN SUBSET SERIES FUNC
 class DataFrameAnalysisBase:
-    pass 
-
-class DataFrameAnalysis:
-    def __init__(self):
+    def __init__(self, **kwargs):
+        super(DataFrameAnalysisBase, self).__init__(**kwargs)
         self.keys = None
         self.time_steps = None 
         self.methods = dict() 
@@ -56,6 +54,12 @@ class DataFrameAnalysis:
         self.alpha = 0.01
         self.max_lag = None
         self.flatten = lambda l: [item for sublist in l for item in sublist]
+        print("Initiate DFA ANA")
+
+class DataFrameAnalysis(DataFrameAnalysisBase):
+    def __init__(self, **kwargs):
+        super(DataFrameAnalysis, self).__init__(**kwargs)
+        print("DFA ANA")
 
     def __str__(self):
         return f'{self.__class__.__name__}{self.__dict__}'
@@ -323,12 +327,10 @@ class DataFrameAnalysis:
         return no_leap_month
     
 class VisualizAnalysisBase:
-    pass
-
-class VisualizeAnalysis:
-    def __init__(self, col_wrap=3, sharex='col', sharey='row'):
+    def __init__(self, col_wrap=3, sharex='col', sharey='row', **kwargs):
+        super(VisualizAnalysisBase, self).__init__(**kwargs)
         self.nice_colors = ['#EE6666', '#3388BB', '#9988DD',
-                 '#EECC55', '#88BB44', '#FFBBBB']
+            '#EECC55', '#88BB44', '#FFBBBB']
         self.colors_nice = cycler('color',
                         self.nice_colors)
         self.colors_datasets = sns.color_palette('deep')
@@ -352,7 +354,12 @@ class VisualizeAnalysis:
         self.gridspec_kw = {'wspace':0.5, 'hspace':0.4}
         self.sharex = sharex
         self.sharey = sharey
+        print("initiate vision")
 
+class VisualizeAnalysis(VisualizAnalysisBase):
+    def __init__(self, **kwargs):
+        super(VisualizeAnalysis, self).__init__(**kwargs)
+        print("Vision")
     def __str__(self):
         return f'{self.__class__.__name__}{self.__dict__}'
 
@@ -535,8 +542,20 @@ class VisualizeAnalysis:
                     corr_str[i1][i2]= '{:.2f}'.format(c)
         return np.array(corr_str)
     
-class DFA:
-    pass
+class DFA(VisualizeAnalysis,DataFrameAnalysis):
+    def __init__(self,df:pd.DataFrame, **kwargs):
+        super(DFA, self).__init__(**kwargs)
+        self.df = df
+        self.index = self.df.index
+        self.multiindex = hasattr(self.df.index, 'levels')
+        self.cols = df.columns[df.dtypes != bool]
+        print("Finish DFA initialisation?")
+    
+    def __str__(self):
+        return f'{self.__class__.__name__}{self.__dict__}'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}{self.__dict__!r}'
 
 if __name__ == "__main__":
     # df_ana = DataFrameAnalysis()

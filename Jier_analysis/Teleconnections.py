@@ -105,10 +105,10 @@ rg.get_ts_prec()
 
 # rg.df_data
 
-from df_ana_class import DataFrameAnalysis, VisualizeAnalysis
-DF = DataFrameAnalysis()
-VS = VisualizeAnalysis()
+from df_ana_class import DFA
 df = pd.DataFrame(rg.df_data)
+dd = DFA(df)
+
 # df.apply(lambda c :   sa.plot_timeseries(c), axis=0)
 # plt.show()
 # serie = DF.subset_series(df)

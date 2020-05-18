@@ -25,6 +25,11 @@ from netCDF4 import Dataset
 
 import xarray as xr
 
+import os
+import pandas as pd
+
+import shutil
+
 def get_links_coeffs(links_coeffs):
     links_coeffs = links_coeffs.capitalize()
     if links_coeffs == 'Model1':
@@ -116,25 +121,32 @@ def draw_network_func(links_coeffs, settings, results=None):
     plt.show()
 
 def create_causal_map(N):
-    links_coeffs = {}
-    autocorrelation = 0.5 * np.random.random() + 0.25
-    for mode in range(0, N):
-        possible_links = list(range(N))
-        del possible_links[mode]
-        links_coeffs[mode] = [((mode, 10), autocorrelation)]
-        start = 0
-        if mode == 0:
-            start = 1
-        for link in range(np.random.randint(start,3)):
-            choice = np.random.choice(possible_links)
-            possible_links.remove(choice)
-            links_coeffs[mode] += [((choice, 10), 0.5 * np.random.random() + 0.5)]
-    print(links_coeffs)
+    result = None
+    while result == None:
+        links_coeffs = {}
+        autocorrelation = 0.5 * np.random.random() + 0.25
+        for mode in range(0, N):
+            possible_links = list(range(N))
+            del possible_links[mode]
+            links_coeffs[mode] = [((mode, 10), autocorrelation)]
+            start = 0
+            if mode == 0:
+                start = 1
+            for link in range(np.random.randint(start,3)):
+                choice = np.random.choice(possible_links)
+                possible_links.remove(choice)
+                links_coeffs[mode] += [((choice, 10), 0.5 * np.random.random() + 0.5)]
+        try:
+            check_stability(links_coeffs)
+            result = "Generated"
+        except:
+            print("New try making causal map")
+            pass
     return links_coeffs
 
-def write_nc(savar, output='test'):
-    user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
-    filename = user_dir + f'/Code_Lennart/NC/{output}.nc'
+def write_nc(savar, settings, output='test'):
+    user_dir = settings['user_dir']
+    filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}.nc'
     nc = Dataset(filename, 'w', format='NETCDF4')
     data = savar.network_data
     clusters = data.shape[1] - 1
@@ -182,7 +194,7 @@ def write_nc(savar, output='test'):
     # print(data_dict)
     # np.savez(user_dir + f'/Code_Lennart/NC/{output}.npz', data[:,0], allow_pickle=False)
     # np.save(user_dir + f'/Code_Lennart/NC/{output}.npy', data_dict, allow_pickle=True)
-    filename = user_dir + f'/Code_Lennart/NC/{output}_target.nc'
+    filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}_target.nc'
     nct = Dataset(filename, 'w', format='NETCDF4')
     lon = np.arange(225,301,1)
     lat = np.arange(70,29,-1)
@@ -220,17 +232,75 @@ def write_nc(savar, output='test'):
 
     nct.close()
 
-    ds = xr.open_dataset(filename, decode_cf=True, decode_coords=True, decode_times=False)
-    ds.set_coords(['longitude', 'latitude'])
-    filename = user_dir + f'/Code_Lennart/NC/{output}_target2.nc'
-    ds.to_netcdf(path=filename, mode='w')
+    # ds = xr.open_dataset(filename, decode_cf=True, decode_coords=True, decode_times=False)
+    # ds.set_coords(['longitude', 'latitude'])
+    # filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}_target2.nc'
+    # ds.to_netcdf(path=filename, mode='w')
 
 
     print('hoi')
 
+def save_time_series(savar, settings, output='test'):
+    user_dir = settings['user_dir']
+    data = savar.network_data
+    periods = data.shape[0]
+    print('save time series')
+    filename = user_dir + f'/Code_Lennart/results/{output}/time_series'
+    if os.path.isdir(filename) != True : os.makedirs(filename)
+    filename = user_dir + f'/Code_Lennart/results/{output}/time_series/timeseries.csv'
+
+    dates = pd.date_range(start='1/1/1979', periods=periods)
+    df = pd.DataFrame(dates, columns=['time'])
+    df['time'] = pd.to_datetime(df['time'])   
+    df['year'] = df.time.dt.year
+    df['month'] = df.time.dt.month
+    df['day'] = df.time.dt.day
+    df.drop('time', axis=1, inplace=True)
+    df['test_target'] = data[:,0]
+    for i in range(1, data.shape[1]):
+        df[f'ts{i}'] = data[:,i]
+    df.to_csv(filename, index=False)
+
+def save_matrices(settings, path, pmatrix, val_matrix=None):
+    # print(pmatrix[2])
+    os.makedirs(path)
+    for i in range(settings['N']):
+        pmatrixnp = np.matrix(pmatrix[i])
+        # print(pmatrixnp)
+        np.save(path + f"/p_{i}.npy", pmatrixnp)
+        if val_matrix is not None:
+            valmatrixnp = np.matrix(val_matrix[i])
+            np.save(path + f"/val_{i}.npy", valmatrixnp)
+
+def create_real_matrices(settings, general_path, links_coeffs):
+    N = settings['N']
+    pmatrix = [[[1 for lag in range(12)] for x in range(N)] for y in range(N)]
+    val_matrix = [[[0 for lag in range(12)] for x in range(N)] for y in range(N)]
+    for key in links_coeffs:
+        for link in links_coeffs[key]:
+            van = link[0][0]
+            lag = link[0][1]
+            val = link[1]
+            naar = key
+            print(f'van {van} naar {naar}')
+            pmatrix[van][naar][lag] = 0
+            val_matrix[van][naar][lag] = val
+    print(pmatrix)
+    print(val_matrix)
+    path = general_path + '/matrices/AAA_real'
+    save_matrices(settings, path, pmatrix, val_matrix)
+
+
 def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, plot_timeseries=False, draw_network=False):
     nx, ny, T, N = settings['nx'], settings['ny'], settings['T'], settings['N']
     spatial_covariance = settings['spatial_covariance']
+    general_path = settings['user_dir'] + '/' + settings['extra_dir'] + '/results/' + settings['filename']
+
+    if (settings['netcdf4'] or settings['save_time_series'] or settings['do_pcmci'] or
+                              settings['save_matrices']    or (settings['plot_points'] != None)):
+        remove_path = general_path
+        shutil.rmtree(remove_path, ignore_errors=True)
+        os.makedirs(remove_path + '/NC')
 
     if settings['random_causal_map']:
         links_coeffs = create_causal_map(N)
@@ -244,7 +314,9 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         links_coeffs = get_links_coeffs('Xavier')
     check_stability(links_coeffs)
     print(links_coeffs)
-    N = len(links_coeffs)
+    N = settings['N'] = len(links_coeffs)
+
+    create_real_matrices(settings, general_path, links_coeffs)
 
     if verbose:
         print('\n---------------------------' +
@@ -276,6 +348,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
     if draw_network:
         draw_network_func(links_coeffs, settings)
+    # sys.exit()
 
     savar = models.savarModel(
         links_coeffs=links_coeffs,
@@ -290,13 +363,19 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         verbose = verbose
     )
     savar.create_linear_savar_data()
+    # graph, max_lag = models.create_graph(links_coeffs, return_lag=True)
+    # print(graph)
+    # sys.exit()
 
     if plot_timeseries:
         plot_points = settings['plot_points']
         plot_timeseries_func(savar, plot_points, settings)
     
     if settings['netcdf4']:
-        write_nc(savar)
+        write_nc(savar, settings, output=settings['filename'])
+
+    if settings['save_time_series']:
+        save_time_series(savar, settings, output=settings['filename'])
     
     if settings['do_pcmci']:
         data = savar.network_data
@@ -305,10 +384,20 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
         cond_ind_test = ParCorr()
         pcmci = PCMCI(dataframe=dataframe, cond_ind_test=cond_ind_test)
-        results = pcmci.run_pcmci(tau_max=11, pc_alpha=0.01)
-        pcmci.print_significant_links(p_matrix=results['p_matrix'],
-                                            val_matrix=results['val_matrix'],
-                                            alpha_level=0.05)
+        pcmci_output = pcmci.run_pcmci(tau_max=11, pc_alpha=0.01)
+        pcmci.print_significant_links(p_matrix=pcmci_output['p_matrix'],
+                                            val_matrix=pcmci_output['val_matrix'],
+                                            alpha_level=0.0001)
+
+        print('p_matrix')
+        print(pcmci_output['p_matrix'])
+        # print('val_matrix')
+        # print(pcmci_output['val_matrix'][0])
+        pcmci_matrix_path = general_path + '/matrices/pcmci_test'
+        save_matrices(settings, pcmci_matrix_path, pcmci_output['p_matrix'], pcmci_output['val_matrix'])
+        # print('conf_matrix')
+        # print(pcmci_output['conf_matrix'][0])
+
         parents = pcmci.all_parents
         val_min = pcmci.val_min
 
@@ -321,13 +410,15 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
             results[mode] = links_results
         draw_network_func(links_coeffs, settings, results=results)
 
+        
+
 
 
 
 # Setting up the settings and running above code
 
 settings = {}
-settings['N'] = 5
+settings['N'] = 3
 settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 5114
 settings['spatial_covariance'] = 0.3
 settings['random_modes'] = False
@@ -335,10 +426,21 @@ settings['noise_use_mean'] = False
 settings['transient'] = 200
 settings['spatial_factor'] = 0.1
 
-settings['plot_points'] = 500
-settings['do_pcmci'] = False
+settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
+settings['extra_dir'] = 'Code_Lennart'
+settings['filename'] = 'very_small'
+
+
 settings['random_causal_map'] = True
+
+
+## If any of the following settings is set to True, the results folder with {filename} will be removed!
+## Also when 'plot_points' is not None
 settings['netcdf4'] = True
+settings['save_time_series'] = True
+settings['do_pcmci'] = True
+settings['save_matrices'] = True
+settings['plot_points'] = 500
 
 
 links_coeffs = 'model3'

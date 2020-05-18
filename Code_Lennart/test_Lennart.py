@@ -74,19 +74,19 @@ list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.n
                      ('test_precur', local_base_path + '/Code_Lennart/NC/test.nc')
 ]
 
-list_for_EOFS = [EOF(name='test_precur', neofs=1, selbox=[-180, 360, -15, 30])]
+# list_for_EOFS = [EOF(name='test_precur', neofs=1, selbox=[-180, 360, -15, 30])]
 list_for_MI   = [BivariateMI(name='test_precur', func='corr', kwrgs_func={'alpha':.05, 'FDR_control':True})]
 
-start_end_TVdate = ('06-24', '08-22')
-start_end_TVdate = ('07-06', '08-11')
+# start_end_TVdate = ('06-24', '08-22')
+start_end_TVdate = None
 
 #start_end_TVdate = ('06-15', '08-31')
-start_end_date = ('1-1', '12-31')
+# start_end_date = ('1-1', '12-31')
+start_end_date = None
 
 rg = RGCPD(list_of_name_path=list_of_name_path, 
-           list_for_EOFS=list_for_EOFS,
+        #    list_for_EOFS=list_for_EOFS,
            list_for_MI=list_for_MI,
-           import_prec_ts=None,
            start_end_TVdate=start_end_TVdate,
            start_end_date=start_end_date,
            tfreq=10, lags_i=np.array([1]),
@@ -112,7 +112,7 @@ print('hoi')
 
 rg.quick_view_labels() 
 
-rg.get_EOFs()
+# rg.get_EOFs()
 
 rg.get_ts_prec(precur_aggr=None)
 
@@ -121,5 +121,9 @@ rg.PCMCI_df_data(pc_alpha=None,
                  max_combinations=2)
 
 rg.PCMCI_get_links(alpha_level=0.1)
+
+rg.PCMCI_plot_graph(s=1)
+
+rg.quick_view_labels()
 
 rg.plot_maps_sum()

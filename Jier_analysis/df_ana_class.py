@@ -447,6 +447,7 @@ class VisualizeAnalysis(VisualizAnalysisBase):
         plt.show()
     
     def vis_scatter(self, df, target_var, aggr, title):
+        # TODO TEST THIS FUNCTION
         fig, ax = self._subplots_func_adjustment()
 
         if aggr == 'annual':
@@ -460,6 +461,7 @@ class VisualizeAnalysis(VisualizAnalysisBase):
         plt.show()
     
     def vis_time_serie_matrix(self, df_period, cross_corr, sig_mask, pval):
+        # TODO TEST THIS FUNCTION
         _, ax = self._subplots_func_adjustment()
         plt.figure(figsize=(10, 10))
 

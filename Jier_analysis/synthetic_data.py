@@ -12,8 +12,10 @@ import matplotlib.pyplot as plt
 import itertools as it
 from statsmodels.tsa.arima_process import  arma_generate_sample, ArmaProcess
 from pprint import pprint as pp 
-
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 np.random.seed(12345)
+plt.style.use('seaborn')
 
 # TODO Look if simulation of more than one realization is needed and if so why, comment it. 
 # Above is only needed when we want to test ground truth data scenarios against our target data. 
@@ -236,6 +238,9 @@ def evaluate_data(current_analysis_path, display:bool=False):
     # ar_ma_params, aci_info, summaries = fit_manually_data(second_sst['values'], arparams=np.array([.75, -.25]), maparams=np.array([.65, .35]), nobs=synthetic['nobs'], startyear=second_sst.index[0][1], end_range=4,synthetics=False)
 
     first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec.csv'), engine='python', index_col=[0, 1])
+    # print(type(first_sst.index.levels[1]), type(first_sst.index.levels[0]), type(first_sst.index[0][1]))
+    # print(pd.DatetimeIndex(first_sst.index.levels[1]), first_sst.index[0][1])
+    # sys.exit()
     ar_ma_params, aci_info, summaries = fit_manually_data(first_sst['values'], arparams=np.array([.75, -.25]), maparams=np.array([.65, .35]), nobs=synthetic['nobs'], startyear=first_sst.index[0][1], end_range=4,synthetics=False)
     _, aut_order = fit_automatically_data(y=first_sst['values'], pmax=4, qmax=4, ic=['bic'])
 
@@ -244,7 +249,7 @@ def evaluate_data(current_analysis_path, display:bool=False):
     # # # pp(aut_order)
     # # # print(aci_info[0], len(aci_info), len(aci_info[0]))
 
-    _ = determine_order(aci_info, aut_order,check_info_score=['aic'])
+    order = determine_order(aci_info, aut_order,check_info_score=['aic'])
     ar, ma, sigma, _ = check_stationarity_invertibility(aci_info, ar_ma_params,check_info_score=['aic'],get_params=True)
 
     if display == True:
@@ -258,11 +263,9 @@ def evaluate_data(current_analysis_path, display:bool=False):
         # display_info_ts(first_sst['values'], title='OriginalPrecursor')
         # display_pierce_LJbox(first_sst['values'], dates=temp_dates, title='OriginalPrecursor')
 
-    return ar, ma, sigma, first_sst
-if __name__ == "__main__":
-    current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
-    # evaluate_synthetic_data()
-    ar, ma, sigma, first_sst = evaluate_data(current_analysis_path=current_analysis_path)
+    return ar, ma, sigma, first_sst, order
+
+def create_polynomial_fit(ar:list, ma:list, sigma:float, data:pd.Series, display:bool=False):
 
     N =  synthetic['nobs']
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
@@ -272,14 +275,56 @@ if __name__ == "__main__":
         temp = ar[0] * simul_data[ i - 1] + ar[1] * simul_data[i  - 2] + epsilon[i] + ma[0] * epsilon[i - 1] + ma[1] * epsilon[i - 2]
         simul_data= np.append(simul_data, temp)
     
+    if display == True:
+        plt.figure(figsize=(14, 8))
+        plt.plot(simul_data, label='$Y_t = 1.74Y_{t-1} -0.74Y_{t-2} -0.76 \\epsilon_{t -1} - 0.11 \\epsilon_{t-2}$')
+        plt.plot(data['values'].values, label='Precursor data')
+        plt.xlim(0.01, N)
+        plt.ylim(-0.5, 0.5)
+        plt.title('Chosen model params with original data')
+        plt.legend()
+        plt.show()
+    return simul_data
+
+if __name__ == "__main__":
+    current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
+    # evaluate_synthetic_data()
+    ar, ma, sigma, first_sst, order = evaluate_data(current_analysis_path=current_analysis_path)
+    poly = create_polynomial_fit(ar=ar, ma=ma,sigma=sigma, data=first_sst)
+
+    temp_dates = pd.DatetimeIndex(first_sst.index.levels[1], freq='infer')
+    temp_m = pd.DataFrame(data=first_sst['values'].values, index=temp_dates)
+
+    # prediction_model = []
+    # prediction_poly = []
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        model = sm.tsa.ARMA(temp_m, order=order[-1]).fit(trend='c', disp=-1)
+    # # model.plot_predict(end = poly.size +20)
+    # # plt.show()
     plt.figure(figsize=(14, 8))
-    plt.plot(simul_data, label='$Y_t = 1.74Y_{t-1} -0.74Y_{t-2} -0.76 \\epsilon_{t -1} - 0.11 \\epsilon_{t-2}$')
-    plt.plot(first_sst['values'].values, label='Precursor data')
-    plt.xlim(0.01, N)
-    plt.ylim(-0.5, 0.5)
-    plt.title('Chosen model params with original data')
-    plt.legend()
+    # fig, ax = plt.subplots()
+    # ax = temp_m.loc[first_sst.index[0][1]].plot(ax=ax)
+    temp_m.plot()
+    model.plot_predict(first_sst.index[0][1], '2015')
     plt.show()
+    # for i in range(synthetic['nobs']):
+    #     with warnings.catch_warnings():
+    #         warnings.filterwarnings("ignore")
+    #         model = sm.tsa.ARMA(temp_m, order=order[-1]).fit(trend='c', disp=-1)
+    #     output_m = model.forecast()
+    #     y_hat_m = output_m[0][0]
+    #     obs = temp_m.iloc[i]
+    #     prediction_model.append(y_hat_m)
+    #     print(f'Predicted {y_hat_m} Observed {obs}')
+
+    # plt.figure(figsize=(14, 8))
+    # plt.plot(temp_m, label='Original data')
+    # plt.plot(prediction_model, label='Forecast')
+    # plt.legend(loc=0)
+    # plt.show()
+
+    
     
 
 

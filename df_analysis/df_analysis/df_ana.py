@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+
+from __future__ import division
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +12,9 @@ import seaborn as sns
 # import mtspec
 flatten = lambda l: [item for sublist in l for item in sublist]
 from typing import List, Tuple, Union
+
+
+
 
 
 import matplotlib as mpl
@@ -40,19 +47,19 @@ def loop_df_ana(df, function, keys=None, to_np=False, kwrgs=None):
         # retrieve only float series
         type_check = np.logical_or(df.dtypes == 'float',df.dtypes == 'float32')
         keys = type_check[type_check].index
-    
+
     out_list = []
     for header in df:
         if to_np == False:
             y = df[header]
         elif to_np == True:
             y = df[header].values
-        out_i = function(y, **kwrgs) 
+        out_i = function(y, **kwrgs)
         out_list.append(out_i)
     return pd.DataFrame(np.array(out_list).T, index=df.index, columns=keys)
-    
 
-def loop_df(df: pd.DataFrame(), function, keys=None, colwrap=3, sharex='col', 
+
+def loop_df(df: pd.DataFrame(), function, keys=None, colwrap=3, sharex='col',
             sharey='row', hspace=.4, kwrgs=None):
     #%%
     assert type(df) == type(pd.DataFrame()), ('df should be DataFrame, '
@@ -61,19 +68,20 @@ def loop_df(df: pd.DataFrame(), function, keys=None, colwrap=3, sharex='col',
         # retrieve only float series
         type_check = np.logical_or(df.dtypes == 'float',
                                    df.dtypes == 'float32')
-                                   
+
         keys = type_check[type_check].index
 
     df = df.loc[:,keys]
-    
+
     if (df.columns.size) % colwrap == 0:
         rows = int(df.columns.size / colwrap)
     elif (df.columns.size) % colwrap != 0:
         rows = int(df.columns.size / colwrap) + 1
-        
+
     gridspec_kw = {'hspace':hspace}
     fig, ax = plt.subplots(rows, colwrap, sharex=sharex, sharey=sharey,
-                           figsize = (3*colwrap,rows*2.5), gridspec_kw=gridspec_kw)
+                           figsize = (3*colwrap,rows*2.5),
+                           gridspec_kw=gridspec_kw)
 
     for i, ax in enumerate(fig.axes):
         if i >= df.columns.size:
@@ -102,14 +110,14 @@ def autocorr_sm(ts, max_lag=None, alpha=0.01):
                                  fft=True)
     return ac, con_int
 
-def plot_ac(y=pd.Series, s='auto', title=None, AUC_cutoff=None, ax=None):
+def plot_ac(y=pd.Series, s='auto', title=None, AUC_cutoff=False, ax=None):
     if ax is None:
         fig, ax = plt.subplots(constrained_layout=True)
 
     if hasattr(y.index,'levels'):
         y = y.loc[0]
     ac, con_int = autocorr_sm(y)
-    
+
     time = y.index
     if type(time) is pd.core.indexes.datetimes.DatetimeIndex:
         tfreq = (time[1] - time[0]).days
@@ -128,7 +136,7 @@ def plot_ac(y=pd.Series, s='auto', title=None, AUC_cutoff=None, ax=None):
             cutoff = int(where[np.where(n_of_times == n)[0][0] ])
         except:
             cutoff = tfreq * 20
-        
+
         s = 2*cutoff
     else:
         cutoff = int(s/2)
@@ -140,15 +148,15 @@ def plot_ac(y=pd.Series, s='auto', title=None, AUC_cutoff=None, ax=None):
             AUC = np.trapz(ac[:AUC_cutoff], x=range(AUC_cutoff))
             text = 'AUC {:.2f} up to lag {}'.format(AUC, AUC_cutoff)
         elif type(AUC_cutoff) is tuple:
-            AUC = np.trapz(ac[AUC_cutoff[0]:AUC_cutoff[1]], 
+            AUC = np.trapz(ac[AUC_cutoff[0]:AUC_cutoff[1]],
                            x=range(AUC_cutoff[0], AUC_cutoff[1]))
             text = 'AUC {:.2f} range lag {}-{}'.format(AUC, AUC_cutoff[0],
                                                        AUC_cutoff[1])
-        ax.text(0.99, 0.90, 
-        text, 
+        ax.text(0.99, 0.90,
+        text,
         transform=ax.transAxes, horizontalalignment='right',
         fontdict={'fontsize':8})
-        
+
     xlabels = [x * tfreq for x in range(s)]
     # con high
     high = [ min(1,h) for h in con_int[:,1][:s]]
@@ -159,33 +167,34 @@ def plot_ac(y=pd.Series, s='auto', title=None, AUC_cutoff=None, ax=None):
     ax.plot(xlabels,ac[:s])
     ax.scatter(xlabels,ac[:s])
     ax.hlines(y=0, xmin=min(xlabels), xmax=max(xlabels))
-    
+
 
     xlabels = [x * tfreq for x in range(s)]
     n_labels = max(1, int(s / 5))
     ax.set_xticks(xlabels[::n_labels])
-    ax.set_xticklabels(xlabels[::n_labels], fontsize=10)
+    ax.set_xticklabels(xlabels[::n_labels])
+    ax.tick_params(axis='both', which='major', labelsize=10)
     ax.set_xlabel(xaxlabel, fontsize=10)
     if title is not None:
         ax.set_title(title, fontsize=10)
     return ax
 
-def plot_timeseries(y, timesteps: list=None, 
+def plot_timeseries(y, timesteps: list=None,
                     selyears: Union[list, int]=None, title=None, ax=None):
     # ax=None
     #%%
-   
-    
+
+
     if hasattr(y.index,'levels'):
         print("yes")
         y_ac = y.loc[0]
     else:
         y_ac = y
-        
+
     if type(y_ac.index) == pd.core.indexes.datetimes.DatetimeIndex:
         print("changed")
         datetimes = y_ac.index
-    
+
     if timesteps is None and selyears is None:
         ac, con_int = autocorr_sm(y_ac)
         where = np.where(con_int[:,0] < 0 )[0]
@@ -196,21 +205,21 @@ def plot_timeseries(y, timesteps: list=None,
             cutoff = where[np.where(n_of_times == n)[0][0] ]
         else:
             cutoff = 100
-        
+
         timesteps = min(y_ac.index.size, 10*cutoff)
         datetimes = y_ac.iloc[:timesteps].index
-    
+
     if selyears is not None and timesteps is None:
         if type(selyears) is int:
             selyears = [selyears]
         datetimes = get_oneyr(y.index, *selyears)
-        
-    if timesteps != None and selyears == None:
+
+    if timesteps is not None and selyears is None:
         datetimes = datetimes[:timesteps]
-    
+
     if ax is None:
         fig, ax = plt.subplots(constrained_layout=True)
-        
+
     if hasattr(y.index,'levels'):
         for fold in y.index.levels[0]:
             ax.plot(datetimes, y.loc[fold, datetimes], alpha=.5,
@@ -218,7 +227,7 @@ def plot_timeseries(y, timesteps: list=None,
         ax.legend(prop={'size':6})
     else:
         ax.plot(datetimes, y.loc[datetimes])
-    
+
     every_nth = round(len(ax.xaxis.get_ticklabels())/3)
     for n, label in enumerate(ax.xaxis.get_ticklabels()):
         if n % every_nth != 0:
@@ -246,8 +255,8 @@ def plot_scatter(y, tv=pd.Series, aggr=None, title=None, ax=None):
 
 def mtspectrum(ts, d=1., tb=4, nt=4):
     import mtspec
-    """ multi-taper spectrum 
-    
+    """ multi-taper spectrum
+
     input:
     ts .. time series
     d  .. sampling period
@@ -260,8 +269,8 @@ def mtspectrum(ts, d=1., tb=4, nt=4):
     return freq, spec
 
 def periodogram(ts, d=1.):
-    """ naive absolute squared Fourier components 
-    
+    """ naive absolute squared Fourier components
+
     input:
     ts .. time series
     d  .. sampling period
@@ -278,20 +287,20 @@ def fft_np(y, sampling_period=1.):
     return fftfreq, ypsd
 
 def plot_spectrum(y, methods: List[tuple]=[('periodogram', periodogram)],
-                  vlines=None, y_lim=None, 
+                  vlines=None, y_lim=None,
                   year_max=.5, title=None, ax=None):
-    
-    
-    # ax=None ; 
+
+
+    # ax=None ;
     if hasattr(y.index,'levels'):
         y = y.loc[0]
-    
+
     if ax is None:
         fig, ax = plt.subplots(constrained_layout=True)
-        
+
     if methods is None:
         methods = [('periodogram', periodogram)]
-                       
+
 
     try:
         freq_df = (y.index[1] - y.index[0]).days
@@ -302,43 +311,43 @@ def plot_spectrum(y, methods: List[tuple]=[('periodogram', periodogram)],
 
     except:
         freq_df = 1
-        
+
     def freq_to_period(xfreq, freq_df):
         if freq_df == 'month':
             periods = 1/(xfreq * 12)
         elif type(freq_df) is int:
             periods = 1/(xfreq*freq_df)
         return np.round(periods, 3)
-    
+
     def period_to_fred(periods, freq_df):
         if freq_df == 'month':
             freq = 1 / (periods * 12)
         else:
             freq = 1 / (periods * freq_df)
         return np.round(freq, 1)
-        
-    
+
+
     for i, method in enumerate(methods):
         label, func_ = method
         freq, spec = func_(y)
         _periods = freq_to_period(freq[1:], freq_df)
         idx = int(np.argwhere(_periods-year_max ==min(abs(_periods - year_max)))[0])
-        periods = _periods[:idx+1] 
-        ax.plot(periods, spec[1:idx+2], ls='-', c=nice_colors[i], label=label)     
+        periods = _periods[:idx+1]
+        ax.plot(periods, spec[1:idx+2], ls='-', c=nice_colors[i], label=label)
         ax.set_xscale('log')
         ax.set_xticks(periods[np.logical_or(periods%2 == 0, periods==1)])
         ax.set_xticklabels(np.array(periods[np.logical_or(periods%2 == 0, periods==1)], dtype=int))
         ax.set_xlim((periods[0], periods[-1]))
         ax.set_xlabel('Periods [years]', fontsize=9)
         ax.tick_params(axis='both', labelsize=8)
-        
+
         ax2 = ax.twiny()
-        ax2.plot(periods, spec[1:idx+2], ls='-', c=nice_colors[i], label=label)     
+        ax2.plot(periods, spec[1:idx+2], ls='-', c=nice_colors[i], label=label)
         ax2.set_xscale('log')
         ax2.set_xticks(periods[:][np.logical_or(periods%2 == 0, periods==1)])
         ax2.set_xticklabels(np.round(freq[1:idx+2][np.logical_or(periods%2 == 0, periods==1)], 3))
         ax2.set_xlim((periods[0], periods[-1]))
-        
+
         ax2.tick_params(axis='both', labelsize=8)
         ax.set_xlabel('Periods [years]', fontsize=8)
         if freq_df == 'month':
@@ -346,12 +355,12 @@ def plot_spectrum(y, methods: List[tuple]=[('periodogram', periodogram)],
         else:
             ax2.set_xlabel(f'Frequency [1/ {freq_df} days]', fontsize=6)
         # ax.set_ylabel('Power Spectrum Density', fontsize=8)
-        
+
     ax.legend(fontsize='xx-small')
     if title is not None:
         ax.set_title(title, fontsize=9)
     return ax
-        
+
 def resample(df, to_freq='M'):
     return df.resample(to_freq).mean()
 
@@ -371,40 +380,50 @@ def corr_matrix_pval(df, alpha=0.05):
     sig_mask = pval_matrix < alpha
     return cross_corr, sig_mask, pval_matrix
 
-def plot_ts_matric(df_init, win=1, lag=0, columns=list, rename: dict=None, 
+def plot_ts_matric(df_init, win: int=None, lag=0, columns: list=None, rename: dict=None,
                    period='fullyear'):
     #%%
     '''
     period = ['fullyear', 'summer60days', 'pre60days']
     '''
-    splits = df_init.index.levels[0]
-    dates_full_orig = df_init.loc[0].index
-    dates_RV_orig   = df_init.loc[0].index[df_init.loc[0]['RV_mask']==True]
     if columns is None:
         columns = df_init.columns
 
     df_cols = df_init[columns]
-    TrainIsTrue = df_init['TrainIsTrue']
 
-    list_test = []
-    for s in range(splits.size):
-        TestIsTrue = TrainIsTrue[s]==False
-        list_test.append(df_cols.loc[s][TestIsTrue])
 
-    df_test = pd.concat(list_test).sort_index()
-    # shift precursor vs. tmax
-    for c in df_test.columns[1:]:
-        df_test[c] = df_test[c].shift(periods=-lag)
+    if hasattr(df_init, 'levels'):
+        splits = df_init.index.levels[0]
+        dates_RV_orig   = df_init.loc[0].index[df_init.loc[0]['RV_mask']==True]
+        TrainIsTrue = df_init['TrainIsTrue']
+        dates_full_orig = df_init.loc[0].index
+        list_test = []
+        for s in range(splits.size):
+            TestIsTrue = TrainIsTrue[s]==False
+            list_test.append(df_cols.loc[s][TestIsTrue])
+
+        df_test = pd.concat(list_test).sort_index()
+    else:
+        df_test = df_init
+        dates_full_orig = df_init.index
+
+    if lag != 0:
+        # shift precursor vs. tmax
+        for c in df_test.columns[1:]:
+            df_test[c] = df_test[c].shift(periods=-lag)
 
     # bin means
-    df_test = df_test.resample(f'{win}D').mean()
+    if win is not None:
+        df_test = df_test.resample(f'{win}D').mean()
+
 
     if period=='fullyear':
         dates_sel = dates_full_orig.strftime('%Y-%m-%d')
-    elif period == 'summer60days':
-        dates_sel = dates_RV_orig.strftime('%Y-%m-%d')
-    elif period == 'pre60days':
-        dates_sel = (dates_RV_orig - pd.Timedelta(60, unit='d')).strftime('%Y-%m-%d')
+    if 'RV_mask' in df_test.columns:
+        if period == 'RV_mask':
+            dates_sel = dates_RV_orig.strftime('%Y-%m-%d')
+        elif period == 'RM_mask_lag60':
+            dates_sel = (dates_RV_orig - pd.Timedelta(60, unit='d')).strftime('%Y-%m-%d')
 
     # after resampling, not all dates are in their:
     dates_sel =  pd.to_datetime([d for d in dates_sel if d in df_test.index] )
@@ -495,7 +514,7 @@ def remove_leapdays(datetime_or_xr):
    noleap = datetime[mask_lpyrfeb==False]
    if type(datetime_or_xr) != type(pd.to_datetime(['2000-01-01'])):
        noleap = datetime_or_xr.sel(time=noleap)
-       
+
    return noleap
 
 def store_hdf_df(dict_of_dfs, file_path):
@@ -525,157 +544,151 @@ def load_hdf5(path_data):
         except:
             time.sleep(1)
         assert c!= 5, print('loading in hdf5 failed')
-            
+
     return dict_of_dfs
 
 
 
-def df_figures(df_data, keys, analysis, line_dim='model', group_line_by=None,
-                  met='default', wspace=0.08, col_wrap=None, threshold_bin=None):
-    #%%
-    '''
-    3 dims to plot: [metrics, experiments, stat_models]
-    2 can be assigned to row or col, the third will be lines in the same axes.
-    '''
-
-    dims = ['exper', 'models', 'met']
-    col_dim = [s for s in dims if s not in [line_dim, 'met']][0]
-    if met == 'default':
-        met = ['AUC-ROC', 'AUC-PR', 'BSS', 'Precision', 'Rel. Curve', 'ts']
 
 
 
-    if line_dim == 'model':
-        lines = models
-        cols  = expers
-    elif line_dim == 'exper':
-        lines = expers
-        cols  = models
-    assert line_dim in ['model', 'exper'], ('illegal key for line_dim, '
-                           'choose \'exper\' or \'model\'')
-
-    if len(cols) == 1 and group_line_by is not None:
-        group_s = len(group_line_by)
-        cols = group_line_by
-        lines_grouped = []
-        for i in range(0,len(lines),group_s):
-            lines_grouped.append(lines[i:i+group_s])
+pi = np.pi
 
 
+def square_function(N, square_width):
+    """Generate a square signal.
 
-    grid_data = np.zeros( (2, len(met)), dtype=str)
-    grid_data = np.stack( [np.repeat(met, len(cols)),
-                           np.repeat(cols, len(met))])
+    Args:
+        N (int): Total number of points in the signal.
+        square_width (int): Number of "high" points.
 
+    Returns (ndarray):
+        A square signal which looks like this:
 
-    df = pd.DataFrame(grid_data.T, columns=['met', col_dim])
-    if len(cols) != 1 or col_wrap is None:
-        g = sns.FacetGrid(df, row='met', col=col_dim, height=3, aspect=1.4,
-                      sharex=False,  sharey=False)
-        # Only if 1 column is requisted, col_wrap is allowed
-    if len(cols) == 1 and col_wrap is not None:
-#        cols = met
-        g = sns.FacetGrid(df, col='met', height=3, aspect=1.4,
-                      sharex=False,  sharey=False, col_wrap=col_wrap)
+              |____________________
+              |<-- square_width -->
+              |                    ______________
+              |
+              |^                   ^            ^
+        index |0             square_width      N-1
 
-
-
-
-    for col, c_label in enumerate(cols):
-
-        if col_wrap is None:
-            g.axes[0,col].set_title(c_label)
-        if len(models) == 1 and group_line_by is not None:
-            lines = lines_grouped[col]
+        In other words, the output has [0:N]=1 and [N:]=0.
+    """
+    signal = np.zeros(N)
+    signal[0:square_width] = 1
+    return signal
 
 
-        for row, metric in enumerate(met):
+def check_num_coefficients_ok(N, num_coefficients):
+    """Make sure we're not trying to add more coefficients than we have."""
+    limit = None
+    if N % 2 == 0 and num_coefficients > N // 2:
+        limit = N/2
+    elif N % 2 == 1 and num_coefficients > (N - 1)/2:
+        limit = (N - 1)/2
+    if limit is not None:
+        raise ValueError(
+            "num_coefficients is {} but should not be larger than {}".format(
+                num_coefficients, limit))
 
-            if col_wrap is None:
-                ax = g.axes[row,col]
-            else:
-                ax = g.axes[row]
 
+def reconstruct_fft(signal, coefficients:list=None,
+                    list_of_harm: list=[1, 1/2, 1/3], square_width: int=None):
+    """Test partial (i.e. filtered) Fourier reconstruction of a square signal.
 
-            for l, line in enumerate(lines):
+    Args:
+        N (int): Number of time (and frequency) points. We support both even
+            and odd N.
+        square_width (int): Number of "high" points in the time domain signal.
+            This number must be less than or equal to N.
+        num_coefficients (int): Number of frequencies, in addition to the dc
+            term, to use in Fourier reconstruction. This is the number of
+            positive frequencies _and_ the number of negative frequencies.
+            Therefore, if N is odd, this number cannot be larger than
+            (N - 1)/2, and if N is even this number cannot be larger than
+            N/2.
+        list_of_harm (int):
+    """
+    if square_width is not None:
+        N = 2*square_width
+        if square_width > N:
+            raise ValueError("square_width cannot be larger than N")
+        check_num_coefficients_ok(N, len(coefficients))
 
-                if line_dim == 'model':
-                    model = line
-                    exper = c_label
-                    color = nice_colors[l]
-
-                elif line_dim == 'exper':
-                    model = c_label
-                    exper = line
-                    if len(models) == 1 and group_line_by is not None:
-                        exper = line
-                        model = models[0]
-                    color = colors_datasets[l]
-
-#                if col_wrap is not None:
-#                    metric = c_label # metrics on rows
-                    # exper is normally column, now we only have 1 expers
-#                    exper = expers[0]
+        signal = square_function(N, square_width)
+    else:
+        N = signal.shape[0]
 
 
 
-                df_valid, RV, y_pred_all = dict_experiments[exper][model]
-                tfreq = (y_pred_all.iloc[1].name - y_pred_all.iloc[0].name).days
-                lags_i     = list(dict_experiments[exper][model][2].columns.astype(int))
-                lags_tf = [l*tfreq for l in lags_i]
-                if tfreq != 1:
-                    # the last day of the time mean bin is tfreq/2 later then the centerered day
-                    lags_tf = [l_tf- int(tfreq/2) if l_tf!=0 else 0 for l_tf in lags_tf]
+    time_axis = np.linspace(0, N-1, N)
+    ft = np.fft.fft(signal, axis=0)
+
+    freqs = np.fft.fftfreq(signal.size)
+    periods = np.zeros_like(freqs)
+    periods[1:] = 1/(freqs[1:]*365)
+
+    def get_harmonics(periods, list_of_harm=[1, 1/2, 1/3, 1/4, 1/5, 1/6]):
+        harmonics = []
+        for h in list_of_harm:
+            harmonics.append(np.argmin((abs(periods - h))))
+        harmonics = np.array(harmonics) - 1 # subtract 1 because loop below is adding 1
+        return harmonics
+
+    if coefficients is None:
+        if list_of_harm is [1, 1/2, 1/3]:
+            print('using default first 3 annual harmonics, expecting cycles of 365 days')
+        coefficients = get_harmonics(periods, list_of_harm=list_of_harm)
+    elif coefficients is not None:
+        coefficients = coefficients
+
+
+        # # determine coefficients based up first 3 annual harmonics
+        # two_yearly_harmonics = np.logical_or(periods==1,
+        #                                        periods==.5)
+        # third_harmonic = np.argmin((abs(periods - 1/3)))
+        # three_harm_year = np.concatenate([np.argwhere(two_yearly_harmonics).squeeze(),
+        #                                   [third_harmonic]])
+        # coefficients = three_harm_year - 1
+
+
+    reconstructed_signal = np.zeros(N, dtype='complex128')
+    reconstructed_signal += ft[0] * np.ones(N, dtype='complex128')
+    # Adding the dc term explicitly makes the looping easier in the next step.
+
+    for k in coefficients:
+        k += 1  # Bump by one since we already took care of the dc term.
+        if k == N-k:
+            reconstructed_signal += ft[k] * np.exp(
+                1.0j*2 * np.pi * (k) * time_axis / N)
+        # This catches the case where N is even and ensures we don't double-
+        # count the frequency k=N/2.
+
+        else:
+            reconstructed_signal += ft[k] * np.exp(
+                1.0j*2 * np.pi * (k) * time_axis / N)
+            reconstructed_signal += ft[N-k] * np.exp(
+                1.0j*2 * np.pi * (N-k) * time_axis / N)
+        # In this case we're just adding a frequency component and it's
+        # "partner" at minus the frequency
+
+    reconstructed_signal = reconstructed_signal / N
+    # Normalize by the number of points in the signal. numpy's discete Fourier
+    # transform convention puts the (1/N) normalization factor in the inverse
+    # transform, so we have to do it here.
+
+    plt.plot(time_axis[:365*3], signal[:365*3],
+             'b-.',
+             label='original first 3 years')
+    plt.plot(time_axis[:365*3], reconstructed_signal.real[:365*3],
+             'r-', linewidth=3,
+             label='reconstructed first 3 years')
+    # The imaginary part is zero anyway. We take the real part to
+    # avoid matplotlib warnings.
+
+    plt.grid()
+    plt.legend(loc='upper right')
+    return reconstructed_signal.real
 
 
 
-                if metric in ['AUC-ROC', 'AUC-PR', 'BSS', 'Precision', 'Accuracy']:
-                    df_metric = df_valid.loc[metric]
-                    if metric in ['AUC-PR', 'Precision', 'Accuracy']:
-                        clim = RV.RV_bin.values[RV.RV_bin==1].size / RV.RV_bin.size
-                        if metric == 'Accuracy':
-                            import validation as valid
-                            # threshold upper 3/4 of above clim
-                            threshold = int(100 * (1 - 0.75*clim))
-                            df_ran = valid.get_metrics_confusion_matrix(RV, y_pred_all.loc[:,:0],
-                                                    thr=[threshold], n_shuffle=400)
-                            clim = df_ran[threshold/100]['fc shuf'].loc[:,'Accuracy'].mean()
-
-                    else:
-                        clim = None
-                    plot_score_lags(df_metric, metric, color, lags_tf,
-                                    linestyle=line_styles[l], clim=clim,
-                                    cv_lines=False, col=col, 
-                                    threshold_bin=threshold_bin, ax=ax)
-                                    
-                if metric == 'Rel. Curve':
-                    if l == 0:
-                        ax, n_bins = rel_curve_base(RV, lags_tf, col=col, ax=ax)
-                    print(l,line)
-
-                    rel_curve(RV, y_pred_all, color, lags_i, n_bins,
-                              linestyle=line_styles[l], mean_lags=True,
-                              ax=ax)
-
-                if metric == 'ts':
-                    if l == 0:
-                        ax, dates_ts = plot_events(RV, color=nice_colors[-1], n_yrs=6,
-                                         col=col, ax=ax)
-                    plot_ts(RV, y_pred_all, dates_ts, color, line_styles[l], lag_i=1, ax=ax)
-
-                # legend conditions
-                same_models = np.logical_and(row==0, col==0)
-                grouped_lines = np.logical_and(row==0, group_line_by is not None)
-                if same_models or grouped_lines:
-#                    legend.append(patches.Rectangle((0,0),0.5,0.5,facecolor=color))
-
-                    ax.legend(ax.lines, lines,
-                          loc = 'lower left', fancybox=True,
-                          handletextpad = 0.2, markerscale=0.1,
-                          borderaxespad = 0.1,
-                          handlelength=2.5, handleheight=1, prop={'size': 12})
-
-    #%%
-    g.fig.subplots_adjust(wspace=wspace)
-
-    return g.fig

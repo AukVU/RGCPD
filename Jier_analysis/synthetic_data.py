@@ -17,6 +17,8 @@ register_matplotlib_converters()
 np.random.seed(12345)
 plt.style.use('seaborn')
 
+# from statsmodels.tools.sm_exceptions import ConvergenceWarning
+# warnings.simplefilter('ignore', ConvergenceWarning)
 # TODO Look if simulation of more than one realization is needed and if so why, comment it. 
 # Above is only needed when we want to test ground truth data scenarios against our target data. 
 # TODO Visualise and modularise steps
@@ -27,7 +29,7 @@ synthetic['ARrange'] = np.array([.75, -.25])
 synthetic['MArange'] = np.array([.65, .35])
 synthetic['arparams'] = np.r_[1, -synthetic['ARrange']]
 synthetic['maparams'] = np.r_[1, -synthetic['MArange']]
-synthetic['nobs'] = 500
+synthetic['nobs'] = 1000
 synthetic['startyear'] = '1980m1'
 
 def generate_synthetic_data():
@@ -297,17 +299,21 @@ if __name__ == "__main__":
 
     # prediction_model = []
     # prediction_poly = []
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore")
-        model = sm.tsa.ARMA(temp_m, order=order[-1]).fit(trend='c', disp=-1)
-    # # model.plot_predict(end = poly.size +20)
-    # # plt.show()
-    plt.figure(figsize=(14, 8))
-    # fig, ax = plt.subplots()
-    # ax = temp_m.loc[first_sst.index[0][1]].plot(ax=ax)
-    temp_m.plot()
-    model.plot_predict(first_sst.index[0][1], '2015')
-    plt.show()
+    # with warnings.catch_warnings():
+    #     warnings.filterwarnings("ignore")
+    #     model = sm.tsa.ARMA(temp_m, order=order[-1]).fit(trend='c', disp=-1)
+
+    # fig = plt.figure(figsize=(14, 8))
+    # # fig, ax = plt.subplots()
+    # # ax = temp_m.loc[first_sst.index[0][1]].plot(ax=ax)
+    # # handles = ['time serie', 'forecast']
+    # temp_m.plot( ax=fig.add_subplot(311))
+    # # model.plot_predict(first_sst.index[0][1], '2015',ax=fig.add_subplot(312))
+    # model.plot_predict(end=len(first_sst['values'].values)+ 40 , ax=fig.add_subplot(312))
+    # model.plot_predict(start= len(first_sst['values'].values) -10, end=len(first_sst['values'].values) + 20, ax=fig.add_subplot(313))
+    # # plt.legend(handles)
+    # plt.tight_layout()
+    # plt.show()
     # for i in range(synthetic['nobs']):
     #     with warnings.catch_warnings():
     #         warnings.filterwarnings("ignore")
@@ -316,7 +322,7 @@ if __name__ == "__main__":
     #     y_hat_m = output_m[0][0]
     #     obs = temp_m.iloc[i]
     #     prediction_model.append(y_hat_m)
-    #     print(f'Predicted {y_hat_m} Observed {obs}')
+    #     # print(f'Predicted {y_hat_m} Observed {obs}')
 
     # plt.figure(figsize=(14, 8))
     # plt.plot(temp_m, label='Original data')

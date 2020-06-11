@@ -37,26 +37,28 @@ logit = ('logit', None)
 #%%
 start_time = time()
 
-# ERA_data = data_dir + '/df_data_sst_CPPAs30_sm2_sm3_dt1_c378f_good.h5'
-ERA_T90tail = data_dir + '/1q90tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
-ERA_q50tail = data_dir + '/1q50tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
+
+ERA_q90tail = data_dir + '/1q90tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
 ERA_q65tail = data_dir + '/1q65tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
+ERA_q50tail = data_dir + '/1q50tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
+
+
 
 kwrgs_events = {'event_percentile': 'std',
                 'window':'single_event', 'min_dur':2, 'max_break':1,
                 'grouped':True}
 
-# kwrgs_events = {'event_percentile': 'std', 'window':'single_event'}
 
 kwrgs_events = kwrgs_events
 precur_aggr = 15
 use_fold = None
-n_boot = 5000
-lags_i = np.arange(0,120, 10)
+n_boot = 2000
+lags_i = np.array([0, 10, 15, 20, 25, 30])
+start_end_TVdate = None
 
 
-list_of_fc = [fcev(path_data=ERA_q65tail, precur_aggr=precur_aggr,
-                    use_fold=use_fold, start_end_TVdate=None,
+list_of_fc = [fcev(path_data=ERA_q90tail, precur_aggr=precur_aggr,
+                    use_fold=use_fold, start_end_TVdate=start_end_TVdate,
                     stat_model= ('logitCV',
                                 {'Cs':10, #np.logspace(-4,1,10)
                                 'class_weight':{ 0:1, 1:1},
@@ -67,39 +69,56 @@ list_of_fc = [fcev(path_data=ERA_q65tail, precur_aggr=precur_aggr,
                                   'kfold':5,
                                   'seed':2}),
                     kwrgs_pp={'add_autocorr':False, 'normalize':'datesRV'},
-                    dataset='',
-                    keys_d='CPPA+sm'),
-                fcev(path_data=ERA_q65tail, precur_aggr=precur_aggr,
-                      use_fold=use_fold, start_end_TVdate=None,
-                      stat_model= ('logitCV',
-                                  {'Cs':10, #np.logspace(-4,1,10)
-                                  'class_weight':{ 0:1, 1:1},
-                                   'scoring':'neg_brier_score',
-                                   'penalty':'l2',
-                                   'solver':'lbfgs',
-                                   'max_iter':100,
-                                   'kfold':5,
-                                   'seed':2}),
-                      kwrgs_pp={'add_autocorr':False, 'normalize':'datesRV'},
-                      dataset='',
-                      keys_d='CPPA')]
+                    dataset='Spatial mean warmest 10% gridcells',
+                    keys_d='CPPA'),
+              fcev(path_data=ERA_q65tail, precur_aggr=precur_aggr,
+                    use_fold=use_fold, start_end_TVdate=start_end_TVdate,
+                    stat_model= ('logitCV',
+                                {'Cs':10, #np.logspace(-4,1,10)
+                                'class_weight':{ 0:1, 1:1},
+                                  'scoring':'neg_brier_score',
+                                  'penalty':'l2',
+                                  'solver':'lbfgs',
+                                  'max_iter':100,
+                                  'kfold':5,
+                                  'seed':2}),
+                    kwrgs_pp={'add_autocorr':False, 'normalize':'datesRV'},
+                    dataset='Spatial mean warmest 35% gridcells',
+                    keys_d='CPPA'),
+              fcev(path_data=ERA_q50tail, precur_aggr=precur_aggr,
+                    use_fold=use_fold, start_end_TVdate=start_end_TVdate,
+                    stat_model= ('logitCV',
+                                {'Cs':10, #np.logspace(-4,1,10)
+                                'class_weight':{ 0:1, 1:1},
+                                  'scoring':'neg_brier_score',
+                                  'penalty':'l2',
+                                  'solver':'lbfgs',
+                                  'max_iter':100,
+                                  'kfold':5,
+                                  'seed':2}),
+                    kwrgs_pp={'add_autocorr':False, 'normalize':'datesRV'},
+                    dataset='Spatial mean warmest 50% gridcells',
+                    keys_d='CPPA')]
 
 
-fc = list_of_fc[0]
+
+fc = list_of_fc[1]
+
+
 
 #%%
+
 times = []
 t00 = time()
 for fc in list_of_fc:
+
     t0 = time()
-    fc.get_TV(kwrgs_events=kwrgs_events, detrend=False) # detrending already done on gridded data
+    fc.get_TV(kwrgs_events=kwrgs_events, detrend=False, RV_anomaly=False)
 
     fc.fit_models(lead_max=lags_i, verbosity=1)
 
-    # fc.TV.prob_clim = pd.DataFrame(np.repeat(fc.TV.prob_clim.mean(), fc.TV.prob_clim.size).values, index=fc.TV.prob_clim.index)
-
     fc.perform_validation(n_boot=n_boot, blocksize='auto', alpha=0.05,
-                          threshold_pred=60)
+                          threshold_pred=50)
 
     single_run_time = int(time()-t0)
     times.append(single_run_time)
@@ -126,13 +145,14 @@ if store:
     dict_merge_all = functions_pp.load_hdf5(filename+'.h5')
 
 
-lag_rel = 50
-kwrgs = {'wspace':0.16, 'hspace':.25, 'col_wrap':2, 'skip_redundant_title':True,
-         'lags_relcurve':[lag_rel], 'fontbase':14, 'figaspect':2}
+lag_rel = 30
+kwrgs = {'wspace':0.1, 'hspace':.25, 'col_wrap':None, 'skip_redundant_title':True,
+         'lags_relcurve':[lag_rel], 'fontbase':14, 'figaspect':1.5,
+          'lines_legend':[['CPPA'], ['CPPA'], ['CPPA']]}
 #kwrgs = {'wspace':0.25, 'col_wrap':3, 'threshold_bin':fc.threshold_pred}
-met = ['AUC-ROC', 'AUC-PR', 'Precision', 'BSS', 'Accuracy', 'Rel. Curve']
-line_dim = 'exper'
-group_line_by = None
+met = ['BSS', 'Rel. Curve']
+line_dim = None
+group_line_by = 'dataset'
 
 fig = dfplots.valid_figures(dict_merge_all,
                           line_dim=line_dim,
@@ -145,15 +165,10 @@ pathfig_valid = os.path.join(filename + f_format)
 fig.savefig(pathfig_valid,
             bbox_inches='tight') # dpi auto 600
 
-fc = list_of_fc[0]
+fc = list_of_fc[-1]
 df, fig = fc.plot_feature_importances(lag=lag_rel)
 path_feat = filename + f'ifc{1}_logitregul_l{lag_rel}' + f_format
 fig.savefig(path_feat, bbox_inches='tight')
-
-
-fc.dict_sum[0].loc['Precision'].loc['Precision']
-
-fc.dict_sum[0].loc['Accuracy'].loc['Accuracy']
 
 #%%
 

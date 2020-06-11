@@ -37,9 +37,6 @@ logit = ('logit', None)
 #%%
 start_time = time()
 
-# ERA_data = data_dir + '/df_data_sst_CPPAs30_sm2_sm3_dt1_c378f_good.h5'
-ERA_T90tail = data_dir + '/1q90tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
-ERA_q50tail = data_dir + '/1q50tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
 ERA_q65tail = data_dir + '/1q65tail_df_data_sst_CPPAs30_sm2_sm3_dt1_c378f.h5'
 
 kwrgs_events = {'event_percentile': 'std',
@@ -66,9 +63,23 @@ list_of_fc = [fcev(path_data=ERA_q65tail, precur_aggr=precur_aggr,
                                   'max_iter':100,
                                   'kfold':5,
                                   'seed':2}),
-                    kwrgs_pp={'add_autocorr':False, 'normalize':'datesRV'},
+                    kwrgs_pp={'add_autocorr':True, 'normalize':'datesRV'},
                     dataset='',
-                    keys_d='CPPA+sm'),
+                    keys_d=' '),
+                fcev(path_data=ERA_q65tail, precur_aggr=precur_aggr,
+                      use_fold=use_fold, start_end_TVdate=None,
+                      stat_model= ('logitCV',
+                                  {'Cs':10, #np.logspace(-4,1,10)
+                                  'class_weight':{ 0:1, 1:1},
+                                   'scoring':'neg_brier_score',
+                                   'penalty':'l2',
+                                   'solver':'lbfgs',
+                                   'max_iter':100,
+                                   'kfold':5,
+                                   'seed':2}),
+                      kwrgs_pp={'add_autocorr':False, 'normalize':'datesRV'},
+                      dataset='',
+                      keys_d='sm'),
                 fcev(path_data=ERA_q65tail, precur_aggr=precur_aggr,
                       use_fold=use_fold, start_end_TVdate=None,
                       stat_model= ('logitCV',
@@ -99,7 +110,7 @@ for fc in list_of_fc:
     # fc.TV.prob_clim = pd.DataFrame(np.repeat(fc.TV.prob_clim.mean(), fc.TV.prob_clim.size).values, index=fc.TV.prob_clim.index)
 
     fc.perform_validation(n_boot=n_boot, blocksize='auto', alpha=0.05,
-                          threshold_pred=60)
+                          threshold_pred=(1.5, 'times_clim'))
 
     single_run_time = int(time()-t0)
     times.append(single_run_time)
@@ -126,13 +137,13 @@ if store:
     dict_merge_all = functions_pp.load_hdf5(filename+'.h5')
 
 
-lag_rel = 50
-kwrgs = {'wspace':0.16, 'hspace':.25, 'col_wrap':2, 'skip_redundant_title':True,
+lag_rel = 60
+kwrgs = {'wspace':0.16, 'hspace':.25, 'col_wrap':None, 'skip_redundant_title':True,
          'lags_relcurve':[lag_rel], 'fontbase':14, 'figaspect':2}
 #kwrgs = {'wspace':0.25, 'col_wrap':3, 'threshold_bin':fc.threshold_pred}
-met = ['AUC-ROC', 'AUC-PR', 'Precision', 'BSS', 'Accuracy', 'Rel. Curve']
-line_dim = 'exper'
-group_line_by = None
+met = ['BSS']
+line_dim = None
+group_line_by = 'exper'
 
 fig = dfplots.valid_figures(dict_merge_all,
                           line_dim=line_dim,
@@ -145,11 +156,21 @@ pathfig_valid = os.path.join(filename + f_format)
 fig.savefig(pathfig_valid,
             bbox_inches='tight') # dpi auto 600
 
-fc = list_of_fc[0]
+fc = list_of_fc[-1]
 df, fig = fc.plot_feature_importances(lag=lag_rel)
 path_feat = filename + f'ifc{1}_logitregul_l{lag_rel}' + f_format
 fig.savefig(path_feat, bbox_inches='tight')
 
+import df_ana
+# X_CPPA = list_of_fc[-1]._get_statmodelobject().X_pred[['0..4..sst', '0..6..sst', '0..CPPAsv']]
+# X_sm   = list_of_fc[-2]._get_statmodelobject().X_pred[['0..2..sm2', '0..2..sm3']]
+# X_merge = X_sm.merge(X_CPPA, left_index=True, right_index=True)
+# All = fc.TV.RV_ts.merge(X_merge, left_index=True, right_index=True)
+
+All = fc.df_data.loc[0][['1q65tail', '0..2..sm2', '0..2..sm3', '0..4..sst', '0..6..sst',
+       '0..CPPAsv']]
+
+df_ana.loop_df(df=All, function=df_ana.plot_ac, kwrgs={'s':150})
 
 fc.dict_sum[0].loc['Precision'].loc['Precision']
 

@@ -76,7 +76,7 @@ def plot_timeseries_func(savar, plot_points, settings):
         axes[plot,1].plot(yhat)
     plt.show()
 
-def draw_network_func(links_coeffs, settings, results=None):
+def draw_network_func(links_coeffs, settings, results=None, output='test'):
     M = nx.DiGraph()
     M.add_nodes_from(range(settings['N']))
     N = nx.DiGraph()
@@ -118,6 +118,13 @@ def draw_network_func(links_coeffs, settings, results=None):
         nx.draw(N, pos, edges=edges, edge_color=colors, width=weights, with_labels=True)
         plt.title('Found causal map')
         plt.plot([0.5, 0.5], [0, 1], color='black', lw=1,transform=plt.gcf().transFigure, clip_on=False)
+    user_dir = settings['user_dir']
+    filepath = user_dir + f'/Code_Lennart/results/{output}/plots'
+    if os.path.isdir(filepath) != True : os.makedirs(filepath)
+    filename = filepath  + '/network.pdf'
+    if os.path.isfile(filename):
+        os.remove(filename)
+    plt.savefig(filename, format='pdf')
     plt.show()
 
 def create_causal_map(N):
@@ -135,7 +142,7 @@ def create_causal_map(N):
             for link in range(np.random.randint(start,3)):
                 choice = np.random.choice(possible_links)
                 possible_links.remove(choice)
-                links_coeffs[mode] += [((choice, 10), 0.5 * np.random.random() + 0.5)]
+                links_coeffs[mode] += [((choice, 10), 0.5 * np.random.uniform(low=-1,high=1) + 0.5)]
         try:
             check_stability(links_coeffs)
             result = "Generated"
@@ -154,20 +161,30 @@ def write_nc(savar, settings, output='test'):
     columns = int(columns * 2 - 1)
     lon = np.arange(-140,-59,1)
     lat = np.arange(10,76,1)
+    if settings['area_size'] == 'small':
+        lon = np.arange(-140,-120,1)
+        lat = np.arange(10,20,1)
+    elif settings['area_size'] == 'very_small':
+        lon = np.arange(-140,-135,1)
+        lat = np.arange(10,15,1)
+    print(len(lon))
 
-    temp_data = np.zeros((data.shape[0], len(lat), len(lon)))
+    # temp_data = np.zeros((data.shape[0], len(lat), len(lon)))
+    temp_data = np.random.normal(0, 0.01, (data.shape[0], len(lat), len(lon)))
 
-    step_x = int(81 / columns)
-    step_y = int(66 / 3)
+    step_x = int(len(lon) / columns)
+    step_y = int(len(lat) / 3)
     for time in range(temp_data.shape[0]):
         start = 0
         for i in range(int(clusters/2)):
-            temp_data[time][start:start + step_x, 0:step_y] = data[time][1 + i]
+            temp_data[time][0:step_y, start:start + step_x, ] += data[time][1 + i]# + np.random.normal(0,1)
             start = start + 2 * step_x
         start = 0
         for i in range(int(clusters/2)):
-            temp_data[time][start:start + step_x, 2 * step_y:3 * step_y] = data[time][1 + int(clusters / 2) + i]
+            temp_data[time][2 * step_y:3 * step_y, start:start + step_x] += data[time][1 + int(clusters / 2) + i]# + np.random.normal(0,1)
             start = start + 2 * step_x
+    print('temp_data.shape:')
+    print(temp_data.shape)
 
     nc.createDimension('lon', len(lon))
     nc.createDimension('lat', len(lat))
@@ -196,8 +213,14 @@ def write_nc(savar, settings, output='test'):
     # np.save(user_dir + f'/Code_Lennart/NC/{output}.npy', data_dict, allow_pickle=True)
     filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}_target.nc'
     nct = Dataset(filename, 'w', format='NETCDF4')
-    lon = np.arange(225,301,1)
-    lat = np.arange(70,29,-1)
+    lon = np.arange(-140,-59,1)
+    lat = np.arange(10,76,1)
+    if settings['area_size'] == 'small':
+        lon = np.arange(-140,-120,1)
+        lat = np.arange(10,20,1)
+    elif settings['area_size'] == 'very_small':
+        lon = np.arange(-140,-135,1)
+        lat = np.arange(10,15,1)
     print('length latitude')
     print(len(lat))
 
@@ -256,7 +279,7 @@ def save_time_series(savar, settings, output='test'):
     df['month'] = df.time.dt.month
     df['day'] = df.time.dt.day
     df.drop('time', axis=1, inplace=True)
-    df['test_target'] = data[:,0]
+    df['target'] = data[:,0]
     for i in range(1, data.shape[1]):
         df[f'ts{i}'] = data[:,i]
     df.to_csv(filename, index=False)
@@ -347,7 +370,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
     
 
     if draw_network:
-        draw_network_func(links_coeffs, settings)
+        draw_network_func(links_coeffs, settings, output=settings['filename'])
     # sys.exit()
 
     savar = models.savarModel(
@@ -408,7 +431,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
                 value = val_min[mode][link]
                 links_results.append(((link[0], -1 * link[1]), value))
             results[mode] = links_results
-        draw_network_func(links_coeffs, settings, results=results)
+        draw_network_func(links_coeffs, settings, results=results, output=settings['filename'])
 
         
 
@@ -418,7 +441,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 # Setting up the settings and running above code
 
 settings = {}
-settings['N'] = 3
+settings['N'] = 7
 settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 5114
 settings['spatial_covariance'] = 0.3
 settings['random_modes'] = False
@@ -428,10 +451,11 @@ settings['spatial_factor'] = 0.1
 
 settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 settings['extra_dir'] = 'Code_Lennart'
-settings['filename'] = 'very_small'
+settings['filename'] = '7_modes_2'
 
 
 settings['random_causal_map'] = True
+settings['area_size'] = 'small'
 
 
 ## If any of the following settings is set to True, the results folder with {filename} will be removed!

@@ -30,6 +30,8 @@ from RGCPD import EOF
 from class_BivariateMI import BivariateMI
 from functions_pp import csv_to_df
 
+import shutil
+
 local_base_path = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD"
 local_script_dir = os.path.join(local_base_path, "ERA5" )
 
@@ -38,14 +40,15 @@ CPPA_s30 = [('sst_CPPAs30', local_script_dir + '/era5_21-01-20_10hr_lag_10_Xzkup
 CPPA_s5  = [('sst_CPPAs5', local_script_dir + '/ERA5_15-02-20_15hr_lag_10_Xzkup1.h5')]
 
 
-
+output = 'very_small'
 list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
-                     ('test_target', local_base_path + '/Code_Lennart/NC/test_target2.nc')
+                     (1, local_base_path + f'/Code_Lennart/results/{output}/NC/{output}_target.nc'),
+                     ('test_precur', local_base_path + f'/Code_Lennart/results/{output}/NC/{output}.nc')
 ]
 
 # # list_for_EOFS = [EOF(name='test_precur', neofs=1, selbox=[-180, 360, -15, 30])]
-# list_for_MI   = [BivariateMI(name='test_precur', func='corr', kwrgs_func={'alpha':.05, 'FDR_control':True})]
-list_for_MI = []
+list_for_MI   = [BivariateMI(name='test_precur', func='corr', kwrgs_func={'alpha':.05, 'FDR_control':True})]
+# list_for_MI = []
 
 # start_end_TVdate = ('06-24', '08-22')
 start_end_TVdate = None
@@ -54,34 +57,48 @@ start_end_TVdate = None
 # start_end_date = ('1-1', '12-31')
 start_end_date = None
 
-output = 'small'
+# start_end_year = (1979, 1993)
+
 csv_to_df(path=local_base_path + f'/Code_Lennart/results/{output}/time_series/timeseries.csv')
 
 list_import_ts = [('test_precur', local_base_path + f'/Code_Lennart/results/{output}/time_series/timeseries.h5')]
 
-rg = RGCPD(#list_of_name_path=list_of_name_path,
+RGCPD_path = local_base_path + f'/Code_Lennart/results/{output}/output_RGCPD'
+shutil.rmtree(RGCPD_path, ignore_errors=True)
+os.makedirs(RGCPD_path)
+rg = RGCPD(list_of_name_path=list_of_name_path,
             list_import_ts=list_import_ts,
-            # list_for_MI=list_for_MI,
+            list_for_MI=list_for_MI,
            start_end_TVdate=start_end_TVdate,
            start_end_date=start_end_date,
+        #    start_end_year=start_end_year,
            tfreq=10, lags_i=np.array([1]),
-           path_outmain=user_dir+'/ERA5/clustered/output_RGCPD')
+           path_outmain=RGCPD_path)
 
 #selbox = [None, {'sst':[-180,360,-10,90]}]
 selbox = None
 #anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False}]
 anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False, 'st2':False}]
 
+rg.pp_precursors(selbox=selbox, anomaly=anomaly)
+
 rg.pp_TV()
 
 kwrgs_events=None
 rg.traintest(method='random10', kwrgs_events=kwrgs_events)
 
+rg.calc_corr_maps()
+rg.cluster_list_MI()
+
 rg.get_ts_prec(precur_aggr=None)
+
+rg.df_data = rg.df_data[['target', 'ts1', 'ts2', 'TrainIsTrue', 'RV_mask']]
 
 rg.PCMCI_df_data(pc_alpha=None, 
                  tau_max=2,
                  max_combinations=2)
+
+rg.TV.name = 'target'
 
 rg.PCMCI_get_links(alpha_level=0.1)
 

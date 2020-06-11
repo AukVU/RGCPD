@@ -172,7 +172,7 @@ def load_TV(list_of_name_path, loadleap=False, name_ds='ts'):
         fulltso = load_npy(filename, name=name)
     elif filename.split('.')[-1] == 'nc':
         ds = core_pp.import_ds_lazy(filename)
-        if len(ds.shape) > 1:
+        if len(ds.sizes) > 1:
             fulltso = ds[name_ds].sel(cluster=name)
         else:
             fulltso = ds.squeeze()
@@ -340,7 +340,7 @@ def csv_to_df(path:str, sep=','):
     
    # load data from csv file and save to .h5
 
-   path = '/Users/semvijverberg/Downloads/OMI.csv'
+#    path = '/Users/semvijverberg/Downloads/OMI.csv'
    data = pd.read_csv(path, sep=sep, parse_dates=[[0,1,2]], 
                        index_col='year_month_day')
    data.index.name='date'

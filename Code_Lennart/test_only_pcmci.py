@@ -24,7 +24,6 @@ if cluster_func not in sys.path:
     
 import numpy as np
 
-print(sys.path)
 from RGCPD import RGCPD
 from RGCPD import EOF
 from class_BivariateMI import BivariateMI

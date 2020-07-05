@@ -23,6 +23,10 @@ if cluster_func not in sys.path:
     sys.path.append(cluster_func)
     
 import numpy as np
+
+import itertools
+flatten = itertools.chain.from_iterable
+
 # ## Initialize RGCPD class
 # args:
 # - list_of_name_path
@@ -36,18 +40,21 @@ import numpy as np
 
 import shutil
 
-# print(sys.path)
 from RGCPD import RGCPD
 from RGCPD import EOF
 from class_BivariateMI_PCMCI import BivariateMI_PCMCI
+from find_precursors import relabel
 
 from class_BivariateMI_PCMCI import corr_map
 from class_BivariateMI_PCMCI import entropy_map
+from class_BivariateMI_PCMCI import entropy_map_pearson
 from class_BivariateMI_PCMCI import parcorr_map
 from class_BivariateMI_PCMCI import granger_map
 from class_BivariateMI_PCMCI import gpdc_map
 from class_BivariateMI_PCMCI import rcot_map
 from class_BivariateMI_PCMCI import cmiknn_map
+
+import creating_time_series as cts
 
 local_base_path = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD"
 local_script_dir = os.path.join(local_base_path, "ERA5" )
@@ -57,10 +64,11 @@ CPPA_s30 = [('sst_CPPAs30', local_script_dir + '/era5_21-01-20_10hr_lag_10_Xzkup
 CPPA_s5  = [('sst_CPPAs5', local_script_dir + '/ERA5_15-02-20_15hr_lag_10_Xzkup1.h5')]
 
 
-output =  '7_modes'
-# bivariate = corr_map
+output =  'test_met_savar5'
+bivariate = corr_map
 # bivariate = entropy_map
-bivariate = granger_map
+# bivariate = entropy_map_pearson
+# bivariate = granger_map
 # bivariate = parcorr_map
 # bivariate = gpdc_map
 # bivariate = rcot_map
@@ -91,8 +99,8 @@ else:
                         ('test_precur', local_base_path + f'/Code_Lennart/results/{output}/NC/{output}.nc')
     ]
 
-    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True})]
-    # list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=2)]
+    # list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True})]
+    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=400)]
 
 # start_end_TVdate = ('06-24', '08-22')
 start_end_TVdate = None
@@ -117,6 +125,7 @@ selbox = None
 #anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False}]
 anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False, 'st2':False}]
 
+
 rg.pp_precursors(selbox=selbox, anomaly=anomaly)
 
 rg.pp_TV()
@@ -125,19 +134,51 @@ rg.pp_TV()
 kwrgs_events=None
 rg.traintest(method='random10', kwrgs_events=kwrgs_events)
 
-print('Calc_corr_maps')
 rg.calc_corr_maps()
 
-print('Cluster_list_MI')
+rg.plot_maps_corr(save=True)
+
 rg.cluster_list_MI()
-print('hoi')
 
-print('Quick_view_labels')
-rg.quick_view_labels() 
+# rg.df_data
 
-# rg.get_EOFs()
 
-print('Get_ts_prec!')
+def rename_labels(rg):
+    all_locs = []
+    for precur in rg.list_for_MI:
+        prec_labels = precur.prec_labels.copy()
+        # prec_labels = prec_labels.median(dim='split')
+        if all(np.isnan(prec_labels.values.flatten()))==False:
+            split_locs = []
+            for split in range(len(prec_labels.values)): 
+                labels = np.nan_to_num(prec_labels.values[split])[0]
+                shape = labels.shape
+                rows, columns = shape[0], shape[1]
+                middle, offset = int(rows/2), int(rows/6)
+                N_areas = int(columns / rows)
+                locs = []
+                reassign = {}
+                i = 0
+                for loc in range(N_areas):
+                    area = labels[middle - offset: middle + offset, rows * loc + middle - offset: rows * loc + middle + offset]
+                    area_nonzero = np.nonzero(area)
+                    if len(area_nonzero[0]) > 0:
+                        locs.append(loc+1)
+                        value = area[area_nonzero[0][0]][area_nonzero[1][0]]
+                        reassign[value] = loc+1
+                relabeld = relabel(precur.prec_labels.values[split], reassign).astype('float')
+                relabeld[relabeld == 0] = np.nan
+                precur.prec_labels.values[split] = relabeld
+                split_locs.append(locs)
+        else:
+            pass
+        all_locs.append(list(set(flatten(split_locs))))
+    return all_locs
+
+locs = rename_labels(rg)[0]
+
+# rg.quick_view_labels()
+
 rg.get_ts_prec(precur_aggr=None)
 
 rg.PCMCI_df_data(pc_alpha=None, 
@@ -148,6 +189,32 @@ rg.PCMCI_get_links(alpha_level=0.1)
 
 rg.PCMCI_plot_graph(s=1)
 
+
+
 rg.quick_view_labels()
 
 rg.plot_maps_sum()
+
+
+
+
+
+p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
+area_lengths = [len(i) for i in p_matrices]
+common_length = max(set(area_lengths), key = area_lengths.count)
+most_common_p_matrix = np.where(np.array(area_lengths) == common_length)
+p_matrices = p_matrices[most_common_p_matrix]
+p_matrix = np.mean(p_matrices, axis=0)
+# p_matrix = p_matrix.mean(0)
+val_matrix = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])[most_common_p_matrix]
+val_matrix = np.mean(val_matrix, axis=0)
+pcmci_matrix_path = local_base_path + f'/Code_Lennart/results/{output}' + f'/matrices/{bivariate.__name__}'
+settings = {'N': len(rg.pcmci_results_dict[0])}
+locs = [0] + locs
+print(locs)
+cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
+np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)
+
+# pcmci_matrix_path = local_base_path + f'/Code_Lennart/results/{output}' + f'/matrices/AAA_real'
+# np.save(pcmci_matrix_path + '/ZZZ_correlated', list(range(settings['N'] + 1)))
+

@@ -1,0 +1,99 @@
+import matplotlib.pyplot as plt
+params = {'axes.labelsize': 'xx-large',
+         'axes.titlesize':'x-large',
+         'xtick.labelsize':'x-large',
+         'ytick.labelsize':'x-large'}
+plt.rcParams.update(params)
+import seaborn as sns
+sns.set()
+
+import numpy as np
+import pandas as pd
+import os
+import sys
+
+
+user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
+
+
+def to_name(old_name):
+    if old_name == 'corr_map':
+        name = 'Correlation'
+    elif old_name == 'pcmci':
+        name = 'PCMCI directly on time series'
+    elif old_name == 'parcorr_map':
+        name = 'Partial correlation'
+    else:
+        name = old_name
+    return name
+
+def plot_scores(settings):
+    local_base_path = user_dir
+    output = settings['filename']
+    path = local_base_path + f'/Code_Lennart/results/scores - Copy/{output}'
+    plt.figure(figsize=(20,5))
+    for subdir, dirs, files in os.walk(path):
+        for file in files:
+            method = to_name(file[:-4])
+            file = os.path.join(subdir, file)
+            df = pd.read_csv(file)
+            df = df.replace(0, np.NaN).T
+            r, c = len(df[0]), len(list(df))
+            ndata = []
+            for col in df.columns:
+                ndata += list(df[col])
+            r2 = len(ndata) - r
+            t = r2*c
+            dfnan = pd.DataFrame(np.reshape([np.nan]*t, (r2,c)), columns=list(df))
+            df = df.append(dfnan)
+            df['Score'] = ndata
+            df['Mode'] = df.index
+            repeats = int(r2/r)
+            repeats = list(df['Mode'][:r]) * (repeats + 1)
+            repeats = list(map(int, repeats))
+            df['Mode'][:] = repeats
+            sns.lineplot(x='Mode', y='Score', ci=95, data=df, label=method)
+            axes = plt.gca()
+            axes.set_ylim([0,1.05])
+            axes.set_xlabel('Mode', fontsize=18)
+            axes.set_ylabel('Score', fontsize=18)
+            # plt.show()
+    plt.legend(loc=3, prop={'size': 18})
+    plt.show()
+
+
+
+
+settings = {}
+settings['N'] = 5
+settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 5114
+settings['spatial_covariance'] = 0.3
+settings['random_modes'] = False
+settings['noise_use_mean'] = True
+settings['noise_level'] = 0
+settings['transient'] = 200
+settings['spatial_factor'] = 0.1
+
+settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
+settings['extra_dir'] = 'Code_Lennart'
+settings['filename'] = 'multiple'
+
+
+settings['random_causal_map'] = True
+settings['area_size'] = None
+
+
+## If any of the following settings is set to True, the results folder with {filename} will be removed!
+## Also when 'plot_points' is not None
+settings['netcdf4'] = True
+settings['save_time_series'] = True
+settings['do_pcmci'] = True
+settings['save_matrices'] = True
+settings['plot_points'] = 500
+links_coeffs = 'model3'
+
+settings['alpha'] = 0.01
+settings['measure'] = 'average'
+settings['val_measure'] = 'average'
+
+plot_scores(settings)

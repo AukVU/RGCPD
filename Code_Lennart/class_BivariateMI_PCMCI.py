@@ -368,6 +368,34 @@ def entropy_map(field, ts):
 
     return corr_vals, pvals
 
+def entropy_map_pearson(field, ts):
+    x = np.ma.zeros(field.shape[1])
+    corr_vals = np.array(x)
+    pvals = np.array(x)
+
+    fieldnans = np.array([np.isnan(field[:,i]).any() for i in range(x.size)])
+    
+    nonans_gc = np.arange(0, fieldnans.size)[fieldnans==False]
+
+    # ts_contingency = np.histogram(ts, bins=60, density=False)[0]
+    kde_ts = stats.gaussian_kde(ts)([np.arange(-30,30,1)])
+    for i in nonans_gc:
+        # print(i)
+        corr_vals[i] = transfer_entropy(field[:,i], ts)
+        # precur_contingency = np.histogram(field[:,i], bins=60, density=False)[0]
+        # kde_precur = stats.gaussian_kde(field[:,i])
+        # kde_precur = kde_precur([np.arange(-30,30,1)])
+        # where = np.where(kde_precur > 0)
+        # non_zero = kde_precur[where]
+        _, pvals[i] = scipy.stats.pearsonr(ts,field[:,i])
+        # chi2, pvals[i], _, _ = stats.chi2_contingency([precur_contingency, ts_contingency])
+    
+    mean = corr_vals.mean()
+    corr_vals -= mean
+    pvals = 1 - pvals
+
+    return corr_vals, pvals
+
 def transfer_entropy(J, I):
     I1 = I[1:]
     I = I[:-1]
@@ -425,7 +453,7 @@ def entropy(I, base=None):
     if n_labels <= 1:
         return 0
     
-    n_bins = 50
+    n_bins = 70
     jointHist, edges = np.histogramdd(I, bins=n_bins, density=False)
     jointHist /= jointHist.sum()
 

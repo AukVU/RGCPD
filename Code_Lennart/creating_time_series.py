@@ -30,6 +30,9 @@ import pandas as pd
 
 import shutil
 
+from c_dim_methods import get_varimax_loadings_standard as varimax
+
+
 def get_links_coeffs(links_coeffs):
     links_coeffs = links_coeffs.capitalize()
     if links_coeffs == 'Model1':
@@ -64,17 +67,22 @@ def get_links_coeffs(links_coeffs):
             2: [((2, 1), 0.5), ((1, 1), 0.4)]
         }
 
-def plot_timeseries_func(savar, plot_points, settings):
+def plot_timeseries_func(savar, plot_points, settings, output='test'):
     fig, axes = plt.subplots(settings['N'], 2)
     plt.setp(axes, xlim=(1,plot_points), ylim=(-10,10))
 
-    for plot in range(settings['N']):
-        print(type(savar.network_data))
-        print(savar.network_data.shape)
+    for plot in range(min(settings['N'], 7)):
         axes[plot,0].plot(savar.network_data[:plot_points, plot])
         yhat = savgol_filter(savar.network_data[:plot_points, plot], 51, 3) # window size 51, polynomial order 3
         axes[plot,1].plot(yhat)
-    plt.show()
+    user_dir = settings['user_dir']
+    filepath = user_dir + f'/Code_Lennart/results/{output}/plots'
+    if os.path.isdir(filepath) != True : os.makedirs(filepath)
+    filename = filepath  + '/timeseries.pdf'
+    if os.path.isfile(filename):
+        os.remove(filename)
+    plt.savefig(filename, format='pdf')
+    # plt.show()
 
 def draw_network_func(links_coeffs, settings, results=None, output='test'):
     M = nx.DiGraph()
@@ -92,7 +100,6 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
             M.add_edges_from([(start_node, end_node, {'color': 'red', 'weight': link[1]*5, 'length': 10})])
 
     pos = nx.spectral_layout(M)
-    # pos = nx.spring_layout(N)
     pos = graphviz_layout(M, prog='neato', root=0, args='')
     edges = M.edges()
     colors = [M[u][v]['color'] for u,v in edges]
@@ -110,7 +117,6 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
                 N.add_edges_from([(start_node, end_node, {'color': 'red', 'weight': link[1]*5, 'length': 10})])
 
         pos = nx.spectral_layout(N)
-        # pos = nx.spring_layout(N)
         pos = graphviz_layout(N, prog='neato', root=0, args='')
         edges = N.edges()
         colors = [N[u][v]['color'] for u,v in edges]
@@ -125,9 +131,9 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
     if os.path.isfile(filename):
         os.remove(filename)
     plt.savefig(filename, format='pdf')
-    plt.show()
+    # plt.show()
 
-def create_causal_map(N):
+def create_causal_map(N, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
@@ -136,55 +142,63 @@ def create_causal_map(N):
             possible_links = list(range(N))
             del possible_links[mode]
             links_coeffs[mode] = [((mode, 10), autocorrelation)]
-            start = 0
+            start = 1
             if mode == 0:
-                start = 1
-            for link in range(np.random.randint(start,3)):
-                choice = np.random.choice(possible_links)
-                possible_links.remove(choice)
-                links_coeffs[mode] += [((choice, 10), 0.5 * np.random.uniform(low=-1,high=1) + 0.5)]
+                for link in range(np.random.randint(1,3)):
+                    # choice = np.random.choice(possible_links)
+                    # possible_links.remove(choice)
+                    strength = max(0, np.random.uniform(low=0,high=0.1) + 0.9)
+                    if verbose:
+                        print(f"Link {link + 1} with strength {strength}")
+                    links_coeffs[mode] += [((link + 1, 10), strength)]
+            elif mode == (N - 1):
+                pass
+            else:
+                for link in range(np.random.randint(start,3)):
+                    choice = np.random.choice(possible_links)
+                    possible_links.remove(choice)
+                    links_coeffs[mode] += [((choice, 10), 0.1 * np.random.uniform(low=-1,high=1) + 0.9)]
         try:
             check_stability(links_coeffs)
             result = "Generated"
         except:
-            print("New try making causal map")
+            # print("New try making causal map")
             pass
     return links_coeffs
 
-def write_nc(savar, settings, output='test'):
+def write_nc(savar, data_field, settings, output='test'):
     user_dir = settings['user_dir']
     filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}.nc'
     nc = Dataset(filename, 'w', format='NETCDF4')
     data = savar.network_data
-    clusters = data.shape[1] - 1
-    columns = clusters / 2
-    columns = int(columns * 2 - 1)
-    lon = np.arange(-140,-59,1)
-    lat = np.arange(10,76,1)
+    # clusters = data.shape[1] - 1
+    # columns = clusters / 2
+    # columns = int(columns * 2 - 1)
+    lon = np.arange(-140,-140 + (settings['N'] - 1) * settings['nx'],1)
+    lat = np.arange(10,10 + settings['nx'],1)
     if settings['area_size'] == 'small':
         lon = np.arange(-140,-120,1)
         lat = np.arange(10,20,1)
     elif settings['area_size'] == 'very_small':
         lon = np.arange(-140,-135,1)
         lat = np.arange(10,15,1)
-    print(len(lon))
 
     # temp_data = np.zeros((data.shape[0], len(lat), len(lon)))
-    temp_data = np.random.normal(0, 0.01, (data.shape[0], len(lat), len(lon)))
+    # # temp_data = np.random.normal(0, 0.01, (data.shape[0], len(lat), len(lon)))
 
-    step_x = int(len(lon) / columns)
-    step_y = int(len(lat) / 3)
-    for time in range(temp_data.shape[0]):
-        start = 0
-        for i in range(int(clusters/2)):
-            temp_data[time][0:step_y, start:start + step_x, ] += data[time][1 + i]# + np.random.normal(0,1)
-            start = start + 2 * step_x
-        start = 0
-        for i in range(int(clusters/2)):
-            temp_data[time][2 * step_y:3 * step_y, start:start + step_x] += data[time][1 + int(clusters / 2) + i]# + np.random.normal(0,1)
-            start = start + 2 * step_x
-    print('temp_data.shape:')
-    print(temp_data.shape)
+    # step_x = int(len(lon) / columns)
+    # step_y = int(len(lat) / 3)
+    # for time in range(temp_data.shape[0]):
+    #     start = 0
+    #     for i in range(int(clusters/2)):
+    #         temp_data[time][0:step_y, start:start + step_x, ] += data[time][1 + i]# + np.random.normal(0,1)
+    #         start = start + 2 * step_x
+    #     start = 0
+    #     for i in range(int(clusters/2)):
+    #         temp_data[time][2 * step_y:3 * step_y, start:start + step_x] += data[time][1 + int(clusters / 2) + i]# + np.random.normal(0,1)
+    #         start = start + 2 * step_x
+
+    temp_data = data_field[:, :, 30:]
 
     nc.createDimension('lon', len(lon))
     nc.createDimension('lat', len(lat))
@@ -206,27 +220,23 @@ def write_nc(savar, settings, output='test'):
 
     nc.close()
 
-    # print(data[:,0])
     data_dict = {f'{output}_target':data[:,0]}
-    # print(data_dict)
-    # np.savez(user_dir + f'/Code_Lennart/NC/{output}.npz', data[:,0], allow_pickle=False)
-    # np.save(user_dir + f'/Code_Lennart/NC/{output}.npy', data_dict, allow_pickle=True)
     filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}_target.nc'
     nct = Dataset(filename, 'w', format='NETCDF4')
-    lon = np.arange(-140,-59,1)
-    lat = np.arange(10,76,1)
+    lon = np.arange(-140,-140 + (settings['N'] - 1) * settings['nx'],1)
+    lat = np.arange(10,10 + settings['nx'],1)
     if settings['area_size'] == 'small':
         lon = np.arange(-140,-120,1)
         lat = np.arange(10,20,1)
     elif settings['area_size'] == 'very_small':
         lon = np.arange(-140,-135,1)
         lat = np.arange(10,15,1)
-    print('length latitude')
-    print(len(lat))
 
     tstarget = np.zeros((5, data.shape[0]))
     for i in range(5):
         tstarget[i,:] = data[:,0]
+    
+    # tstarget = data_field[:, :, :30]
 
     nct.createDimension('latitude', len(lat))
     nct.createDimension('longitude', len(lon))
@@ -247,27 +257,16 @@ def write_nc(savar, settings, output='test'):
 
     time.units = 'days since 1979-01-01 00:00:00'
     time.calendar = 'proleptic_gregorian'
-    # ts.name = 'ts'
-
-    # nct.set_coords(['lon', 'lat'])
 
 
 
     nct.close()
 
-    # ds = xr.open_dataset(filename, decode_cf=True, decode_coords=True, decode_times=False)
-    # ds.set_coords(['longitude', 'latitude'])
-    # filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}_target2.nc'
-    # ds.to_netcdf(path=filename, mode='w')
-
-
-    print('hoi')
-
 def save_time_series(savar, settings, output='test'):
     user_dir = settings['user_dir']
     data = savar.network_data
     periods = data.shape[0]
-    print('save time series')
+    # print('save time series')
     filename = user_dir + f'/Code_Lennart/results/{output}/time_series'
     if os.path.isdir(filename) != True : os.makedirs(filename)
     filename = user_dir + f'/Code_Lennart/results/{output}/time_series/timeseries.csv'
@@ -284,33 +283,39 @@ def save_time_series(savar, settings, output='test'):
         df[f'ts{i}'] = data[:,i]
     df.to_csv(filename, index=False)
 
-def save_matrices(settings, path, pmatrix, val_matrix=None):
-    # print(pmatrix[2])
-    os.makedirs(path)
-    for i in range(settings['N']):
+def save_matrices(settings, path, pmatrix, val_matrix=None, iteratelist=None):
+    if os.path.isdir(path) != True : os.makedirs(path)
+    if iteratelist == None:
+        iteratelist = range(settings['N'])
+    for i, p in enumerate(iteratelist):
         pmatrixnp = np.matrix(pmatrix[i])
-        # print(pmatrixnp)
-        np.save(path + f"/p_{i}.npy", pmatrixnp)
+        np.save(path + f"/p_{p}.npy", pmatrixnp)
         if val_matrix is not None:
             valmatrixnp = np.matrix(val_matrix[i])
-            np.save(path + f"/val_{i}.npy", valmatrixnp)
+            np.save(path + f"/val_{p}.npy", valmatrixnp)
 
 def create_real_matrices(settings, general_path, links_coeffs):
     N = settings['N']
-    pmatrix = [[[1 for lag in range(12)] for x in range(N)] for y in range(N)]
-    val_matrix = [[[0 for lag in range(12)] for x in range(N)] for y in range(N)]
-    for key in links_coeffs:
+    pmatrix = [[[1 for lag in range(3)] for x in range(N)] for y in range(N)]
+    val_matrix = [[[0 for lag in range(3)] for x in range(N)] for y in range(N)]
+    number_of_links = 0
+    for key in range(settings['N']):
         for link in links_coeffs[key]:
+            if key == 1:
+                number_of_links += 1
             van = link[0][0]
-            lag = link[0][1]
+            lag = 1
             val = link[1]
             naar = key
-            print(f'van {van} naar {naar}')
+            # print(f'van {van} naar {naar}')
             pmatrix[van][naar][lag] = 0
             val_matrix[van][naar][lag] = val
-    print(pmatrix)
-    print(val_matrix)
+    real_links = np.ones(N)
+    real_links[:number_of_links] = 0
     path = general_path + '/matrices/AAA_real'
+    if os.path.isdir(path) != True : os.makedirs(path)
+    np.save(path + '/ZZZ_correlated', list(range(N)))
+    np.save(path + '/ZZZ_real_links', real_links)
     save_matrices(settings, path, pmatrix, val_matrix)
 
 
@@ -326,7 +331,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         os.makedirs(remove_path + '/NC')
 
     if settings['random_causal_map']:
-        links_coeffs = create_causal_map(N)
+        links_coeffs = create_causal_map(N, verbose)
     elif links_coeffs == None:
         print('Using default causal map of Xavier')
         links_coeffs = get_links_coeffs('Xavier')
@@ -336,11 +341,9 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         print('Using default causal map of Xavier')
         links_coeffs = get_links_coeffs('Xavier')
     check_stability(links_coeffs)
-    print(links_coeffs)
     N = settings['N'] = len(links_coeffs)
 
     create_real_matrices(settings, general_path, links_coeffs)
-
     if verbose:
         print('\n---------------------------' +
                 f"\nThe settings are:\n\nNumber of modes = {N}\nnx = {nx}, ny = {ny}, T = {T}\nspatial_covariance = {spatial_covariance}\n" +
@@ -355,7 +358,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
     modes_weights = np.zeros((N, nx, N * nx))
 
     for mode in range(N):
-        modes_weights[mode, :, mode * nx:(mode + 1) * nx] = create_random_mode((30, 30), random = settings['random_modes'])
+        modes_weights[mode, :, mode * nx:(mode + 1) * nx] = create_random_mode((nx, nx), random = settings['random_modes'])
     
     if plot_modes:
         plt.imshow(modes_weights.sum(axis=0))
@@ -364,7 +367,8 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
     
     if settings['noise_use_mean']:
         for mode in range(N):
-            noise_weights[mode, :, mode * nx:(mode + 1) * nx] = 0.01
+            noise_weights[mode, :, mode * nx:(mode + 1) * nx] = settings['noise_level']
+            # print(f"hoi, the noise is {settings['noise_level']}")
     else:
         noise_weights = modes_weights
     
@@ -380,26 +384,36 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         nx=nx,
         T=T,
         spatial_covariance=spatial_covariance,
-        noise_weights=noise_weights,
+        covariance_noise_method='geometric_mean',
+        # covariance_noise_method='equal_noise',
+        variance_noise=1,
+        # noise_weights=noise_weights,
+        random_noise=(0,settings['noise_level']),
         transient = settings['transient'], 
         n_variables = N,
         verbose = verbose
     )
     savar.create_linear_savar_data()
-    # graph, max_lag = models.create_graph(links_coeffs, return_lag=True)
-    # print(graph)
-    # sys.exit()
+
+    if plot_modes:
+        modes = varimax(savar.data_field)
+        for i in range(5):
+            plt.imshow(modes['weights'][:, i].reshape(30, 150))
+            plt.colorbar()
+            plt.show()
+
+    datafield = savar.data_field.reshape(-1, settings['nx'], settings['ny'])
 
     if plot_timeseries:
         plot_points = settings['plot_points']
-        plot_timeseries_func(savar, plot_points, settings)
+        plot_timeseries_func(savar, plot_points, settings, output=settings['filename'])
     
     if settings['netcdf4']:
-        write_nc(savar, settings, output=settings['filename'])
+        write_nc(savar, datafield, settings, output=settings['filename'])
 
     if settings['save_time_series']:
         save_time_series(savar, settings, output=settings['filename'])
-    
+
     if settings['do_pcmci']:
         data = savar.network_data
         # data, _ = pp.var_process(links_coeffs, T=1000)
@@ -408,18 +422,18 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         cond_ind_test = ParCorr()
         pcmci = PCMCI(dataframe=dataframe, cond_ind_test=cond_ind_test)
         pcmci_output = pcmci.run_pcmci(tau_max=11, pc_alpha=0.01)
-        pcmci.print_significant_links(p_matrix=pcmci_output['p_matrix'],
-                                            val_matrix=pcmci_output['val_matrix'],
-                                            alpha_level=0.0001)
+        if verbose:
+            pcmci.print_significant_links(p_matrix=pcmci_output['p_matrix'],
+                                                val_matrix=pcmci_output['val_matrix'],
+                                                alpha_level=0.0001)
 
-        print('p_matrix')
-        print(pcmci_output['p_matrix'])
-        # print('val_matrix')
-        # print(pcmci_output['val_matrix'][0])
+
         pcmci_matrix_path = general_path + '/matrices/pcmci_test'
-        save_matrices(settings, pcmci_matrix_path, pcmci_output['p_matrix'], pcmci_output['val_matrix'])
-        # print('conf_matrix')
-        # print(pcmci_output['conf_matrix'][0])
+        if os.path.isdir(pcmci_matrix_path) != True : os.makedirs(pcmci_matrix_path)
+        np.save(pcmci_matrix_path + '/ZZZ_correlated', list(range(settings['N'])))
+        p_matrix = pcmci_output['p_matrix'][:, :, [0,10,11]]
+        val_matrix = pcmci_output['val_matrix'][:, :, [0,10,11]]
+        save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix)
 
         parents = pcmci.all_parents
         val_min = pcmci.val_min
@@ -440,36 +454,36 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
 # Setting up the settings and running above code
 
-settings = {}
-settings['N'] = 7
-settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 5114
-settings['spatial_covariance'] = 0.3
-settings['random_modes'] = False
-settings['noise_use_mean'] = False
-settings['transient'] = 200
-settings['spatial_factor'] = 0.1
+# settings = {}
+# settings['N'] = 5
+# settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 14975 #5114
+# settings['spatial_covariance'] = 0.3
+# settings['random_modes'] = False
+# settings['noise_use_mean'] = False
+# settings['transient'] = 200
+# settings['spatial_factor'] = 0.1
 
-settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
-settings['extra_dir'] = 'Code_Lennart'
-settings['filename'] = '7_modes_2'
-
-
-settings['random_causal_map'] = True
-settings['area_size'] = 'small'
+# settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
+# settings['extra_dir'] = 'Code_Lennart'
+# settings['filename'] = 'test_met_savar2'
 
 
-## If any of the following settings is set to True, the results folder with {filename} will be removed!
-## Also when 'plot_points' is not None
-settings['netcdf4'] = True
-settings['save_time_series'] = True
-settings['do_pcmci'] = True
-settings['save_matrices'] = True
-settings['plot_points'] = 500
+# settings['random_causal_map'] = True
+# settings['area_size'] = None
 
 
-links_coeffs = 'model3'
+# ## If any of the following settings is set to True, the results folder with {filename} will be removed!
+# ## Also when 'plot_points' is not None
+# settings['netcdf4'] = True
+# settings['save_time_series'] = True
+# settings['do_pcmci'] = True
+# settings['save_matrices'] = True
+# settings['plot_points'] = 500
 
-create_time_series(settings, links_coeffs,  verbose=True,
-                                            plot_modes=False,
-                                            plot_timeseries=True,
-                                            draw_network=True)
+
+# links_coeffs = 'model3'
+
+# create_time_series(settings, links_coeffs,  verbose=True,
+#                                             plot_modes=False,
+#                                             plot_timeseries=True,
+#                                             draw_network=True)

@@ -1,0 +1,12 @@
+1) Methode time scale of information transfer : Wavelet  (DWT/CWT)
+	1.1)Relation between X and Y (MCI) for different wavelet scales (DWT) 
+		Pseudo-periode indication in levels
+		1.1.1) Using known precursors with faster temporal evolution compared to now used SST (The reason for this is to be an extra evidence of the "peak" in MCI tells us something about the temporal behaviour of the precursor)  
+	1.*)CWT only as argument for approximating TS as a red noise process 
+2) Modelleren
+ 	2.1)Set eqaution obtained from ARIMA process
+	2.2) Use step 1.1 and vary AR coeff of equations
+	2.3)
+
+
+ 

@@ -28,9 +28,10 @@ rg.pp_TV()
 rg.traintest(method='no_train_test_split')
 rg.calc_corr_maps()
 rg.cluster_list_MI()
+# rg.get_ts_prec(precur_aggr=1)
 rg.get_ts_prec()
 data = rg.df_data
-target_region = data['3']
+target_region = data['3ts']
 prec_1 = data['0..1..sst']
 prec_2 = data['0..2..sst']
 target_region.to_csv(os.path.join(current_analysis_path, 'target.csv'), header=['values'])

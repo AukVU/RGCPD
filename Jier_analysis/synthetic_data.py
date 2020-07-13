@@ -6,6 +6,7 @@ if main_dir not in sys.path:
     sys.path.append(main_dir)
     sys.path.append(sub_dir)
 import numpy as np 
+import statsmodels as st 
 import statsmodels.api as sm 
 import pandas as pd 
 import matplotlib.pyplot as plt 
@@ -44,17 +45,17 @@ def generate_combination_lags(end_range=4):
         return list(it.product(range(1,end_range), repeat=2))
 
 def extract_lags_aic_bic_info_synth(y:pd.Series, combos:list):
+    # TODO INCLUDE CONSTANT IN  EQUATION IF NEEDED
     print('Starting manually..')
     summaries = []
     aic, bic = 10000000000, 10000000000
     ar_ma_params, aci_info, arma_res, arma_mod = [] , [], None, None
-    # induce_stationarity(y, combos)
-    # sys.exit()
+
     for i, j in combos:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
             try:
-                arma_mod = sm.tsa.ARMA(y, order=(i,j))
+                arma_mod = sm.tsa.ARMA(y, order=(i, j))
                 arma_res = arma_mod.fit(trend='c', disp=-1)
             except:
                 continue
@@ -79,7 +80,6 @@ def retrieve_ar_ma_info(ar_ma_params:list):
 def retrieve_summaries(summaries:list):
     pp(summaries)
 
-
 def fit_manually_data(y, arparams:np.array, maparams:np.array, nobs:int, startyear:'', end_range:int, synthetics:bool=True):
     combos = generate_combination_lags(end_range=end_range)
     ar_ma_params, aci_info, summaries = None, None, None
@@ -93,29 +93,27 @@ def fit_manually_data(y, arparams:np.array, maparams:np.array, nobs:int, startye
         y_ = pd.Series(y_, index=dates)
         ar_ma_params, aci_info, summaries = extract_lags_aic_bic_info_synth(y=y_, combos=combos)
     else:
-        assert isinstance(y, pd.Series), "Expect pandas Series"
+        assert isinstance(y, pd.Series), f"Expected pandas Series, {type(y)} given"
         serie = y
         ar_ma_params, aci_info, summaries = extract_lags_aic_bic_info_synth(y=serie, combos=combos)
 
     return ar_ma_params, aci_info, summaries
-
     
 def fit_automatically_data(y:pd.Series, pmax:int, qmax:int, ic:list=['aic','bic']):
     try:
         print('Starting automatic...')
+        aut_model, aut_order = None, []
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
             order_model =  sm.tsa.stattools.arma_order_select_ic(y, ic=ic, trend='c', max_ar=pmax, max_ma=qmax)
-
-        aut_model, aut_order = None, []
-        if 'aic' in ic:
-            aut_model = sm.tsa.ARMA(y, order=order_model.aic_min_order).fit(trend='c', disp=-1)
-            aut_order.append((aut_model.aic, aut_model.bic, order_model.aic_min_order))
-        if 'bic' in ic:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore")
-                aut_model = sm.tsa.ARMA(y, order=order_model.bic_min_order).fit(trend='c', disp=-1)
-            aut_order.append((aut_model.aic, aut_model.bic, order_model.bic_min_order))
+            if 'aic' in ic:
+                aut_model = sm.tsa.ARMA(y, order=order_model.aic_min_order).fit(trend='c', disp=-1)
+                aut_order.append((aut_model.aic, aut_model.bic, order_model.aic_min_order))
+            if 'bic' in ic:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore")
+                    aut_model = sm.tsa.ARMA(y, order=order_model.bic_min_order).fit(trend='c', disp=-1)
+                aut_order.append((aut_model.aic, aut_model.bic, order_model.bic_min_order))
 
     except ValueError as err:
         print("Occured errors: ", err)
@@ -152,23 +150,23 @@ def determine_order(man_model:list, aut_model_order:list, check_info_score:list=
                 aut_bic_check = True
 
     if aut_bic_check == True or aut_aic_check == True:
-        return aut_model_order[0]
+        return aut_order
     if aic_check == True: 
         return temp[idx_aic]
     elif bic_check == True:
         return temp[idx_bic]
 
-def check_stationarity_invertibility(aci_info:list, ar_ma_params:list, check_info_score:list=[], get_params:bool=False, aic_check:bool=False):
+def check_stationarity_invertibility(aci_info:list, ar_ma_params:list, check_info_score:list=[],nobs:int=synthetic['nobs'], get_params:bool=False, aic_check:bool=False):
     arma_process = []
     for i in range(len(aci_info)):
-        arma_process.append((ar_ma_params[i], ArmaProcess(ar=ar_ma_params[i][:2][0], ma=ar_ma_params[i][:2][1], nobs=synthetic['nobs'])))
+        arma_process.append((ar_ma_params[i], ArmaProcess(ar=ar_ma_params[i][:2][0], ma=ar_ma_params[i][:2][1], nobs=nobs)))
         print("Statioarity ", arma_process[i][-1].isstationary, "Invertibility ", arma_process[i][-1].isinvertible, ar_ma_params[i][-1])
-        print('AR: ', ar_ma_params[i][0], 'MA: ', ar_ma_params[i][1], 'epsilon: ', ar_ma_params[i][2])
+        print('AR: ', ar_ma_params[i][0], 'MA: ', ar_ma_params[i][1], 'sigma2: ', ar_ma_params[i][2])
 
     if len(check_info_score) > 0:
         aic_check, bic_check = aic_check, not aic_check 
         idx_pr = None
-        temp = [aci_info[i][:3] for i in range(len(aci_info))]
+        temp = [aci_info[i][:3] for i in range(len(aci_info))] # construct temp list of aic, bic info
         if 'aic' in check_info_score:
             man_aic  =[temp[i][0] for i in range(len(temp))]
             idx_aic = next( (i for i , v in enumerate(temp) if v[0] == min(man_aic)),-1 )
@@ -186,8 +184,8 @@ def check_stationarity_invertibility(aci_info:list, ar_ma_params:list, check_inf
             if get_params == True and bic_check == True:
                 return arma_process[idx_pr][:-1][0]   
 
-def display_info_ts(y:pd.Series, figsize=(14, 8), title="", lags=20):
-    assert isinstance(y, pd.Series), " Expect pandas Series"
+def display_info_ts(y:pd.Series, figsize=(14, 8), title="", lags=20, save_fig:bool=False):
+    assert isinstance(y, pd.Series), f"Expect pandas Series, {type(y)} given"
     serie = y 
     fig = plt.figure(figsize=figsize)
     serie.plot(ax = fig.add_subplot(3, 1, 1), title="$Time \ Series \ "+ title + "$", legend=False)
@@ -198,14 +196,14 @@ def display_info_ts(y:pd.Series, figsize=(14, 8), title="", lags=20):
     plt.xticks(np.arange(1, lags + 1, 1.0))
 
     sm.qqplot(serie, line='s', ax = fig.add_subplot(3, 2, 5))
-
     fig.add_subplot(326).hist(serie, bins= 40, density=True)
     plt.tight_layout()
+    if save_fig == True:
+        pass
     plt.show()
 
-
-def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(14, 8), title="", lags=20):
-    assert isinstance(y, pd.Series), " Expect pandas Series"
+def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(14, 8), title="", lags=20, save_fig:bool=False):
+    assert isinstance(y, pd.Series), f"Expect pandas Series, {type(y)} given"
 
     y.index = dates + pd.Timedelta(1, unit=dates.freqstr)
     acor_ljungbox = list(sm.stats.diagnostic.acorr_ljungbox(y, lags=lags, boxpierce=True))
@@ -216,9 +214,54 @@ def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(14, 8), t
     plt.axhline(y = 0.05, color = 'red', label= "$5 \%  critical value$")
     plt.title("$Time\ Serie\ " + title + " $")
     plt.legend()
+    if save_fig == True:
+        pass
     plt.show()
     column_ind = ["Ljung-Box: X-squared", 'Ljung-Box: p-value', 'Box-Pierce: X-squared', 'Box-Pierce: p-value']
     return pd.DataFrame(acor_ljungbox, index=column_ind, columns= range(1, len(acor_ljungbox[0]) + 1))
+
+def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, order:tuple, save_fig:bool=False):
+    l = ''
+    if order[0] >= order[1]:
+        for i in range(order[0]):
+            try:
+                l +=str(round(ar[i], 2))+'Y_{t-'+f'{i}'+'}' + str(round(ma[i], 2)) +'\\epsilon_{t-' +f'{i}'+'}'
+            except:
+                l +=str(round(ar[i], 2))+'Y_{t-'+f'{i}'+'}' + str(round(ma[i-1], 2)) +'\\epsilon_{t-'+f'{i}'+'}'
+    else:
+        for i in range(order[1]):
+            try:
+                l +=str(round(ar[i-1], 2))+'Y_{t-' +f'{i}'+'}' + str(round(ma[i], 2)) +'\\epsilon_{t-' +f'{i}'+'}'
+            except:
+                pass 
+    l +='+\\epsilon_{t}'
+    plt.figure(figsize=(14, 8))
+    plt.plot(simul_data, label='ARMA='+'$'+l+'$')
+    # plt.plot(data['values'].values, label='Precursor data')
+    plt.xlim(0.01, len(simul_data))
+    plt.ylim(-0.5, 0.5)
+    plt.title('Chosen fitted model params with original data')
+    plt.legend()
+    if save_fig == True:
+        pass
+    plt.show()
+
+def display_poly_data_ar(simul_data:np.array, ar:list, save_fig:bool=False):
+    l = ''
+    for i in range(len(ar[:2])):
+        l +=str(round(ar[i], 2))+'Y_{t-'+f'{i}'+'}' 
+
+    l +='+\\epsilon_{t}'
+    plt.figure(figsize=(14, 8))
+    plt.plot(simul_data, label='AR(2)= '+'$'+l+'$')
+    # plt.plot(data['values'].values, label='Precursor data')
+    plt.xlim(0.0001, len(simul_data))
+    plt.ylim(simul_data.min(), simul_data.max())
+    plt.title('Chosen fitted model params with original data')
+    plt.legend()
+    if save_fig == True:
+        pass
+    plt.show()
 
 def evaluate_synthetic_data(display:bool=False):
     # Synthetic data
@@ -238,20 +281,18 @@ def evaluate_synthetic_data(display:bool=False):
         display_info_ts(pd.Series(y), title='Synthetic generated')
         display_pierce_LJbox(model.resid, dates=dates, title='Synthetic generated')
 
-def evaluate_data(signal, display:bool=False, aic_check:bool=False):
+def evaluate_data(signal, display:bool=False, aic_check:bool=False, debug:bool=False):
     
+    ar_ma_params, aci_info, summaries = fit_manually_data(signal['values'], arparams=np.array([.75, -.25]), maparams=np.array([.65, .35]), nobs=synthetic['nobs'], startyear=signal.index[0][1], end_range=4,synthetics=False)
+    ar, ma, sigma, order = check_stationarity_invertibility(aci_info, ar_ma_params,check_info_score=['aic'] ,nobs=len(signal), get_params=True,aic_check=aic_check)
 
-    ar_ma_params, aci_info, _ = fit_manually_data(signal['values'], arparams=np.array([.75, -.25]), maparams=np.array([.65, .35]), nobs=synthetic['nobs'], startyear=signal.index[0][1], end_range=4,synthetics=False)
-    aut_order = fit_automatically_data(y=signal['values'], pmax=4, qmax=4, ic=['aic'])
-
-    # DEBUG
-    # pp(summaries)
-    # # # retrieve_aci_info(aci_info)
-    # # # pp(aut_order)
-    # # # print(aci_info[0], len(aci_info), len(aci_info[0]))
-
-    order = determine_order(aci_info, aut_model_order=aut_order,check_info_score=['aic'])
-    ar, ma, sigma, _ = check_stationarity_invertibility(aci_info, ar_ma_params,check_info_score=['aic'],get_params=True,aic_check=aic_check)
+    if debug == True:
+        pp(summaries)
+      
+        # print(aci_info[0], len(aci_info), len(aci_info[0]))
+        # aut_order = fit_automatically_data(y=signal['values'], pmax=4, qmax=4, ic=['aic'])
+        # pp(aut_order)
+        # determine_order(aci_info, aut_model_order=aut_order,check_info_score=['aic'])
 
     if display == True:
         # TODO FIND WAY TO CHECK FOR MULTIPLE FOLDS OF MULTIINDEX AND CREATE MUTLIPLE ARIMA MODELS
@@ -263,32 +304,35 @@ def evaluate_data(signal, display:bool=False, aic_check:bool=False):
         display_info_ts(signal['values'], title='OriginalPrecursor')
         display_pierce_LJbox(signal['values'], dates=temp_dates, title='OriginalPrecursor')
 
-    return ar, ma, sigma, first_sst, order
+    return ar, ma, sigma, order
 
-def create_polynomial_fit(ar:list, ma:list, sigma:float, data:pd.Series, display:bool=False):
+def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
 
-    N =  synthetic['nobs']
+    N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
-    simul_data = np.array(epsilon[0], ndmin= 1)
-    simul_data = np.append(simul_data, ar[0] * simul_data + epsilon[1] + ma[0] * epsilon[0])
+    simul_data = np.zeros(N)
+    simul_data[0] = epsilon[0]
+    simul_data[1] =  ar[0] * simul_data[0] + epsilon[1] + ma[0] * epsilon[0]
     for i in range(2, N):
-        temp = ar[0] * simul_data[ i - 1] + ar[1] * simul_data[i  - 2] + epsilon[i] + ma[0] * epsilon[i - 1] + ma[1] * epsilon[i - 2]
-        simul_data= np.append(simul_data, temp)
+        simul_data[i] = ar[0] * simul_data[ i - 1] + ar[1] * simul_data[i  - 2] + epsilon[i] + ma[0] * epsilon[i - 1] + ma[1] * epsilon[i - 2]
     
-    if display == True:
-        plt.figure(figsize=(14, 8))
-        plt.plot(simul_data, label='$Y_t = 1.74Y_{t-1} -0.74Y_{t-2} -0.76 \\epsilon_{t -1} - 0.11 \\epsilon_{t-2}$')
-        # plt.plot(data['values'].values, label='Precursor data')
-        plt.xlim(0.01, N)
-        plt.ylim(-0.5, 0.5)
-        plt.title('Chosen model params with original data')
-        plt.legend()
-        plt.show()
+    return simul_data
+
+def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int):
+
+    N =  len(data)
+    epsilon = np.random.normal(loc=0, scale=sigma, size=N)
+    simul_data = np.zeros(N)
+    simul_data[0] = const + epsilon[0]
+    simul_data[1] =  const + ar[0] * simul_data[0] + epsilon[1]
+    simul_data[2] = const + ar[1] * simul_data[1] + epsilon[2] 
+    for i in range(2, N):
+        simul_data[i] = const + ar[i] * simul_data[i -1] + epsilon[i]
+
     return simul_data
 
 def stationarity_test(serie, regression='c'):
     # ADF Test
-
     results = adfuller(serie, autolag='AIC')
     print(f'ADF Statistic: {results[0]}')
     print(f'p-value: {results[1]}')
@@ -311,14 +355,13 @@ def stationarity_test(serie, regression='c'):
 
 if __name__ == "__main__":
     current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
-    # TODO Fix which formula is simulated and plotted
     # TODO Make modulaire to save plots in pdf and png format
     # evaluate_synthetic_data()
     target = pd.read_csv(os.path.join(current_analysis_path, 'target.csv'), engine='python', index_col=[0,1])
     first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec.csv'), engine='python', index_col=[0, 1])
     second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec.csv'), engine='python', index_col=[0, 1])
 
-    stat_test = stationarity_test(second_sst['values'], regression='ct')
+    stat_test = stationarity_test(second_sst['values'].values, regression='ct')
     # fig, ax = plt.subplots(3, 1, figsize=(16, 8), dpi=90)
     # with pd.plotting.plot_params.use('x_compat', True):
     #     target.plot(title='target',  ax=ax[0])
@@ -329,8 +372,19 @@ if __name__ == "__main__":
 
  
     if stat_test == True:
-        ar, ma, sigma, first_sst, order = evaluate_data(signal=first_sst, display=False, aic_check=True)
-        # poly = create_polynomial_fit(ar=ar, ma=ma,sigma=sigma, data=first_sst, display=True)
+        ar, ma, sigma, order = evaluate_data(signal=first_sst, display=False, aic_check=True)
+        arr = st.tsa.arima_process.arma2ar(ar, ma, lags=len(first_sst))
+        const = (1 + arr.sum())/len(arr)
+        # TODO ASSERT THAT THIS IS NOT NEEDED AND THAT CHANGING FROM ARMA TO AR IS THE WAY
+        # mar = st.tsa.ar_model.AR(first_sst['values']).fit(ic='aic' ,method='mle', maxiter=len(first_sst), disp=0)
+        # print(mar.params, mar.sigma2, mar.aic, mar.bic)
+        # arres = st.tsa.ar_model.ARResults(mar, params=['maxlag', 'ic', 'maxiter'])
+        # print(arres.params[:2])
+        # print(arr[:2])
+        # polyARMA = create_polynomial_fit_arma(ar=ar, ma=ma,sigma=sigma, data=first_sst)
+        polyAR = create_polynomial_fit_ar(ar=arr, sigma=sigma, data=first_sst, const=const)
+        # display_poly_data_arma(simul_data=polyARMA, ar=ar, ma=ma, order=order)
+        display_poly_data_ar(simul_data=polyAR, ar=arr)
 
 
     

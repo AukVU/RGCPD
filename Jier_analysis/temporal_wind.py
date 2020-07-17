@@ -159,7 +159,7 @@ plt.show()
 s_prec1 = prec1
 cA = []
 # wv.dwt_max_level(len(prec1), wave.dec_len)
-for i in range(wv.dwt_max_level(len(prec1), wave.dec_len)): # Using recursion to overwrite signal to go level deepeer
+for i in range(6): # Using recursion to overwrite signal to go level deepeer
    s_prec1, det =  wv.dwt(s_prec1, wave , mode=mode)
    print('Len Sign ', len(s_prec1), 'Lenght detail ', len(det))
    cA.append(s_prec1)
@@ -172,8 +172,8 @@ for i, c in enumerate(cA):
 # wv.dwt_max_level(len(prec1), wave.dec_len)# Using recursion we obtain all of our approximation coefficients with just dwt
 s_prec2 = prec2
 cA2 = []
-
-for i in range(wv.dwt_max_level(len(prec2), wave.dec_len)): # Using recursion to overwrite signal to go level deepeer
+# wv.dwt_max_level(len(prec2), wave.dec_len)
+for i in range(6): # Using recursion to overwrite signal to go level deepeer
    s_prec2, det =  wv.dwt(s_prec2, wave , mode=mode)
    print('Len Sign ', len(s_prec2), 'Lenght detail ', len(det))
    cA2.append(s_prec2)
@@ -186,8 +186,8 @@ for i, c in enumerate(cA2):
 # Using recursion we obtain all of our approximation coefficients with just dwt
 s_prec3 = prec3
 cA3 = []
-
-for i in range(wv.dwt_max_level(len(prec3), wave.dec_len)): # Using recursion to overwrite signal to go level deepeer
+# wv.dwt_max_level(len(prec3), wave.dec_len)
+for i in range(6): # Using recursion to overwrite signal to go level deepeer
    s_prec3, det =  wv.dwt(s_prec3, wave , mode=mode)
    print('Len Sign ', len(s_prec3), 'Lenght detail ', len(det))
    cA3.append(s_prec3)
@@ -200,8 +200,8 @@ for i, c in enumerate(cA3):
 # Using recursion we obtain all of our approximation coefficients with just dwt
 s_prec4 = prec4
 cA4 = []
-
-for i in range(wv.dwt_max_level(len(prec4), wave.dec_len)): # Using recursion to overwrite signal to go level deepeer
+# wv.dwt_max_level(len(prec4), wave.dec_len)
+for i in range(6): # Using recursion to overwrite signal to go level deepeer
    s_prec4, det =  wv.dwt(s_prec4, wave , mode=mode)
    print('Len Sign ', len(s_prec4), 'Lenght detail ', len(det))
    cA4.append(s_prec4)
@@ -215,8 +215,8 @@ for i, c in enumerate(cA4):
 # Using recursion we obtain all of our approximation coefficients with just dwt
 s_tar = target
 cA_t = []
-
-for i in range(wv.dwt_max_level(len(target), wave.dec_len)): # Using recursion to overwrite signal to go level deepeer
+# wv.dwt_max_level(len(target), wave.dec_len)
+for i in range(6): # Using recursion to overwrite signal to go level deepeer
    s_tar, det =  wv.dwt(s_tar, wave , mode=mode)
    print('Len Sign ', len(s_tar), 'Lenght detail ', len(det))
    cA_t.append(s_tar)
@@ -244,7 +244,7 @@ for i in range(0,len(cA)):
     rg.PCMCI_get_links()
     rg.df_MCIc
     obj_rgcpd.append(deepcopy(rg.df_MCIc))
-    rg.PCMCI_plot_graph()
+    # rg.PCMCI_plot_graph()
 
 # %%
 obj_rgcpd2 = []
@@ -265,7 +265,7 @@ for i in range(0,len(cA2)):
     rg.PCMCI_get_links()
     rg.df_MCIc
     obj_rgcpd2.append(deepcopy(rg.df_MCIc))
-    rg.PCMCI_plot_graph()
+    # rg.PCMCI_plot_graph()
 
 # %%
 obj_rgcpd3 = []
@@ -286,7 +286,7 @@ for i in range(0,len(cA3)):
     rg.PCMCI_get_links()
     rg.df_MCIc
     obj_rgcpd3.append(deepcopy(rg.df_MCIc))
-    rg.PCMCI_plot_graph()
+    # rg.PCMCI_plot_graph()
 
 # %%
 obj_rgcpd4 = []
@@ -307,7 +307,7 @@ for i in range(0,len(cA4)):
     rg.PCMCI_get_links()
     rg.df_MCIc
     obj_rgcpd4.append(deepcopy(rg.df_MCIc))
-    rg.PCMCI_plot_graph()
+    # rg.PCMCI_plot_graph()
 
 # %%
 x_as = np.arange(1, len(cA)+1)
@@ -355,7 +355,7 @@ plt.legend(loc=0)
 plt.show()
 
 # %%
- x_as = np.arange(1, len(cA4)+1)
+x_as = np.arange(1, len(cA4)+1)
 x_as = np.exp2(x_as)
 lag_0_1 = [lags.values[:,0][1] for _, lags in enumerate(obj_rgcpd4)]
 

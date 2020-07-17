@@ -627,7 +627,6 @@ def get_subdates(dates, start_end_date, start_end_year=None, lpyr=False):
     sstartdate = pd.to_datetime(str(startyr) + '-' + start_end_date[0])
     senddate_   = pd.to_datetime(str(startyr) + '-' + start_end_date[1])
 
-
     tfreq = (dates[1] - dates[0]).days
     oneyr_dates = pd.date_range(start=sstartdate, end=senddate_,
                             freq=pd.Timedelta(1, 'd'))

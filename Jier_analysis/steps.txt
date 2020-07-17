@@ -1,3 +1,4 @@
+SMALL DATASET 14600 (40 years)
 1) Methode time scale of information transfer : Wavelet  (DWT/CWT)
 	1.1)Relation between X and Y (MCI) for different wavelet scales (DWT) 
 		Pseudo-periode indication in levels

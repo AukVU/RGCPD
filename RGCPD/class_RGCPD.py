@@ -384,6 +384,18 @@ class RGCPD:
                                                     start_end_year=self.start_end_year,
                                                     RV_detrend=self.RV_detrend,
                                                     RV_anomaly=self.RV_anomaly)
+            self.input_freq = inf
+            self.dates_or  = pd.to_datetime(self.fulltso.time.values)
+            self.dates_all = pd.to_datetime(self.fullts.time.values)
+            self.dates_TV = pd.to_datetime(self.TV_ts.time.values)
+            if self.start_end_date is not None:
+                self.start_end_date = ('{}-{}'.format(self.dates_or.month[0],
+                                                    self.dates_or[0].day),
+                                    '{}-{}'.format(self.dates_or.month[-1],
+                                                 self.dates_or[-1].day))
+            if self.start_end_year is not None:
+                self.start_end_year = (self.dates_or.year[0],
+                                    self.dates_or.year[-1])
             TV, df_splits = RV_and_traintest(self.fullts,
                                              self.TV_ts, **self.kwrgs_TV)
         else:

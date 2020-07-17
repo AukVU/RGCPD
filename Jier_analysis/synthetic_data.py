@@ -246,21 +246,23 @@ def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, order:tuple, s
         pass
     plt.show()
 
-def display_poly_data_ar(simul_data:np.array, ar:list, save_fig:bool=False):
+def display_poly_data_ar(simul_data:np.array, ar:list, signal, save_fig:bool=False):
+    _dates = pd.DatetimeIndex(signal.index.levels[1], freq='infer')
     l = ''
     for i in range(len(ar[:2])):
         l +=str(round(ar[i], 2))+'Y_{t-'+f'{i}'+'}' 
 
     l +='+\\epsilon_{t}'
-    plt.figure(figsize=(14, 8))
-    plt.plot(simul_data, label='AR(2)= '+'$'+l+'$')
-    # plt.plot(data['values'].values, label='Precursor data')
-    plt.xlim(0.0001, len(simul_data))
-    plt.ylim(simul_data.min(), simul_data.max())
+    plt.figure(figsize=(14, 8), dpi=120)
+    plt.plot(_dates, simul_data, label='AR(2)= '+'$'+l+'$')
+    plt.plot(_dates, signal['values'].values, '-k', label='Precursor data')
     plt.title('Chosen fitted model params with original data')
+    plt.xlabel('Dates')
+    plt.ylabel('Variance ins temperature')
     plt.legend()
     if save_fig == True:
-        pass
+        plt.savefig('Fitted/AR/AR2Fit on prec.pdf', dpi=120)
+        plt.savefig('Fitted/AR/AR2Fit on prec.png', dpi=120)
     plt.show()
 
 def evaluate_synthetic_data(display:bool=False):
@@ -307,7 +309,7 @@ def evaluate_data(signal, display:bool=False, aic_check:bool=False, debug:bool=F
     return ar, ma, sigma, order
 
 def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
-
+    # BETTER FIT ADD CONSTANT TO HAVE BETTER REPRESENTATION OF THE SIGNAL
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
     simul_data = np.zeros(N)
@@ -327,40 +329,42 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int):
     simul_data[1] =  const + ar[0] * simul_data[0] + epsilon[1]
     simul_data[2] = const + ar[1] * simul_data[1] + epsilon[2] 
     for i in range(2, N):
-        simul_data[i] = const + ar[i] * simul_data[i -1] + epsilon[i]
+        simul_data[i] = const + ar[0] * simul_data[i -1] + ar[1]*simul_data[i - 2]+  epsilon[i]
 
     return simul_data
 
-def stationarity_test(serie, regression='c'):
+def stationarity_test(serie, regression='c', debug=False):
     # ADF Test
     results = adfuller(serie, autolag='AIC')
-    print(f'ADF Statistic: {results[0]}')
-    print(f'p-value: {results[1]}')
-    print('Critial Values:')
-    for key, value in results[4].items():
-        print(f'   {key}, {value}')
+    if debug == True:
+        print(f'ADF Statistic: {results[0]}')
+        print(f'p-value: {results[1]}')
+        print('Critial Values:')
+        for key, value in results[4].items():
+            print(f'   {key}, {value}')
     print(f'Result: The series is {"NOT " if results[1] > 0.05 else ""}stationary')
     adf = False if results[1] > 0.05 else True
 
     # KPSS Test
     result = kpss(serie, regression=regression, lags='auto')
-    print('\nKPSS Statistic: %f' % result[0])
-    print('p-value: %f' % result[1])
-    print('Critial Values:')
-    for key, value in result[3].items():
-        print(f'   {key}, {value}')
+    if debug == True:
+        print('\nKPSS Statistic: %f' % result[0])
+        print('p-value: %f' % result[1])
+        print('Critial Values:')
+        for key, value in result[3].items():
+            print(f'   {key}, {value}')
     print(f'Result: The series is {"NOT " if result[1] < 0.05 else ""}stationary')
     kps = False if result[1] < 0.05 else True
     return adf and kps
 
 if __name__ == "__main__":
     current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
-    # TODO Make modulaire to save plots in pdf and png format
+    # Synthetic data is to play and understand sampling process
     # evaluate_synthetic_data()
     target = pd.read_csv(os.path.join(current_analysis_path, 'target.csv'), engine='python', index_col=[0,1])
     first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec.csv'), engine='python', index_col=[0, 1])
     second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec.csv'), engine='python', index_col=[0, 1])
-
+    var = np.var(first_sst['values'].values)
     stat_test = stationarity_test(second_sst['values'].values, regression='ct')
     # fig, ax = plt.subplots(3, 1, figsize=(16, 8), dpi=90)
     # with pd.plotting.plot_params.use('x_compat', True):
@@ -372,19 +376,26 @@ if __name__ == "__main__":
 
  
     if stat_test == True:
-        ar, ma, sigma, order = evaluate_data(signal=first_sst, display=False, aic_check=True)
-        arr = st.tsa.arima_process.arma2ar(ar, ma, lags=len(first_sst))
-        const = (1 + arr.sum())/len(arr)
-        # TODO ASSERT THAT THIS IS NOT NEEDED AND THAT CHANGING FROM ARMA TO AR IS THE WAY
-        # mar = st.tsa.ar_model.AR(first_sst['values']).fit(ic='aic' ,method='mle', maxiter=len(first_sst), disp=0)
-        # print(mar.params, mar.sigma2, mar.aic, mar.bic)
-        # arres = st.tsa.ar_model.ARResults(mar, params=['maxlag', 'ic', 'maxiter'])
-        # print(arres.params[:2])
-        # print(arr[:2])
+        # CHANGING FROM ARMA TO AR IS CREATE DISSAPEARING AR PROCESS THE SAME AS WHITENOISE, ONLY USE ARMA TO CHECK VARIABILITY OF PROCESS
+        evaluate_data(signal=first_sst, display=False, aic_check=True)
+        
+        # UNNECESSARY
+        # arr = st.tsa.arima_process.arma2ar(ar, ma, lags=len(first_sst))
+        # const = (1 + arr.sum())/len(arr)
+        
+        marr = st.tsa.ar_model.AR(first_sst['values']).fit(ic='aic' ,method='mle', maxiter=len(first_sst), disp=0)
+        const = marr.params[0]
+        arr = marr.params[1:]
+
         # polyARMA = create_polynomial_fit_arma(ar=ar, ma=ma,sigma=sigma, data=first_sst)
-        polyAR = create_polynomial_fit_ar(ar=arr, sigma=sigma, data=first_sst, const=const)
+        polyAR = create_polynomial_fit_ar(ar=arr, sigma=var, data=first_sst, const=const)
+        
+        # first_sst.plot(label='original')
+        # # marr.fittedvalues.plot(label='Fitted')
+        # plt.legend(loc=0)
+        # plt.show()
         # display_poly_data_arma(simul_data=polyARMA, ar=ar, ma=ma, order=order)
-        display_poly_data_ar(simul_data=polyAR, ar=arr)
+        display_poly_data_ar(simul_data=polyAR,signal=first_sst, ar=arr)
 
 
     

@@ -16,7 +16,7 @@ from statsmodels.tsa.arima_process import  arma_generate_sample, ArmaProcess
 from pprint import pprint as pp 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
-np.random.seed(12345)
+# np.random.seed(12345)
 plt.style.use('seaborn')
 
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
@@ -331,7 +331,7 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int):
     for i in range(2, N):
         simul_data[i] = const + ar[0] * simul_data[i -1] + ar[1]*simul_data[i - 2]+  epsilon[i]
 
-    return simul_data
+    return simul_data, epsilon
 
 def stationarity_test(serie, regression='c', debug=False):
     # ADF Test
@@ -346,7 +346,11 @@ def stationarity_test(serie, regression='c', debug=False):
     adf = False if results[1] > 0.05 else True
 
     # KPSS Test
-    result = kpss(serie, regression=regression, lags='auto')
+    result = None
+    try:
+        result = kpss(serie, regression='c', lags='auto')
+    except:
+        result = kpss(serie, regression='ct', lags='auto')
     if debug == True:
         print('\nKPSS Statistic: %f' % result[0])
         print('p-value: %f' % result[1])
@@ -357,15 +361,28 @@ def stationarity_test(serie, regression='c', debug=False):
     kps = False if result[1] < 0.05 else True
     return adf and kps
 
+
+def evaluate_data_ar(data, ic='aic', method='mle',disp=0, debug=True):
+    if debug == True:
+        print('Start fitting')
+    ar_model = st.tsa.ar_model.AR(data).fit(ic=ic, method=method, maxiter=len(data), disp=disp)
+    if debug == True:
+        print('Done fitting')
+    return ar_model.params[0], ar_model.params[1:] 
+
+
 if __name__ == "__main__":
-    current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
+    pass
+    # current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
     # Synthetic data is to play and understand sampling process
     # evaluate_synthetic_data()
-    target = pd.read_csv(os.path.join(current_analysis_path, 'target.csv'), engine='python', index_col=[0,1])
-    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec.csv'), engine='python', index_col=[0, 1])
-    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec.csv'), engine='python', index_col=[0, 1])
-    var = np.var(first_sst['values'].values)
-    stat_test = stationarity_test(second_sst['values'].values, regression='ct')
+
+    # target = pd.read_csv(os.path.join(current_analysis_path, 'target.csv'), engine='python', index_col=[0,1])
+    # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec.csv'), engine='python', index_col=[0, 1])
+    # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec.csv'), engine='python', index_col=[0, 1])
+    # var = np.var(first_sst['values'].values)
+    # stat_test = stationarity_test(second_sst['values'].values, regression='ct')
+
     # fig, ax = plt.subplots(3, 1, figsize=(16, 8), dpi=90)
     # with pd.plotting.plot_params.use('x_compat', True):
     #     target.plot(title='target',  ax=ax[0])
@@ -375,27 +392,27 @@ if __name__ == "__main__":
     #     plt.show()
 
  
-    if stat_test == True:
+    # if stat_test == True:
         # CHANGING FROM ARMA TO AR IS CREATE DISSAPEARING AR PROCESS THE SAME AS WHITENOISE, ONLY USE ARMA TO CHECK VARIABILITY OF PROCESS
-        evaluate_data(signal=first_sst, display=False, aic_check=True)
+        # evaluate_data(signal=first_sst, display=False, aic_check=True)
         
         # UNNECESSARY
         # arr = st.tsa.arima_process.arma2ar(ar, ma, lags=len(first_sst))
         # const = (1 + arr.sum())/len(arr)
         
-        marr = st.tsa.ar_model.AR(first_sst['values']).fit(ic='aic' ,method='mle', maxiter=len(first_sst), disp=0)
-        const = marr.params[0]
-        arr = marr.params[1:]
+        # marr = st.tsa.ar_model.AR(first_sst['values']).fit(ic='aic' ,method='mle', maxiter=len(first_sst), disp=0)
+        # const = marr.params[0]
+        # arr = marr.params[1:]
 
         # polyARMA = create_polynomial_fit_arma(ar=ar, ma=ma,sigma=sigma, data=first_sst)
-        polyAR = create_polynomial_fit_ar(ar=arr, sigma=var, data=first_sst, const=const)
+        # polyAR = create_polynomial_fit_ar(ar=arr, sigma=var, data=first_sst, const=const)
         
         # first_sst.plot(label='original')
         # # marr.fittedvalues.plot(label='Fitted')
         # plt.legend(loc=0)
         # plt.show()
         # display_poly_data_arma(simul_data=polyARMA, ar=ar, ma=ma, order=order)
-        display_poly_data_ar(simul_data=polyAR,signal=first_sst, ar=arr)
+        # display_poly_data_ar(simul_data=polyAR,signal=first_sst, ar=arr)
 
 
     

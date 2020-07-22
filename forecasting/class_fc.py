@@ -873,10 +873,6 @@ def prepare_data(y_ts, df_split, lag_i=int, dates_tobin=None,
 
 
     df_prec = df_prec[x_keys]
-<<<<<<< HEAD
-    #%%
-=======
->>>>>>> 15ea5de9d524d02bbef4eb7c0cc86a68284b2ecf
     # =============================================================================
     # Normalize data using datesRV or all training data in dataframe
     # =============================================================================

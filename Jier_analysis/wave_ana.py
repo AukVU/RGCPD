@@ -26,7 +26,7 @@ import plot_signal_decomp
 import plot_coeffs
 from visualize_cwt import *
 register_matplotlib_converters()
-np.random.seed(12345)
+# np.random.seed(12345)
 plt.style.use('seaborn')
 current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
 
@@ -87,15 +87,15 @@ def choose_wavelet_signal(data, families, debug):
         print('------------------------------------')
 def plot_choice_wavelet_signal():
     pass
-def generate_rgcpd(target=3):
+def generate_rgcpd(target=3, prec_path='sst_1979-2018_2.5deg_Pacific.nc'):
     path_data = os.path.join(main_dir, 'data')
     current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
     target= target
     target_path = os.path.join(path_data, 'tf5_nc5_dendo_80d77.nc')
-    precursor_path = os.path.join(path_data,'sst_1979-2018_2.5deg_Pacific.nc')
+    precursor_path = os.path.join(path_data,prec_path)
     list_of_name_path = [(target, target_path), 
-                        ('sst', precursor_path )]
-    list_for_MI = [BivariateMI(name='sst', func=BivariateMI.corr_map, 
+                        (prec_path[:3], precursor_path )]
+    list_for_MI = [BivariateMI(name=prec_path[:3], func=BivariateMI.corr_map, 
                             kwrgs_func={'alpha':.0001, 'FDR_control':True}, 
                             distance_eps=700, min_area_in_degrees2=5)]
     rg = RGCPD(list_of_name_path=list_of_name_path,
@@ -113,15 +113,15 @@ def create_rgcpd_obj(rg, precur_aggr=1):
     return rg 
 
 def setup_wavelets_rgdata(rg, wave='db4', modes=wv.Modes.periodic):
-    rg_data  = rg.df_data[['3ts', '0..1..sst', '0..2..sst']]
-    rg_data = rg_data.rename(columns={'0..1..sst':'prec1', '0..2..sst':'prec2'})
+    cols = rg.df_data.columns.tolist()[:-2]
+    rg_data  = rg.df_data[cols]
+    rg_data = rg_data.rename(columns={cols[i]:'prec'+str(i) for i in range(1, len(cols)) })
     rg_index = rg_data.index.levels[1]
-    prec1 = rg_data['prec1'].values
-    prec2 = rg_data['prec2'].values
-    target = rg_data['3ts'].values
+    precursor_list = [rg_data['prec'+str(i)].values for i in range(1, len(cols))]
+    target = rg_data[cols[0]].values
     wave  = wv.Wavelet(wave)
     mode=modes 
-    return (rg_data, rg_index), (prec1, prec2, target), (wave, mode)
+    return (rg_data, rg_index), (precursor_list, target), (wave, mode)
 
 def plot_discr_wave_decomp(data, wave):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
@@ -130,7 +130,7 @@ def plot_discr_wave_decomp(data, wave):
     fig.suptitle('Using Discrete Wavelet transform', fontsize=18)
     ap = data.values
     for i in range(lvl_decomp):
-        ap, det =  wv.dwt(ap, 'db4')
+        ap, det =  wv.dwt(ap, wave)
         ax[i, 0].plot(ap, 'r')
         ax[i, 1].plot(det, 'g')
         ax[i, 0].set_ylabel('Level {}'.format(i + 1), fontsize=14, rotation=90)
@@ -140,12 +140,12 @@ def plot_discr_wave_decomp(data, wave):
     plt.tight_layout()
     plt.show()
 
-def create_low_freq_components(data, wave, debug=False):
+def create_low_freq_components(data, wave='db4', mode=wv.Modes.periodic, debug=False):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     s = data
     cA = []
     lvl_decomp = wv.dwt_max_level(len(data), wave.dec_len)
-
+    lvl_decomp = 6 if lvl_decomp > 6 else lvl_decomp
     for i in range(lvl_decomp): # Using recursion to overwrite signal to go level deepeer
         s, _ =  wv.dwt(s, wave , mode=mode)
         cA.append(s)
@@ -187,11 +187,12 @@ def extract_mci_lags(to_clean_mci_df, lag=0):
     return lag_target, lag_precurs
 
 def plot_mci_pred_relation(cA, prec_lag, savefig=False):
-    x_as = np.arange(0, len(cA))
+    x_as = np.arange(1, len(cA)+1)
+    x_as = np.exp2(x_as)
     plt.figure(figsize=(19,8), dpi=120)
     plt.plot(x_as, prec_lag, label='precrursor ')
     plt.title('Relation MCI on scale wavelet on lag 0')
-    plt.xlabel('Scales')
+    plt.xlabel('Scales in daily means')
     plt.ylabel('MCI')
     plt.legend(loc=0)
     if savefig ==True:

@@ -252,7 +252,7 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
     if same_freq == False:
         if verbosity == 1:
             print('original tfreq of imported response variable is converted to '
-                  'desired tfreq')
+                  'desired tfreq', tfreq)
         to_freq = tfreq
 
         fullts, dates_tobin = time_mean_bins(fullts, to_freq,
@@ -271,19 +271,21 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
         fullts = detrend1D(fullts, anomaly=RV_anomaly)
 
     if input_freq == 'daily':
+        if verbosity == 1:
+            print('Daily input freq')
         dates_RV = core_pp.get_subdates(pd.to_datetime(fullts.time.values), start_end_TVdate,
                                   start_end_year)
     elif input_freq == 'monthly':
+        if verbosity == 1:
+            print('Monthly input freq')
         dates_RV = TVmonthrange(fullts, start_end_TVdate)
 
     # get indices of RVdates
     string_RV = list(dates_RV.strftime('%Y-%m-%d'))
     string_full = list(pd.to_datetime(fullts.time.values).strftime('%Y-%m-%d'))
     RV_period = [string_full.index(date) for date in string_full if date in string_RV]
-
     fullts.name = name
     TV_ts = fullts[RV_period] # extract specific months of MT index
-
     return fullts, TV_ts, input_freq
 
 def load_npy(filename, name=None):

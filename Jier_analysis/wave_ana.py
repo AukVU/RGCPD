@@ -10,7 +10,7 @@ import numpy as np
 from collections import Counter
 
 import pandas as pd 
-import math
+import math, scipy
 import matplotlib.pyplot as plt 
 plt.rcParams['figure.figsize'] = (20.0, 10.0)
 import itertools as it
@@ -65,10 +65,11 @@ def renyi_entropy(X, alpha):
         probs = np.array([float(count[1]) / len(X) for count in counts])
         return (1.0 / (1.0 - alpha)) * np.log2(np.sum(probs ** alpha))
 
-def choose_wavelet_signal(data, families, debug):
-    # TODO CREATE NICE DATASTRUCTURE TO STORE ALL DEBUG INFOR AND PLOT 
+def choose_wavelet_signal(data, families=families, debug=False):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     ap = data.values
+    tests = ['energy', 'shanon', 'renyi', 'r_shanon', 'r_renyi', 'bit']
+    info ={fam:{i:[] for i in tests } for fam in families}
     if debug == True:
         print("Original signal  Entropy", entropy(ap))
 
@@ -83,10 +84,28 @@ def choose_wavelet_signal(data, families, debug):
             ratio = e_ap/ entr if entr else 0.0
             r_ren = e_ap/ ren if ren else 0.0
             bit = rennies[0] - rennies[i-1] if len(rennies) > 2 else 0.0
-            print('index', i,'wave ', fam, 'energy', e_ap, 'entropy sh', entr, 'renyi', ren,  'ratio shanny', ratio, "ratio renny", r_ren,'Renyi bit of info', round(bit) ) #,'', 'det', e_det*len(det)) #* Need to multiply by len()? for percentage?q
-        print('------------------------------------')
-def plot_choice_wavelet_signal():
-    pass
+            if debug == True:
+                print('index', i,'wave ', fam, 'energy', e_ap, 'entropy sh', entr, 'renyi', ren,  'ratio shanny', ratio, "ratio renny", r_ren,'Renyi bit of info', round(bit) ) 
+            info[fam]['energy'].append(e_ap)
+            info[fam]['shanon'].append(entr)
+            info[fam]['renyi'].append(ren)
+            info[fam]['r_shanon'].append(ratio)
+            info[fam]['r_renyi'].append(r_ren)
+            info[fam]['bit'].append(round(bit))
+    plot_choice_wavelet_signal(data=info, columns=tests)
+
+def plot_choice_wavelet_signal(data, columns):
+    # TODO FIX THIS PLOT
+    df = pd.DataFrame.from_dict(data=data, orient='index').stack().to_frame()
+    df = pd.DataFrame(df[0].values.tolist(), index=df.index) 
+
+    # fig, ax = plt.subplots(len(families),len(columns), figsize=(19, 8)) 
+    # fig.suptitle('Choice wavelets for given data', fontsize=18)
+    df.plot(subplots=True,  layout=(len(families), len(df.columns)), figsize=(19, 8))
+    # plt.tight_layout()
+    plt.show()  
+
+
 def generate_rgcpd(target=3, prec_path='sst_1979-2018_2.5deg_Pacific.nc'):
     path_data = os.path.join(main_dir, 'data')
     current_analysis_path = os.path.join(main_dir, 'Jier_analysis')

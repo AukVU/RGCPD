@@ -303,7 +303,7 @@ def write_nc(savar, data_field, settings, output='test'):
 
 def save_time_series(savar, settings, output='test'):
     user_dir = settings['user_dir']
-    data = savar.data_field @ savar.modes_weights.reshape(N, -1).transpose()
+    data = savar.data_field @ savar.modes_weights.reshape(settings['N'], -1).transpose()
     periods = data.shape[0]
     # print('save time series')
     filename = user_dir + f'/Code_Lennart/results/{output}/time_series'

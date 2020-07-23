@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D  # Plots in 3D
 from c_functions import create_graph
+from tigramite.data_processing import smooth
 
 from typing import Union
 
@@ -15,6 +16,102 @@ from typing import Union
 def make_dir(dir):
     if not os.path.exists(dir):
         os.makedirs(dir)
+
+# Dives the task in up to the maximum size of the comm (avail CPUs)
+def split(a, n):
+    if n > len(a):
+        return split(a, len(a))
+    k, m = divmod(len(a), n)
+    return list((a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)))
+
+def is_pos_def(x):
+    return np.all(np.linalg.eigvals(x) > 0)
+
+
+def cg_to_est_phi(links_coeffs, tau_max):
+    """
+    Given links coeff returns phi matrix in same format af tigramite.models.LinearModel
+    """
+
+    graph = create_graph(links_coeffs, return_lag=False)
+
+    N, tau = graph.shape[1:3]
+
+    # From i, j, tau -> tau, i, j
+    graph = np.rollaxis(graph, 2, 0)
+
+    # Empty matrix
+    results = np.zeros((tau_max + 1, N, N))
+
+    # Lag 0
+    results[0, ...] = np.eye(N)
+
+    # Fill other lags
+    for i in range(1, tau):
+        results[i, ...] = graph[i - 1, ...]
+
+    return results
+
+def compare_scaled(A, B, return_lamb=False):
+    """
+    Compare if matrix A is a scaled version of matrix B
+    by assuming that AB^{-1} = \lambda
+    Where B^{-1} is the (pseudo)inverse of B and D is a diagonal matrix.
+    returns the mean of the values out of the diagonal of \lambda
+
+    :param A = \hat W
+    :param B = W
+    :param return_lamb, if True, returns lamb, out_diagonal and mean_diagonal
+    """
+
+    B_inv = np.linalg.pinv(B)
+    lamb = A @ B_inv
+    lamb = np.abs(lamb)
+
+    diagonal_sum = lamb.trace()
+    diagonal_mean = diagonal_sum / A.shape[0]
+    out_diagonal = np.abs(lamb.sum() - diagonal_sum)
+
+    if return_lamb:
+        return out_diagonal, lamb, diagonal_mean
+    else:
+        return out_diagonal
+
+def compare_phi(real_phi, estimated_phi, return_s=False):
+    """
+    Given \Phi and \tilde(\Phi) where S1 and 2a standing
+    for the singular values of each. We compute the similarity by:
+    \frac{1}_{#S}\sum_{s \in S} |s1| - |s2|
+
+    :returns the similarity matrix, and optionally s1 and s2
+    """
+    _, s2, _ = np.linalg.svd(estimated_phi)
+    _, s1, _ = np.linalg.svd(real_phi)
+
+    result = (np.abs(s1) - np.abs(s2)).mean()
+    if return_s:
+        return result, s1, s2
+    else:
+        return result
+
+
+def from_p_matrix_to_parents_dict(p_matrix, alpha):
+    """
+    from p_matrix and alpha level gives the parents (predictor) dictionary
+    """
+
+    N = p_matrix.shape[0]
+    tau_max = p_matrix.shape[2]
+    parents_dict = {}
+
+    for child in range(N):
+        parents_dict[child] = []
+        for parent in range(N):
+            for tau in range(tau_max):
+                if p_matrix[parent, child, tau] < alpha:
+                    parents_dict[child].append((parent, -(tau)))
+
+    return parents_dict
 
 
 def check_stability(graph: Union[np.ndarray, dict], lag_first_axis: bool = False, verbose: bool = False):
@@ -167,6 +264,66 @@ def create_random_mode(size: tuple, mu: tuple = (0, 0), var: tuple = (.5, .5),
         plt.close()
 
     return Z
+
+def create_non_stationarity(N_var: int, t_sample: int, tau: float = 0.5, cov_mat: np.ndarray = None, sigma: float = 1,
+                            smoothing_window: int = None) -> np.ndarray:
+    """
+    Returns a (t_sample, N_var) array representing an oscilatory trend created from a N_var-dimensional
+    Ornstein-Uhlenbeck process of covariance matrix cov_mat, standard dev : sigma and mean reversal parameter = tau.
+    The Ornstein-Uhlenbeck process is smoothed with a Gaussian moving average of windows 2*smoothing_window
+    The mean of the O-U process is set to zero inside the function.
+
+    Parameters
+    ----------
+    cov_mat : array. If it is None, then the identity matrix is used.
+    Covariance matrix of the Brownian motion generating the O-U process. Shape is (N_var, N_var).
+    N_var: int
+        Number of dimension of the O-U process to generate.
+    t_sample : int
+        Sample size.
+    sigma: float (default is 0.3)
+        Standard dev of the O-U process.
+    tau : float (default is 0.05)
+        Mean reversal parameter (how fast the process goes back to its mean).
+    smoothing_window : int (default is N_var/10)
+        Size of the smoothing windows.
+
+    Returns
+    -------
+    X_smooth : array. Shape is (t_sample, N_var).
+        Smoothed O-U process.
+    """
+    if cov_mat is None:
+        # If it is None, then we use identity
+        cov_mat = np.identity(N_var, dtype=float)
+
+    if smoothing_window is None:
+        smoothing_window = int(t_sample/10)  # default value of smoothing windows if not specified
+
+    mu = np.zeros(N_var) # Mean of the O-U is zero
+    dt = 0.001
+    T = dt*t_sample
+    t = np.linspace(0., T, t_sample)  # Vector of times.
+
+    sigma_bis = sigma * np.sqrt(2. / tau)
+    sqrtdt = np.sqrt(dt)
+
+    # Initial value of the process
+    X = np.zeros((t_sample, N_var))
+    # random initial value of the O-U process around its mean
+    X[0, :] = np.random.multivariate_normal(mu, sigma*sigma*cov_mat)
+
+    # generation of the N-dim O-H process from its ODS
+    for i in range(t_sample - 1):
+        X[i + 1, :] = X[i, :] + dt * (-(X[i, :] - mu) / tau) \
+                      + np.random.multivariate_normal(mu, (sigma_bis * sqrtdt)**2 * cov_mat)
+
+    #Smoothing using tigramite smoothing function
+    try :
+        X_smooth = smooth(X,smoothing_window)
+    except:
+        print("Smoothing windows "+str(smoothing_window)+" is invalid")
+    return X_smooth
 
 # def create_cov_matrix(noise_weights, spatial_covariance=0.4, use_spataial_cov=True):
 #     #TODO: needs to be fixed, because covariance matrix does not work with random relations.

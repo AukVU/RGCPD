@@ -495,7 +495,7 @@ def detrend_xarray_ds_2D(ds, detrend, anomaly, apply_fft=True, n_harmonics=6):
     # test gridcells:
     # =============================================================================
     # try to find location above EU
-    ts = ds.sel(longitude=30, method='nearest').sel(latitude=40, method='nearest')
+    ts = ds.sel(longitude=-100, method='nearest').sel(latitude=30, method='nearest')
     la1 = np.argwhere(ts.latitude.values ==ds.latitude.values)[0][0]
     lo1 = np.argwhere(ts.longitude.values ==ds.longitude.values)[0][0]
     la2 = int(ds.shape[1]/3)
@@ -511,7 +511,7 @@ def detrend_xarray_ds_2D(ds, detrend, anomaly, apply_fft=True, n_harmonics=6):
     for i, lalo in enumerate(tuples):
         lat = int(ds.latitude[lalo[0]])
         lon = int(ds.longitude[lalo[1]])
-        print(f"\rVisual test latlon {lat} {lon}", end="")
+        print(f"Visual test latlon {lat} {lon}", end="")
         ts = ds[:,lalo[0],lalo[1]]
         rawdayofyear = ts.groupby('time.dayofyear').mean('time').sel(dayofyear=np.arange(365)+1)
 

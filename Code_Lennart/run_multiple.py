@@ -3,8 +3,6 @@ import os, inspect, sys
 if sys.platform == 'linux':
     import matplotlib as mpl
     mpl.use('Agg')
-user_dir = os.path.expanduser('~')
-user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
@@ -26,7 +24,8 @@ from class_BivariateMI_PCMCI import BivariateMI_PCMCI
 
 from class_BivariateMI_PCMCI import corr_map
 from class_BivariateMI_PCMCI import entropy_map
-from class_BivariateMI_PCMCI import parcorr_map
+from class_BivariateMI_PCMCI import parcorr_map_spatial
+from class_BivariateMI_PCMCI import parcorr_map_time
 from class_BivariateMI_PCMCI import granger_map
 from class_BivariateMI_PCMCI import gpdc_map
 from class_BivariateMI_PCMCI import rcot_map
@@ -34,6 +33,7 @@ from class_BivariateMI_PCMCI import cmiknn_map
 
 import numpy as np
 import pandas as pd
+from datetime import date
 
 import itertools
 flatten = itertools.chain.from_iterable
@@ -56,7 +56,6 @@ def rename_labels(rg):
                 N_areas = int(columns / rows)
                 locs = []
                 reassign = {}
-                i = 0
                 for loc in range(N_areas):
                     area = labels[middle - offset: middle + offset, rows * loc + middle - offset: rows * loc + middle + offset]
                     area_nonzero = np.nonzero(area)
@@ -64,6 +63,7 @@ def rename_labels(rg):
                         locs.append(loc+1)
                         value = area[area_nonzero[0][0]][area_nonzero[1][0]]
                         reassign[value] = loc+1
+                locs = list(reassign.values())
                 relabeld = relabel(precur.prec_labels.values[split], reassign).astype('float')
                 relabeld[relabeld == 0] = np.nan
                 precur.prec_labels.values[split] = relabeld
@@ -76,16 +76,66 @@ def rename_labels(rg):
     return all_locs
 
 
+def filter_matrices(matrices, locs, locs_intersect=None):
+    if locs_intersect == None:
+        locs_intersect = list(set.intersection(*map(set, locs)))
+    else:
+        locs_intersect = locs_intersect[1:]
+    for i, loc in enumerate(locs):
+        indices = list(np.where(np.isin(loc, locs_intersect))[0])
+        indices = [0] + [i+1 for i in indices]
+        matrices[i] = matrices[i][indices]
+        matrices[i] = matrices[i][:, indices]
+    return matrices, ([0] + locs_intersect)
+
+     
 
 
-def run_multiple(settings):
+
+
+
+def run_multiple(settings, years=None, modes=None, signals=None, noises=None, iterations=10):
     # bivariate_list = [corr_map, entropy_map, granger_map, gpdc_map, cmiknn_map, granger_map]
-    bivariate_list = [parcorr_map]
-    # noise_list = np.arange(0, 0.05, 0.005)
-    noise_list = np.arange(0.01, 0.05, 0.05)
-    modes_list = np.arange(4,13,1)
+    bivariate_list = [corr_map, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time]
+    bivariate_kwrgs_list = [(0,0,0), (5,False,True), (1,False,True), (1,True,False),(10,False,True)]
+    table_list = None
+    test = None
 
-    iterations = 10
+    signal_list = list(np.array(signals).flat)
+    if signals == None:
+        signal_list = np.arange(0.1, 1, 0.1)
+        table_list = signal_list
+        test = 'sign' 
+    print(f"\nTested signal strengths: {signal_list}")
+    
+    
+
+    modes_list = list(np.array(modes).flat)
+    if modes == None:
+        modes_list = np.arange(4,13,1)
+        table_list = modes_list
+        test = 'mode'
+    print(f"\nTested number of modes: {modes_list}")
+
+
+    year_list = list(np.array(years).flat)
+    if years == None:
+        year_list = np.arange(5, 15, 1)
+        table_list = year_list
+        test = 'time'
+    day1 = date(1979, 1, 1) #YYYY-MM-DD
+    length_list = [(date(1979 + i, 1, 1) - day1).days for i in year_list]
+    print(f"\nTested time series lengths: {length_list}, which is in years: {year_list}\n")
+
+    noises_list = list(np.array(noises).flat)
+    if noises == None:
+        noises_list = np.arange(0,10,1)
+        table_list = year_list
+        test = 'noise'
+    print(f"\nTested number of noise levels: {noises_list}")
+
+
+    
 
 
     # pcmci_df = pd.DataFrame(columns=modes_list)
@@ -93,137 +143,210 @@ def run_multiple(settings):
     # pcmci_df = np.zeros((iterations, len(modes_list)))
     # bivariate_df = np.zeros((iterations, len(modes_list)))
 
-    for bivariate in bivariate_list:
-        pcmci_df = np.zeros((iterations, len(modes_list)))
-        bivariate_df = np.zeros((iterations, len(modes_list)))
-        for noise in noise_list:
+    # for biv_i, bivariate in enumerate(bivariate_list):
+    pcmci_df = np.zeros((iterations, len(table_list)))
+    print(table_list)
+    bivariate_df = np.zeros((len(bivariate_list), iterations, len(table_list)))
+    print(bivariate_df)
+    for signal_i, signal in enumerate(signal_list):
+        for year_i, time in enumerate(length_list):
             for mode_i, N in enumerate(modes_list):
-                for iteration in range(iterations):
-                    settings['N'] = N
-                    settings['ny'] = N * 30
-                    print('')
-                    print(N)
-                    print(bivariate..__name__)
-                    print(f'Iteration {iteration + 1}/{iterations}')
-                    settings['noise_level'] = 0.5
-                    cts.create_time_series(settings, links_coeffs, verbose=False,
-                                                            plot_modes=False,
-                                                            plot_timeseries=False,
-                                                            draw_network=False)
+                for noise_i, noise in enumerate(noises_list):
+                    for iteration in range(iterations):
+                        settings['N'] = N
+                        settings['ny'] = N * 30
+                        print(f'Iteration {iteration + 1}/{iterations}')
+                        print('')
+                        print(f"Modes: {N}")
+                        print(f"Years = {year_list[year_i]}")
+                        print(f"Signal = {signal}")
+                        settings['noise_level'] = noise #0.5
+                        settings['signal'] = signal
+                        settings['T'] = time
+                        cts.create_time_series(settings, links_coeffs, verbose=False,
+                                                                plot_modes=False,
+                                                                plot_timeseries=False,
+                                                                draw_network=False)
 
-                    local_base_path = user_dir
-                    local_script_dir = os.path.join(local_base_path, "ERA5" )
-                    
-                    output = settings['filename']
+                        print("Finished generating!")
+                        local_base_path = user_dir
+                        local_script_dir = os.path.join(local_base_path, "ERA5" )
+                        
+                        output = settings['filename']
 
-                    # bivariate = corr_map
+                        # bivariate = corr_map
+                        for biv_i, bivariate in enumerate(bivariate_list):
+                            print(bivariate.__name__)
+                            list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
+                                                (1, local_base_path + f'/{output}/NC/{output}_target.nc'),
+                                                ('test_precur', local_base_path + f'/{output}/NC/{output}.nc')
+                            ]
 
-                    list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
-                                        (1, local_base_path + f'/Code_Lennart/results/{output}/NC/{output}_target.nc'),
-                                        ('test_precur', local_base_path + f'/Code_Lennart/results/{output}/NC/{output}.nc')
-                    ]
+                            kwrgs_bivariate = {}
+                            if bivariate == parcorr_map_time:
+                                lag = bivariate_kwrgs_list[biv_i][0]
+                                target = bivariate_kwrgs_list[biv_i][1]
+                                precur = bivariate_kwrgs_list[biv_i][2]
+                                kwrgs_bivariate = {'lag':lag, 'target':target, 'precur':precur}
 
-                    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=250)]
+                            print(kwrgs_bivariate)
 
-                    start_end_TVdate = None
-                    start_end_date = None
+                            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=400, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
 
-                    RGCPD_path = local_base_path + f'/Code_Lennart/results/{output}/output_RGCPD/{bivariate.__name__}'
-                    shutil.rmtree(RGCPD_path, ignore_errors=True)
-                    os.makedirs(RGCPD_path)
-                    rg = RGCPD(list_of_name_path=list_of_name_path, 
-                            #    list_for_EOFS=list_for_EOFS,
-                            list_for_MI=list_for_MI,
-                            start_end_TVdate=start_end_TVdate,
-                            start_end_date=start_end_date,
-                            tfreq=10, lags_i=np.array([1]),
-                            verbosity=0,
-                            path_outmain=RGCPD_path)
+                            start_end_TVdate = None
+                            start_end_date = None
 
-                    selbox = None
+                            RGCPD_path = local_base_path + f'/{output}/output_RGCPD/{bivariate.__name__}'
+                            shutil.rmtree(RGCPD_path, ignore_errors=True)
+                            os.makedirs(RGCPD_path)
+                            print(RGCPD_path)
+                            rg = RGCPD(list_of_name_path=list_of_name_path, 
+                                    #    list_for_EOFS=list_for_EOFS,
+                                    list_for_MI=list_for_MI,
+                                    start_end_TVdate=start_end_TVdate,
+                                    start_end_date=start_end_date,
+                                    tfreq=10, lags_i=np.array([1]),
+                                    verbosity=0,
+                                    path_outmain=RGCPD_path)
 
-                    anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False, 'st2':False}]
+                            selbox = None
 
-                    rg.pp_precursors(selbox=selbox, anomaly=anomaly)
+                            anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False, 'st2':False}]
 
-                    rg.pp_TV()
+                            rg.pp_precursors(selbox=selbox, anomaly=False, detrend=False)
 
-                    #kwrgs_events={'event_percentile':66}
-                    kwrgs_events=None
-                    rg.traintest(method='random10', kwrgs_events=kwrgs_events)
+                            rg.pp_TV()
 
-                    rg.calc_corr_maps()
+                            #kwrgs_events={'event_percentile':66}
+                            kwrgs_events=None
+                            rg.traintest(method='random5', kwrgs_events=kwrgs_events)
 
-                    rg.cluster_list_MI()
+                            rg.calc_corr_maps()
 
-                    # rg.quick_view_labels()
+                            rg.plot_maps_corr(save=True)
 
-                    try:
-                        locs = rename_labels(rg)
+                            rg.cluster_list_MI()
 
-                        rg.get_ts_prec(precur_aggr=None)
-                    except:
-                        iteration -= 1
-                        print("PASSED BECAUSE NO AREAS FOUND")
-                        continue
+                            # rg.quick_view_labels()
+
+                            try:
+                                locs = rename_labels(rg)
+
+                                rg.get_ts_prec(precur_aggr=None)
+                            except:
+                                # iteration -= 1
+                                print("PASSED BECAUSE NO AREAS FOUND")
+                                continue
 
 
-                    rg.PCMCI_df_data(pc_alpha=None, 
-                                    tau_max=2,
-                                    max_combinations=2)
+                            rg.PCMCI_df_data(pc_alpha=None, 
+                                            tau_max=2,
+                                            max_combinations=2)
 
-                    # rg.PCMCI_get_links(alpha_level=0.1)
+                            rg.PCMCI_get_links(alpha_level=0.1)
 
-                    # rg.PCMCI_plot_graph(s=1)
+                            # rg.PCMCI_plot_graph(s=1)
 
-                    # rg.quick_view_labels()
+                            # rg.quick_view_labels()
 
-                    # rg.plot_maps_sum()
+                            # rg.plot_maps_sum()
 
-                    p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
-                    area_lengths = [len(i) for i in p_matrices]
-                    common_length = max(set(area_lengths), key = area_lengths.count)
-                    most_common_p_matrix = np.where(np.array(area_lengths) == common_length)
-                    p_matrices = p_matrices[most_common_p_matrix]
-                    p_matrix = np.mean(p_matrices, axis=0)
-                    # p_matrix = p_matrix.mean(0)
-                    val_matrix = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])[most_common_p_matrix]
-                    val_matrix = np.mean(val_matrix, axis=0)
-                    pcmci_matrix_path = local_base_path + f'/Code_Lennart/results/{output}' + f'/matrices/{bivariate.__name__}'
-                    # settings = {'N': len(rg.pcmci_results_dict[0])}
-                    locs = list(np.array(locs)[0][most_common_p_matrix])
-                    locs = list(set(flatten(locs)))
-                    locs = [0] + locs
-                    print(locs)
-                    print(common_length)
-                    if len(locs) > common_length:
-                        iteration -= 1
-                        print("PASSED BECAUSE OF UNEQUAL FOUND AREAS")
-                        continue
-                    cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
-                    np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)
+                            # p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
+                            # area_lengths = [len(i) for i in p_matrices]
+                            # common_length = max(set(area_lengths), key = area_lengths.count)
+                            # most_common_p_matrix = np.where(np.array(area_lengths) == common_length)
+                            # p_matrices = p_matrices[most_common_p_matrix]
+                            # p_matrix = np.mean(p_matrices, axis=0)
+                            # # p_matrix = p_matrix.mean(0)
+                            # val_matrix = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])[most_common_p_matrix]
+                            # val_matrix = np.mean(val_matrix, axis=0)
 
-                    score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs)
-                    # print(score)
+                            parents = rg.parents_dict[0][0]
+                            parents = [i[0] for i in parents if i[1] == -1]
 
-                    path = local_base_path + f'/Code_Lennart/results/{output}/scores'
-                    if os.path.isdir(path) != True : os.makedirs(path)
-                    for i, key in enumerate(score.columns):
-                        key = key.split(' ', 1)[0]
-                        if key == 'pcmci_test':
-                            # pcmci_df = pcmci_df.append({N: score.values[0][i]}, ignore_index=True)
-                            pcmci_df[iteration][mode_i] = score.values[0][i]
-                        elif key != 'real':
-                            # bivariate_df = bivariate_df.append({N: score.values[0][i]}, ignore_index=True)
-                            bivariate_df[iteration][mode_i] = score.values[0][i]
-                            print('\n\nScore:')
-                            print(score.values[0][i])
-        path = local_base_path + f'/Code_Lennart/results/scores/{output}'
-        if os.path.isdir(path) != True : os.makedirs(path)
-        bivariate_df = pd.DataFrame(bivariate_df, columns=modes_list)
-        bivariate_df.to_csv(path + f'/{bivariate.__name__}.csv', index=False)
-    pcmci_df = pd.DataFrame(pcmci_df, columns=modes_list)
-    pcmci_df.to_csv(path + '/pcmci.csv', index=False)
+
+
+
+                            pcmci_matrix_path = local_base_path + f'/{output}' + f'/matrices/{bivariate.__name__}'
+                            if bivariate.__name__ == 'parcorr_map_time':
+                                pcmci_matrix_path = pcmci_matrix_path + f'-{lag}-{target}-{precur}'
+                            # settings = {'N': len(rg.pcmci_results_dict[0])}
+                            locs = list(np.array(locs)[0])#[most_common_p_matrix])
+                            p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
+                            area_lengths = [len(i) for i in p_matrices]
+                            common_length = max(set(area_lengths), key = area_lengths.count)
+                            p_matrices, locs_filtered = filter_matrices(p_matrices, locs)
+                            val_matrices = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])
+                            val_matrices, locs = filter_matrices(val_matrices, locs, locs_intersect=locs_filtered)
+
+                            p_matrix = np.mean(p_matrices, axis=0)
+                            val_matrix = np.mean(val_matrices, axis=0)
+
+
+                            # locs = list(set(flatten(locs)))
+                            # locs = [0] + locs_filtered
+                            print(f'\n\nFound regions {locs}\n')
+                            # print(f'Found parents for split 0: {list(np.array(locs)[parents])}\n')
+                            # print(common_length)
+                            if len(locs) > common_length:
+                                # iteration -= 1
+                                print("PASSED BECAUSE OF UNEQUAL FOUND AREAS")
+                                continue
+                            cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
+                            np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)
+
+                        score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs)
+                        # print(score)
+
+                        if signals == None:
+                            table_i = signal_i
+                        elif modes == None:
+                            table_i = mode_i
+                        elif years == None:
+                            table_i = year_i
+                        elif noises == None:
+                            table_i = noise_i
+                        print(f'Table_i: {table_i}')
+                        # path = local_base_path + f'/{output}/scores'
+                        # if os.path.isdir(path) != True : os.makedirs(path)
+                        test_list = [bivariate.__name__ for bivariate in bivariate_list]
+                        for i, key in enumerate(score.columns):
+                            key = key.split(' ', 1)[0]
+                            if key[:7] == 'parcorr':
+                                key2, lag, target, precur = key.split('-')
+                                target = (target == 'True')
+                                precur = (precur == 'True')
+                                key = key2
+                            if key == 'pcmci_test':
+                                # pcmci_df = pcmci_df.append({N: score.values[0][i]}, ignore_index=True)
+                                pcmci_df[iteration][table_i] = score.values[0][i]
+                                print("PCMCI score:")
+                                print(score.values[0][i])
+                            elif key in test_list:
+                                test_list_index = test_list.index(key)
+                                if key[:7] == 'parcorr':
+                                    test_list_index = bivariate_kwrgs_list.index((int(lag),target,precur))
+                                # bivariate_df = bivariate_df.append({N: score.values[0][i]}, ignore_index=True)
+                                bivariate_df[test_list_index][iteration][table_i] = score.values[0][i]
+                                if key[:7] == 'parcorr':
+                                    print(f'Score {key}, lag {lag}, target {target}, precur {precur}:')
+                                else:
+                                    print(f'Score {key}:')
+                                print(score.values[0][i])
+    path = local_base_path + f'/scores/{output}'
+    if os.path.isdir(path) != True : os.makedirs(path)
+    for biv_i, df in enumerate(bivariate_df):
+        print(df)
+        bivariate_df = pd.DataFrame(df, columns=table_list)
+        path2 = path + f'/{test}_{bivariate_list[biv_i].__name__}'
+        if bivariate_list[biv_i].__name__ == 'parcorr_map_time':
+            kwrgs = bivariate_kwrgs_list[biv_i]
+            path2 = path2 + f'-{kwrgs[0]}-{kwrgs[1]}-{kwrgs[2]}'
+        bivariate_df.to_csv(path2 + '.csv', index=False)
+    print("------------------------------------")
+    print(pcmci_df)
+    pcmci_df = pd.DataFrame(pcmci_df, columns=table_list)
+    pcmci_df.to_csv(path + f'/{test}_pcmci.csv', index=False)
     
 
     return
@@ -244,7 +367,16 @@ settings['spatial_factor'] = 0.1
 
 settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 settings['extra_dir'] = 'Code_Lennart'
-settings['filename'] = 'multiple'
+settings['filename'] = 'multiple_test'
+
+if len(sys.argv) > 1:
+    settings['user_dir']  = sys.argv[1]
+    user_dir = settings['user_dir']  + '/' + settings['extra_dir'] + '/results'
+else:
+    settings['user_dir'] = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD"
+    user_dir = settings['user_dir']  + '/' + settings['extra_dir'] + '/results'
+print(f"DIR is: {user_dir}")
+
 
 
 settings['random_causal_map'] = True
@@ -264,4 +396,4 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-run_multiple(settings)
+run_multiple(settings, years=[5], modes=[7], signals=None, noises=[3], iterations=4)

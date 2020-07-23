@@ -27,14 +27,29 @@ def to_name(old_name):
         name = old_name
     return name
 
-def plot_scores(settings):
+def to_test(old_test):
+    if old_test == 'sign':
+        test = 'Signal'
+    elif old_test == 'mode':
+        test = 'Mode'
+    elif old_test == 'time':
+        test = 'Years'
+    elif old_test == 'DBSC':
+        test = 'DBSCAN'
+    else:
+        test = old_test
+    return test
+
+def plot_scores(settings, path=None):
     local_base_path = user_dir
     output = settings['filename']
-    path = local_base_path + f'/Code_Lennart/results/scores - Copy/{output}'
+    if path == None:
+        path = local_base_path + f'/Code_Lennart/results/scores/{output}'
     plt.figure(figsize=(20,5))
     for subdir, dirs, files in os.walk(path):
         for file in files:
-            method = to_name(file[:-4])
+            method = to_name(file[5:-4])
+            test = file[:4]
             file = os.path.join(subdir, file)
             df = pd.read_csv(file)
             df = df.replace(0, np.NaN).T
@@ -50,12 +65,16 @@ def plot_scores(settings):
             df['Mode'] = df.index
             repeats = int(r2/r)
             repeats = list(df['Mode'][:r]) * (repeats + 1)
-            repeats = list(map(int, repeats))
+            try:
+                repeats = list(map(int, repeats))
+            except ValueError:
+                repeats = list(map(float, repeats))
             df['Mode'][:] = repeats
             sns.lineplot(x='Mode', y='Score', ci=95, data=df, label=method)
             axes = plt.gca()
             axes.set_ylim([0,1.05])
-            axes.set_xlabel('Mode', fontsize=18)
+            axes.set_xticks(repeats)
+            axes.set_xlabel(to_test(test), fontsize=18)
             axes.set_ylabel('Score', fontsize=18)
             # plt.show()
     plt.legend(loc=3, prop={'size': 18})
@@ -76,7 +95,7 @@ settings['spatial_factor'] = 0.1
 
 settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 settings['extra_dir'] = 'Code_Lennart'
-settings['filename'] = 'multiple'
+settings['filename'] = 'multiple_test'
 
 
 settings['random_causal_map'] = True
@@ -96,4 +115,5 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-plot_scores(settings)
+path = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD/Results_Lennart/scores'
+plot_scores(settings, path=path)

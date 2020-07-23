@@ -5,14 +5,17 @@ cimport numpy as np
 import numpy as np
 import itertools as it
 import scipy.stats as st
-
+import copy
+import cython
 
 # Type declarations
 DTYPE = np.float
 ctypedef np.float_t DTYPE_t
 ctypedef np.int_t DTYPE_int_t
 
-# Savar model
+################################
+###### SPATIAL MODELS ##########
+################################
 def create_graph(dict links_coeffs, bint return_lag = True):  # bint is bool in cython
 
     """
@@ -24,12 +27,21 @@ def create_graph(dict links_coeffs, bint return_lag = True):  # bint is bool in 
 
     # Define N
     cdef int N = len(links_coeffs)
+    cdef bint non_linear = False
+
+    # Detect if it s non-linear link_coeff
+    if len(links_coeffs[0][0]) == 3:
+        non_linear = True
 
     # We find the max_lag
-    # TODO: No pot ser cpdef perque hi ha el for despres del =
     cdef int lag
-    cdef int max_lag = max(abs(lag)
-                  for (_, lag), _ in it.chain.from_iterable(links_coeffs.values()))
+    cdef int max_lag
+    if not non_linear:
+        max_lag = max(abs(lag)
+                      for (_, lag), _ in it.chain.from_iterable(links_coeffs.values()))
+    else:
+        max_lag = max(abs(lag)
+              for (_, lag), _, _ in it.chain.from_iterable(links_coeffs.values()))
 
     # We create an empty graph
     cdef DTYPE_t[:, :, ::1] graph = np.zeros((N, N, max_lag + 1), dtype=DTYPE)
@@ -37,9 +49,14 @@ def create_graph(dict links_coeffs, bint return_lag = True):  # bint is bool in 
     # Compute the graph values
     cdef Py_ssize_t i, j, tau  # Py_ssize_t is the proper C type for Python array indices.
     cdef DTYPE_t coeff
-    for j, values in links_coeffs.items():
-        for (i, tau), coeff in values:
-            graph[j, i, abs(tau) - 1] = coeff if tau != 0 else 0
+    if not non_linear:
+        for j, values in links_coeffs.items():
+            for (i, tau), coeff in values:
+                graph[j, i, abs(tau) - 1] = coeff if tau != 0 else 0
+    else:
+        for j, values in links_coeffs.items():
+            for (i, tau), coeff, _ in values:
+                graph[j, i, abs(tau) - 1] = coeff if tau != 0 else 0
 
     if return_lag:
         return np.asarray(graph), max_lag
@@ -64,18 +81,20 @@ def compute_linear_savar(np.ndarray data_field_noise, np.ndarray weights,
     # N \in R^(T, n)
     # N*U = D*W*U -> N*U = D*1
 
-    print("We are inside compute linear savar")
-
     #TODO: check all the dimensions requiered and more asertions
 
     # definitions
     cdef unsigned int n_var = graph.shape[0]
     cdef unsigned int max_lag = graph.shape[2]
     cdef unsigned int locations = data_field_noise.shape[1]
+    cdef unsigned int T = data_field_noise.shape[0]
 
     # Network data
     cdef DTYPE_t[:, ::1] network_data
     cdef DTYPE_t[::1] network_data_next
+
+    cdef np.ndarray[DTYPE_t, ndim=2] network_data_source
+    network_data_source = np.zeros((T, n_var))
 
     # Moore-Rose pseudoinverse
     cdef DTYPE_t[:, ::1] U
@@ -100,6 +119,7 @@ def compute_linear_savar(np.ndarray data_field_noise, np.ndarray weights,
             network_data_next = compute_next_time_step(network_data = np.asarray(network_data).transpose(),
                                                        graph = graph)
             data_field_noise[t, :] += np.dot(network_data_next, U)
+            network_data_source[t, :] = network_data_next
 
     else:  # Now w is variant to time
 
@@ -121,7 +141,7 @@ def compute_linear_savar(np.ndarray data_field_noise, np.ndarray weights,
         print("this has been reached")
         network_data = np.sum(data_field_noise[:, :, np.newaxis]*weights, axis=1)
 
-    return data_field_noise, np.asarray(network_data)
+    return data_field_noise, np.asarray(network_data_source)
 
 
 cdef compute_next_time_step(np.ndarray network_data, np.ndarray graph):
@@ -149,7 +169,7 @@ cdef compute_next_time_step(np.ndarray network_data, np.ndarray graph):
 
 
 def generate_cov_matrix(np.ndarray noise_weights, float spatial_covariance,
-                        float variance= 1, str method = "geometric_mean"):
+                        float variance=1, str method = "weights_transposed"):
 
     """
     :param noise_weights:
@@ -162,8 +182,8 @@ def generate_cov_matrix(np.ndarray noise_weights, float spatial_covariance,
     cdef Py_ssize_t L = noise_weights.shape[1]
     cdef Py_ssize_t K = noise_weights.shape[2]
 
-    if method not in ("geometric_mean", "equal_noise"):
-        raise Exception("method must be geometric_mean or equal_noise")
+    if method not in ("geometric_mean", "equal_noise", "weights_transposed"):
+        raise Exception("method must be geometric_mean, equal_noise or weights_transposed")
 
     # Define matrices used
     cdef np.ndarray[DTYPE_t, ndim=2] cov
@@ -172,16 +192,19 @@ def generate_cov_matrix(np.ndarray noise_weights, float spatial_covariance,
     cdef np.ndarray[DTYPE_t, ndim=1] cov_flat
     cov_flat = np.zeros((L*K*K*L), dtype=DTYPE)
 
+    cdef np.ndarray[DTYPE_t, ndim=2] weights_flat
+    weights_flat = copy.deepcopy(noise_weights.reshape(N, L*K))
+
     cdef np.ndarray[DTYPE_t, ndim=1] flat_weight
 
     # Fill de related areas according to noise weights
     cdef int i
     cdef np.ndarray n
 
+    # TODO: ensure that there is no negative values of W
     if method == "geometric_mean":
         for n in noise_weights:
             flat_weight = n.reshape(L*K)
-            print(flat_weight.max())
             cov_flat += np.sqrt(np.kron(flat_weight,flat_weight))/N
         cov = cov_flat.reshape((L*K, K*L))*spatial_covariance
 
@@ -193,13 +216,138 @@ def generate_cov_matrix(np.ndarray noise_weights, float spatial_covariance,
                 # same factor for all cells that influence other cells within same weight-block
                 cov[i, nonzero] = spatial_covariance
 
-    # Set diagonal to 1
-    np.fill_diagonal(cov, variance)
+
+    cdef np.ndarray[DTYPE_t, ndim=2] weights_flat_inv
+    cdef np.ndarray[DTYPE_t, ndim=2] diag_matrix_sigma
+    weights_flat_inv = np.linalg.pinv(copy.deepcopy(noise_weights.reshape(N, L*K)))  # (LK, N)
+    diag_matrix_sigma = np.eye(L*K)
+    np.fill_diagonal(diag_matrix_sigma, variance)
+
+    if method == "weights_transposed":
+        cov = (weights_flat_inv @ weights_flat_inv.transpose())*spatial_covariance
+        # cov = (weights_flat.transpose() @ weights_flat)*spatial_covariance
+
+    # Add I_sigma to diagnoal
+    cov = cov + diag_matrix_sigma
 
     return cov
 
+## Non linear
+cdef float aux_func(float xtmp, str which, float nonl_coeff):
+    funcDict = {
+            "linear": xtmp,
+            "quadratic": xtmp ** 2,
+            "cubic": xtmp ** 3,
+            "inverse": 1. / xtmp,
+            "log": np.log(np.abs(xtmp)),
+            # "f1"        :   2. * xtmp**2 / (1. + 0.5 * xtmp**4),
+            "f2": nonl_coeff*(xtmp + 5. * xtmp ** 2 * np.exp(-xtmp ** 2 / 20.)),  # THE BEST Changing the 1 changes the non-linearty
+            "f3": .05 * (xtmp + 20. * 1. / (np.exp(-2. * (xtmp)) + 1.) * np.exp(-xtmp ** 2 / 100.)),
+            "f4": (1. - 4. * xtmp ** 3 * np.exp(-xtmp ** 2 / 2.)) * xtmp,
+            # "f4"        :   (1. - 4. * np.sin(xtmp)* xtmp**3 * np.exp(-xtmp**2 / 2.) ) * xtmp,
+            # "f5"        :   (1. - 2 * xtmp**2 * np.exp(-xtmp**2 / 2.)) * xtmp,
+    }
 
-# Other functions
+    return funcDict[which]
+
+cdef float func(float coeff, float x, str coupling, float nonl_coeff):
+    return coeff * aux_func(x, coupling, nonl_coeff)
+
+cpdef unsigned int find_max_lag(links_coeffs):
+    """
+    Given the links_coeffs returns max lag must be a non-linear one
+    """
+
+    cdef unsigned int max_lag = 0
+    cdef unsigned int var_j
+
+    for var_j, links in links_coeffs.items():
+        for (_, lag_var), _, _ in links:
+            if abs(lag_var) > max_lag:
+                max_lag = abs(lag_var)
+
+    return max_lag
+
+cdef compute_nonlinear_next_time_step(np.ndarray network_data, dict links_coeffs, float nonl_coeff):
+    """
+    Computes the next time step for a network in savar model
+    Network_data must be (n_var, time-max_lag:time)
+    returns a np.array of shape 1 and length = N_var
+    """
+
+    # definitions
+    cdef unsigned int n_var = len(links_coeffs)
+    cdef unsigned int max_lag = find_max_lag(links_coeffs)
+
+    # Check if network data is (n_var, max_lag)
+    assert network_data.shape[0] == n_var, "The number of variables of network and graph do not match"
+    assert network_data.shape[1] == max_lag,  "The max_lag of network and graph do not match"
+
+    # Return the result of the operation (transpose it so is time X n_var)
+    cdef DTYPE_t[::1] x_values = np.zeros(n_var)
+    cdef Py_ssize_t var_j
+    cdef Py_ssize_t var_i
+    cdef Py_ssize_t lag_var
+    cdef float coeff
+    cdef str function
+
+    for var_j, links in links_coeffs.items():
+        for (var_i, lag_var), coeff, function in links:
+            x_values[var_j] += func(coeff, network_data[var_i, abs(lag_var)-1], function, nonl_coeff)
+    return x_values
+
+def compute_nonlinear_linear_savar(np.ndarray data_field_noise, np.ndarray weights,
+                         dict links_coeffs, float nonl_coeff):
+
+    """
+    Computes the time series of a savar model
+    :param data_field_noise: contains the noise at y level
+    :param weights noise
+    :params time_steps numer of time-steps to compute
+    """
+
+    # For linear
+    # D = data_field \in R^(T, l)
+    # W \in R^(l,n)
+    # U = W^(-1)
+    # N = D*W
+    # N \in R^(T, n)
+    # N*U = D*W*U -> N*U = D*1
+    # For non-linear use a for loop
+
+    #TODO: check all the dimensions requiered
+
+    # Assert
+    assert weights.ndim <= 2, "Ndim is {} and should be two".format(weights.ndim)
+
+    # definitions
+    cdef unsigned int n_var = len(links_coeffs)
+    cdef unsigned int max_lag = find_max_lag(links_coeffs)
+
+    # Network data
+    cdef DTYPE_t[:, ::1] network_data
+    cdef DTYPE_t[::1] network_data_next
+
+    # Moore-Rose pseudoinverse
+    cdef DTYPE_t[:, ::1] U = np.linalg.pinv(weights)
+
+    # Iterate in time
+    cdef Py_ssize_t t
+    cdef Py_ssize_t time_steps = data_field_noise.shape[0]
+
+
+    for t in range(max_lag, time_steps):
+        network_data = data_field_noise[t-max_lag:t, :] @ weights
+        network_data_next = compute_nonlinear_next_time_step(network_data = np.asarray(network_data).transpose(),
+                                                   links_coeffs = links_coeffs, nonl_coeff=nonl_coeff)
+
+        data_field_noise[t, :] += np.dot(network_data_next, U)
+    # Recover the network data
+    network_data = data_field_noise @ weights
+
+    return data_field_noise, np.asarray(network_data)
+
+# Other  savar functions
 cpdef create_load(tuple dimensions, float var = 1., float mean = 0.):
     """
     creates a random matrix.
@@ -212,7 +360,10 @@ cpdef create_load(tuple dimensions, float var = 1., float mean = 0.):
     x, y = dimensions
     return np.random.randn(x, y)*var+mean
 
-## LINEAR REGRESSION
+################################
+###### LINEAR REGRESSION #######
+################################
+
 cpdef estimate_coef_linear_regression(np.ndarray x, np.ndarray y, bint return_intercept = False):
 
     """
@@ -287,26 +438,6 @@ def remove_previous_time_step_effect(np.ndarray data, bint normalized = True):
             results[:, i] = substraction
     return np.asarray(results)
 
-def deseason_data(np.ndarray data, unsigned int period):
-    """
-    remove seasonality for each n. Data is (TxN)
-    """
-    cdef unsigned int n = data.shape[1]
-    cdef unsigned int t = data.shape[0]
-
-    data = data.reshape(-1, period, n)
-    data = data - data.mean(axis=0)
-
-    return data.reshape(t, n)
-
-def standardize_data(np.ndarray data, Py_ssize_t axis=0):
-    """
-    standardize data
-    """
-    data -= data.mean(axis=axis)
-    data /= data.std(axis=axis)
-    return data
-
 def remove_previous_time_step_effect_all(np.ndarray[DTYPE_t, ndim=2] data,
                                         unsigned int reduce_time_size=0):
     """
@@ -365,223 +496,132 @@ cdef np.ndarray[DTYPE_t, ndim=1] multivariate_linear_time_inf(np.ndarray[DTYPE_t
 
     return y-X@b_tilde
 
-def compare_modes(np.ndarray[DTYPE_t, ndim = 2] true_weights, np.ndarray[DTYPE_t, ndim = 2] estimated_weights,
-                  np.ndarray[DTYPE_t, ndim = 2] data = None, bint W_t = False,
-                  str compar_method = 'both', unsigned int n_modes = 3,
-                  bint verbose = False):
+############################
+##### OTHERS FUNCTIONS #####
+############################
+
+def deseason_data(np.ndarray data, unsigned int period):
     """
-    Returns the correlation between the predicted modes and the estimated ones, always returning the
-    comparision of the real_mode with the most similar.
-    :param true_weights for the modes, in 2 dimensions (N, nx*ny)
-    :param estimated_weights for the modes, in 2 dimensions (N, nx*ny)
-    :param data shape (t, nx, ny)
-    :param compar_method could be 'modes', 'signal' or 'both'. If modes, we look at the pearson correlation
-                          between the grid points, if signal between the resulting signal.
-    :param W_t if True then w is a function of time and must be in shape (T, N*L)
-    :param n_modes the real number of modes
-    :param verbose the verbose level
-    :return: array like (pearson, and position) for each option (modes, signal)
+    remove seasonality for each n. Data is (TxN)
+    """
+    cdef unsigned int n = data.shape[1]
+    cdef unsigned int t = data.shape[0]
+
+    data = data.reshape(-1, period, n)
+    data = data - data.mean(axis=0)
+
+    return data.reshape(t, n)
+
+def standardize_data(np.ndarray data, Py_ssize_t axis=0):
+    """
+    standardize data
+    """
+    data = copy.deepcopy(data)
+    if axis == 1:
+        data = data.transpose()
+    data -= data.mean(axis=0)
+    data /= data.std(axis=0)
+    if axis == 1:
+        data = data.transpose()
+    return data
+
+# EVALUATION
+
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+def find_permutation(np.ndarray[DTYPE_t, ndim=2] true, np.ndarray[DTYPE_t, ndim=2] permuted):
+    """
+    Finds the most probable permutation of true time series in between permuted time series
+    :param true: true ordered time series of shape T times K
+    :param permuted: Permuted time series of shape P times T. P > K
+    :return: A dict containing {true idx: permuted idx}
     """
 
+    cdef unsigned int N = true.shape[1]
+    cdef unsigned int max_comps = permuted.shape[0]
 
-    print("Start the function")
-
-    # Some assertions
-    if compar_method not in ['modes', 'signal', 'both']:
-        raise ValueError("compar_method must be, modes, signal or both")
-    if W_t and compar_method not in ['signal']:
-        raise ValueError("if w_t then modes cannot be compared...")
-
-    # def used variables
-    cdef unsigned int n_components = estimated_weights.shape[0]
-    cdef np.ndarray[DTYPE_t, ndim = 2] results_w = np.zeros((n_modes, 2))  # Results for grid comparision
-    cdef np.ndarray[DTYPE_t, ndim = 2] results_s = np.zeros((n_modes, 2))  # Results for grid comparision
-    cdef np.ndarray[DTYPE_t, ndim = 2] com_matrix_w = np.zeros((n_modes, n_components))
-    cdef np.ndarray[DTYPE_t, ndim = 2] com_matrix_s = np.zeros((n_modes, n_components))
-
-    # For w_t
-    cdef np.ndarray[DTYPE_t, ndim = 3] true_weights_3
-    cdef unsigned int time_steps = data.shape[0]
-    cdef unsigned int locations = data.shape[1]
-
-    if W_t:
-        true_weights_3 = true_weights.reshape(time_steps, n_modes, locations)
+    cdef np.ndarray[DTYPE_t, ndim=2] corr_matrix
+    corr_matrix = np.zeros((N, max_comps))
 
     cdef Py_ssize_t i
     cdef Py_ssize_t j
-    cdef float r
-    cdef float prob
 
-    # Grid comparision
-    if compar_method in ['modes', 'both']:
-        for i in range(n_modes):
-            for j in range(n_components):
-                r, prob = st.pearsonr(true_weights[i, :], estimated_weights[j, :])
-                com_matrix_w[i, j] = r
+    # Find correlations
+    for i in range(N):
+        for j in range(max_comps):
+            corr_matrix[i, j] = np.corrcoef(true[:, i], permuted[j, :])[0, 1]
 
-                if verbose:
-                    print("The component {} and {} have relation {}".format(i, j, r))
+    cdef dict permutation_dict = {}
+    cdef list used_comps = []
 
-        for i in range(n_modes):
-            results_w[i, 0] = np.max(abs(com_matrix_w[i, :]))
-            results_w[i, 1] = np.argmax(abs(com_matrix_w[i, :]))
+    # Find best order
+    cdef np.ndarray[long, ndim=2] per_matrix
+    per_matrix = np.argsort(-np.abs(corr_matrix), axis=1)
 
-    # Signal comparision
-    cdef np.ndarray[DTYPE_t, ndim = 2] true_signal
-    cdef np.ndarray[DTYPE_t, ndim = 2] estimated_signal
+    for i in range(N):
+        for j in per_matrix[i, :]:
+            if j in used_comps:
+                continue
+            else:
+                permutation_dict[i] = j
+                used_comps.append(j)
+                break
 
-    print("This has been reached")
+    return permutation_dict
 
+@cython.boundscheck(False)  # Deactivate bounds checking
+@cython.wraparound(False)   # Deactivate negative indexing.
+def compare_weights(np.ndarray[DTYPE_t, ndim=2] original_weights,
+                    np.ndarray[DTYPE_t, ndim=2] estimated_weights,
+                    bint return_matrix = False):
 
-    if compar_method in ['signal', 'both']:
+    original_weights = copy.deepcopy(original_weights)
+    estimated_weights= copy.deepcopy(estimated_weights)
 
-        if not W_t:
-            true_signal = data @ true_weights.transpose()  # Shape (t, N)
-            estimated_signal = data @ estimated_weights.transpose()  # Shape(t, N)
-        else:
-            # True_weights (t, n, l) data(t, l) -> W(t, l, n) data(t, l, 1) = (t, n)
-            true_signal = np.sum(data[:, :, np.newaxis]*np.transpose(true_weights_3, axes=(0, 2, 1)),
-                                 axis=1)
-            estimated_signal = data @ estimated_weights.transpose()  # Shape(t, N)
+    # Swap modes. we want n_components times locations
+    if estimated_weights.shape[0] > estimated_weights.shape[1]:
+        estimated_weights = np.swapaxes(estimated_weights, 0, 1)
 
-        for i in range(n_modes):
-            for j in range(n_components):
-                r, prob = st.pearsonr(true_signal[:, i], estimated_signal[:, j])
-                com_matrix_s[i, j] = r
+    # def used variables
+    cdef unsigned int n_modes = original_weights.shape[0]  # Original n modews
+    cdef unsigned int n_components = estimated_weights.shape[0]  # Predicted components
 
-                if verbose:
-                    print("The component {} and {} have relation {}".format(i, j, r))
+    # Store the corr between all of them
+    cdef np.ndarray[DTYPE_t, ndim = 2] com_matrix_w = np.zeros((n_modes, n_components))
+    cdef np.ndarray[DTYPE_t, ndim = 1] results_w = np.zeros(n_modes)  # Store the final result
 
-        for i in range(n_modes):
-            results_s[i, 0] = np.max(abs(com_matrix_s[i, :]))
-            results_s[i, 1] = np.argmax(abs(com_matrix_s[i, :]))
+    # Store the indexing for each component
+    cdef np.ndarray[Py_ssize_t, ndim=1] best_component
 
-    if compar_method == 'modes':
-        return results_w
+    cdef Py_ssize_t i
+    cdef Py_ssize_t j
 
-    if compar_method == 'signal':
-        return results_s
+    for i in range(n_modes):
+        for j in range(n_components):
+            com_matrix_w[i, j] = np.corrcoef(original_weights[i, ...], estimated_weights[j, ...])[0, 1]
 
-    if compar_method == 'both':
-        return results_w, results_s
+    # For each real mode select the best component non-repeated
+    cdef np.ndarray[DTYPE_t, ndim=1] best_corr  # Store the final values
+    cdef np.ndarray[DTYPE_int_t, ndim=1] best_corr_idx  # Store the best index
 
-## Non linear
-cdef float aux_func(float xtmp, str which):
-    funcDict = {
-            "linear": xtmp,
-            "quadratic": xtmp ** 2,
-            "cubic": xtmp ** 3,
-            "inverse": 1. / xtmp,
-            "log": np.log(np.abs(xtmp)),
-            # "f1"        :   2. * xtmp**2 / (1. + 0.5 * xtmp**4),
-            "f2": 1*(xtmp + 5. * xtmp ** 2 * np.exp(-xtmp ** 2 / 20.)),  # THE BEST Changing the 1 changes the non-linearty
-            "f3": .05 * (xtmp + 20. * 1. / (np.exp(-2. * (xtmp)) + 1.) * np.exp(-xtmp ** 2 / 100.)),
-            "f4": (1. - 4. * xtmp ** 3 * np.exp(-xtmp ** 2 / 2.)) * xtmp,
-            # "f4"        :   (1. - 4. * np.sin(xtmp)* xtmp**3 * np.exp(-xtmp**2 / 2.) ) * xtmp,
-            # "f5"        :   (1. - 2 * xtmp**2 * np.exp(-xtmp**2 / 2.)) * xtmp,
-    }
+    best_corr = np.zeros(3, dtype=float)
+    best_corr_idx = np.zeros(3, dtype=int)
+    cdef np.ndarray[long, ndim=1] best_idx_arr
+    cdef Py_ssize_t idx_sort
 
-    return funcDict[which]
+    for i in range(3):
+        best_idx_arr = np.argsort(-np.abs(com_matrix_w[i, :]), axis=0)  # Order them
 
-cdef float func(float coeff, float x, str coupling):
-    return coeff * aux_func(x, coupling)
+        idx_sort = 0  # Set index to 0
+        while best_idx_arr[idx_sort] in best_corr_idx[:i]:
+            idx_sort += 1
 
-cpdef unsigned int find_max_lag(links_coeffs):
-    """
-    Given the links_coeffs returns max lag must be a non-linear one
-    """
+        best_corr[i] = com_matrix_w[i, best_idx_arr[idx_sort]]
+        best_corr_idx[i] = best_idx_arr[idx_sort]
 
-    cdef unsigned int max_lag = 0
-    cdef unsigned int var_j
+    if return_matrix:
+        return np.abs(best_corr), com_matrix_w
+    else:
+        return np.abs(best_corr)
 
-    for var_j, links in links_coeffs.items():
-        for (_, lag_var), _, _ in links:
-            if abs(lag_var) > max_lag:
-                max_lag = abs(lag_var)
-
-    return max_lag
-
-cdef compute_nonlinear_next_time_step(np.ndarray network_data, dict links_coeffs):
-    """
-    Computes the next time step for a network in savar model
-    Network_data must be (n_var, time-max_lag:time)
-    returns a np.array of shape 1 and length = N_var
-    """
-
-    # definitions
-    cdef unsigned int n_var = len(links_coeffs)
-    cdef unsigned int max_lag = find_max_lag(links_coeffs)
-
-    # Check if network data is (n_var, max_lag)
-    assert network_data.shape[0] == n_var, "The number of variables of network and graph do not match"
-    assert network_data.shape[1] == max_lag,  "The max_lag of network and graph do not match"
-
-    # Return the result of the operation (transpose it so is time X n_var)
-    cdef DTYPE_t[::1] x_values = np.zeros(n_var)
-    cdef Py_ssize_t var_j
-    cdef Py_ssize_t var_i
-    cdef Py_ssize_t lag_var
-    cdef float coeff
-    cdef str function
-
-    for var_j, links in links_coeffs.items():
-        for (var_i, lag_var), coeff, function in links:
-            x_values[var_j] += func(coeff, network_data[var_i, lag_var-1], function)
-    return x_values
-
-
-
-    #return (data_past * graph).sum(axis=(2,1)).transpose()  # Return the next-time step in X domain
-
-def compute_nonlinear_linear_savar(np.ndarray data_field_noise, np.ndarray weights,
-                         dict links_coeffs):
-
-    """
-    Computes the time series of a savar model
-    :param data_field_noise: contains the noise at y level
-    :param weights noise
-    :params time_steps numer of time-steps to compute
-    """
-
-    # For linear
-    # D = data_field \in R^(T, l)
-    # W \in R^(l,n)
-    # U = W^(-1)
-    # N = D*W
-    # N \in R^(T, n)
-    # N*U = D*W*U -> N*U = D*1
-    # For non-linear use a for loop
-
-    print("We are inside compute nonlinear savar")
-
-    #TODO: check all the dimensions requiered
-
-    # Assert
-    assert weights.ndim <= 2, "Ndim is {} and should be two".format(weights.ndim)
-
-    # definitions
-    cdef unsigned int n_var = len(links_coeffs)
-    cdef unsigned int max_lag = find_max_lag(links_coeffs)
-
-    # Network data
-    cdef DTYPE_t[:, ::1] network_data
-    cdef DTYPE_t[::1] network_data_next
-
-    # Moore-Rose pseudoinverse
-    cdef DTYPE_t[:, ::1] U = np.linalg.pinv(weights)
-
-    # Iterate in time
-    cdef Py_ssize_t t
-    cdef Py_ssize_t time_steps = data_field_noise.shape[0]
-
-
-    for t in range(max_lag, time_steps):
-        network_data = data_field_noise[t-max_lag:t, :] @ weights
-        network_data_next = compute_nonlinear_next_time_step(network_data = np.asarray(network_data).transpose(),
-                                                   links_coeffs = links_coeffs)
-
-        data_field_noise[t, :] += np.dot(network_data_next, U)
-    # Recover the network data
-    network_data = data_field_noise @ weights
-
-    return data_field_noise, np.asarray(network_data)
+############################

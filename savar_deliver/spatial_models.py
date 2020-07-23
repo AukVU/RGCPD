@@ -1,7 +1,9 @@
 # This module contains spatio-temporal models
 
 import numpy as np
-from functions import make_dir, create_random_mode, check_stability#, is_pos_def
+import matplotlib.pyplot as plt
+import copy
+from functions import make_dir, create_random_mode, check_stability, is_pos_def
 from c_functions import create_graph, compute_linear_savar, generate_cov_matrix, compute_nonlinear_linear_savar, \
     find_max_lag
 from math import pi, sin
@@ -13,12 +15,19 @@ class savarModel:
     This class holds the savar model with all the information
     """
 
+    # Use __slot__ to save memory
+    __slots__ = ['links_coeffs', 'noise_weights', 'random_noise', 'max_loop_noise', 'modes_weights', 'variance_noise',
+                 'covariance_noise_method', 'ny', 'nx', 'T', 'spatial_covariance', 'transient', 'n_variables',
+                 'verbose', 'season', 'season_weight', 'forcing_field', 'lineartiy', 'nonl_coeff', 'w_t', 'data_field',
+                 'network_data', 'forcing', 'cov', 'noise_field']
+
     def __init__(self, links_coeffs: dict, modes_weights: np.ndarray, ny: int, nx: int, T: int,
                  spatial_covariance: float, noise_weights: np.ndarray = None,
-                 variance_noise: float = 1, covariance_noise_method: str = "geometric_mean",
+                 variance_noise: float = 1, covariance_noise_method: str = "weights_transposed",
                  max_loop_noise: int = 10, random_noise: tuple = (0, 1), transient: int = 200, forcing: tuple = None,
                  n_variables: int = 3, season: tuple = None, season_weight: np.ndarray = None,
-                 lineartiy: str = "linear", w_t: bool = False, verbose: bool = True) -> None:
+                 forcing_field: np.ndarray = None, linearity: str = "linear", nonl_coeff: float = 0.5,
+                 w_t: bool = False, verbose: bool = True) -> None:
 
         """
         :type model_des_uniform:
@@ -30,13 +39,16 @@ class savarModel:
         :param nx (K): nx: number of latitudinal grid points
         :param T: number of time-steps of the model
         :param spatial_covariance: used to create the noise covariance. Decrease it if is not pos. semidef
-        :param forcing: (forcing weight matrix: np.ndarray(n_var, ny, nx), forcing at short term: int, forcing at long term: int,
-        time-step till F = f_1: int, time-step that whcn f = f_2: int)
+        :param forcing: (forcing weight matrix: np.ndarray(n_var, ny, nx),
+                          forcing value at short term: float, forcing at long term: float,
+                          time-step till F = f_1: int, time-step which f = f_2: int)
         :param n_variables: how many climate variables are there, asssuming that they are longitudinally concatenated
         :param season (amplitude, period): define a seasonality on data
         :param season_weight np.ndarray (ny, nx) if None and season not None, is 1 everywhere
         :param random_noise (mean, var) or None
-        :param lineartiy "linear" or "non-linear"
+        :param forcing_field: some external forcing that is added tot the noise field. shape: (T, nx*ny)
+        :param linearity: "linear" or "non-linear"
+        :param w_t: A matrix with W as a function of time.
         :param verbose:
         """
 
@@ -57,7 +69,9 @@ class savarModel:
         self.verbose = verbose
         self.season = season
         self.season_weight = season_weight
-        self.lineartiy = lineartiy
+        self.forcing_field = forcing_field
+        self.lineartiy = linearity
+        self.nonl_coeff = nonl_coeff
         self.w_t = w_t
         if self.w_t:
             self.transient = 0
@@ -87,10 +101,10 @@ class savarModel:
         if forcing:
             w_f, f_1, f_2, f_time_1, f_time_2 = self.forcing['w_f'], self.forcing['f_1'], \
                                                 self.forcing['f_2'], self.forcing['f_time_1'], self.forcing['f_time_2']
+            # The default value of w_f is 1 everywhere
+            w_f = w_f if w_f is not None else np.ones_like(self.modes_weights)
 
-        # Some checks
-        if forcing:
-            assert self.T > f_time_2, "F_time_2 should be bigger than T"
+            assert self.T > f_time_2, "F_time_2 should be smaller than T"
 
         # Obtain some useful parameters
         graph, max_lag = create_graph(self.links_coeffs, return_lag=True)
@@ -112,6 +126,7 @@ class savarModel:
 
             data_field = np.random.multivariate_normal(mean=np.zeros(ny * nx), cov=cov, size=T + transient,
                                                        check_valid="ignore")
+            self.noise_field = copy.deepcopy(data_field)[transient:, ...]
         else:
             noise_mean, noise_variance = self.random_noise
             data_field = (np.random.rand(ny * nx * (T + transient)).reshape(
@@ -124,7 +139,7 @@ class savarModel:
             trend = np.concatenate((np.repeat([f_1], f_time_1 + transient), np.linspace(f_1, f_2, f_time_2 - f_time_1),
                                     np.repeat([f_2], T - f_time_2))).reshape((1, 1, T + transient))
 
-            # We modify the data_field to ad all the forcing (season an external)
+            # We modify the data_field to add all the forcing (season an external)
             external_forcing_field = (w_f.reshape((n_var, ny * nx, 1)) * trend).sum(
                 axis=0)  # \in R^(nx*ny, T+transient)
 
@@ -155,6 +170,10 @@ class savarModel:
 
         if self.verbose:
             print("Compute values in time...")
+
+        # Add other external forcing from self.forcing_field
+        if self.forcing_field is not None:
+            data_field[transient:, ...] += self.forcing_field
 
         if not self.w_t:  # Not dinamical W
             data_field, network = compute_linear_savar(data_field,
@@ -194,7 +213,7 @@ class savarModel:
 
         # Obtain some useful parameters
 
-        max_lag = find_max_lag(self.links_coeffs)
+        # max_lag = find_max_lag(self.links_coeffs)
         n_var = len(self.links_coeffs)
 
         if self.verbose:
@@ -256,9 +275,14 @@ class savarModel:
         if self.verbose:
             print("Compute values in time...")
 
+        # Add other external forcing from self.forcing_field
+        if self.forcing_field is not None:
+            data_field[transient:, ...] += self.forcing_field
+
         data_field, network = compute_nonlinear_linear_savar(data_field,
                                                              self.modes_weights.reshape(n_var, nx * ny).transpose(),
-                                                             self.links_coeffs)
+                                                             self.links_coeffs,
+                                                             self.nonl_coeff)
 
         if self.verbose:
             print("Done...")
@@ -266,3 +290,15 @@ class savarModel:
         # Return cutting off transient
         self.data_field = data_field[transient:, :]
         self.network_data = network[transient:]
+
+    def create_savar_data(self):
+        if self.lineartiy == "linear":
+            self.create_linear_savar_data()
+        elif self.lineartiy == "nonlinear":
+            self.create_nonlinear_savar_data()
+        else:
+            raise KeyError("linearty must be linear or nonlinear. currently", self.lineartiy)
+
+    def plot(self):
+        plt.plot(self.network_data)
+        plt.show()

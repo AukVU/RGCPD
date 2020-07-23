@@ -8,6 +8,7 @@ This module contains all the dimensionality reduction methods used
 from functions import *
 # External modules
 import numpy as np
+
 from sklearn import linear_model
 
 
@@ -140,7 +141,7 @@ def varimax(Phi, gamma=1.0, q=500,
     """
 
     :param Phi: The V of the SVD
-    :param gamma: if = 1, equals to Varimax. if = 0 quartimax. if = k/2 equamax. if = p*(k-1)/(p+k-2) parsimax
+    :param gamma: if = 1, equals to Varimax. if = 0 c. if = k/2 equamax. if = p*(k-1)/(p+k-2) parsimax
     :param q: number of iterations, breaks if objective archived before
     :param rtol: parameter of the machine
     :param verbosity: verbosity

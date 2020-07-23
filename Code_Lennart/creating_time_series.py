@@ -4,7 +4,7 @@ sys.path.insert(0,'savar_deliver')
 import spatial_models as models
 import matplotlib.pyplot as plt
 from functions import create_random_mode, check_stability
-from c_functions import deseason_data, standardize_data, compare_modes
+from c_functions import deseason_data, standardize_data#, compare_modes
 
 import numpy as np
 
@@ -95,8 +95,8 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
 
     for mode in links_coeffs:
         for link in links_coeffs[mode]:
-            start_node = link[0][0]
-            end_node = mode
+            start_node = mode
+            end_node = link[0][0]
             M.add_edges_from([(start_node, end_node, {'color': 'red', 'weight': link[1]*5, 'length': 10})])
 
     pos = nx.spectral_layout(M)
@@ -112,8 +112,8 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
         plt.subplot(122)
         for mode in results:
             for link in results[mode]:
-                start_node = link[0][0]
-                end_node = mode
+                start_node = mode
+                end_node = link[0][0]
                 N.add_edges_from([(start_node, end_node, {'color': 'red', 'weight': link[1]*5, 'length': 10})])
 
         pos = nx.spectral_layout(N)
@@ -133,11 +133,11 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
     plt.savefig(filename, format='pdf')
     # plt.show()
 
-def create_causal_map(N, verbose=False):
+def create_causal_map(N, settings, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
-        autocorrelation = 0.5 * np.random.random() + 0.25
+        autocorrelation = 0.1 * np.random.random() + 0.8
         for mode in range(0, N):
             possible_links = list(range(N))
             del possible_links[mode]
@@ -147,7 +147,7 @@ def create_causal_map(N, verbose=False):
                 for link in range(np.random.randint(1,3)):
                     # choice = np.random.choice(possible_links)
                     # possible_links.remove(choice)
-                    strength = max(0, np.random.uniform(low=0,high=0.1) + 0.9)
+                    strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
                     if verbose:
                         print(f"Link {link + 1} with strength {strength}")
                     links_coeffs[mode] += [((link + 1, 10), strength)]
@@ -157,7 +157,8 @@ def create_causal_map(N, verbose=False):
                 for link in range(np.random.randint(start,3)):
                     choice = np.random.choice(possible_links)
                     possible_links.remove(choice)
-                    links_coeffs[mode] += [((choice, 10), 0.1 * np.random.uniform(low=-1,high=1) + 0.9)]
+                    links_coeffs[mode] += [((choice, 10), 0.1 * np.random.uniform(low=-1,high=1) + settings['signal'])]
+            autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
         try:
             check_stability(links_coeffs)
             result = "Generated"
@@ -165,6 +166,41 @@ def create_causal_map(N, verbose=False):
             # print("New try making causal map")
             pass
     return links_coeffs
+
+# def create_causal_map_inv(N, settings, verbose=False):
+#     result = None
+#     while result == None:
+#         links_coeffs = {}
+#         autocorrelation = 0.1 * np.random.random() + 0.8
+#         for mode in range(0, N):
+#             links_coeffs[mode] = [((mode, 10), autocorrelation)]
+#         for mode in range(0, N):
+#             possible_links = list(range(N))
+#             del possible_links[mode]
+#             start = 1
+#             if mode == 0:
+#                 for link in range(np.random.randint(1,3)):
+#                     # choice = np.random.choice(possible_links)
+#                     # possible_links.remove(choice)
+#                     strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
+#                     if verbose:
+#                         print(f"Link {link + 1} with strength {strength}")
+#                     links_coeffs[link + 1] += [((mode, 10), strength)]
+#             elif mode == (N - 1):
+#                 pass
+#             else:
+#                 for link in range(np.random.randint(start,3)):
+#                     choice = np.random.choice(possible_links)
+#                     possible_links.remove(choice)
+#                     links_coeffs[choice] += [((mode, 10), 0.1 * np.random.uniform(low=-1,high=1) + settings['signal'])]
+#             autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
+#         try:
+#             check_stability(links_coeffs)
+#             result = "Generated"
+#         except:
+#             # print("New try making causal map")
+#             pass
+#     return links_coeffs
 
 def write_nc(savar, data_field, settings, output='test'):
     user_dir = settings['user_dir']
@@ -174,7 +210,7 @@ def write_nc(savar, data_field, settings, output='test'):
     # clusters = data.shape[1] - 1
     # columns = clusters / 2
     # columns = int(columns * 2 - 1)
-    lon = np.arange(-140,-140 + (settings['N'] - 1) * settings['nx'],1)
+    lon = np.arange(0, (settings['N'] - 1) * settings['nx'],1)
     lat = np.arange(10,10 + settings['nx'],1)
     if settings['area_size'] == 'small':
         lon = np.arange(-140,-120,1)
@@ -198,15 +234,16 @@ def write_nc(savar, data_field, settings, output='test'):
     #         temp_data[time][2 * step_y:3 * step_y, start:start + step_x] += data[time][1 + int(clusters / 2) + i]# + np.random.normal(0,1)
     #         start = start + 2 * step_x
 
-    temp_data = data_field[:, :, 30:]
+    print(f'DATA FIELD heeft size: {data_field.shape}')
+    temp_data = data_field[:, :, settings['nx']:]
 
-    nc.createDimension('lon', len(lon))
-    nc.createDimension('lat', len(lat))
+    nc.createDimension('longitude', len(lon))
+    nc.createDimension('latitude', len(lat))
     nc.createDimension('time', None)
 
-    longitude = nc.createVariable('longitude', 'f4', 'lon')
-    latitude = nc.createVariable('latitude', 'f4', 'lat')
-    data_nc = nc.createVariable('test_SAVAR', 'f4', ('time', 'lat', 'lon'))
+    longitude = nc.createVariable('longitude', 'i4', 'longitude')
+    latitude = nc.createVariable('latitude', 'i4', 'latitude')
+    data_nc = nc.createVariable('test_SAVAR', 'f4', ('time', 'latitude', 'longitude'))
     time = nc.createVariable('time', 'i4', 'time')
 
     longitude[:] = lon #The "[:]" at the end of the variable instance is necessary
@@ -217,13 +254,15 @@ def write_nc(savar, data_field, settings, output='test'):
 
     time.units = 'days since 1979-01-01 00:00:00'
     time.calendar = 'gregorian'
+    latitude.units = 'degrees_north'
+    longitude.units = 'degrees_east'
 
     nc.close()
 
     data_dict = {f'{output}_target':data[:,0]}
     filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}_target.nc'
     nct = Dataset(filename, 'w', format='NETCDF4')
-    lon = np.arange(-140,-140 + (settings['N'] - 1) * settings['nx'],1)
+    lon = np.arange(0, (settings['N'] - 1) * settings['nx'],1)
     lat = np.arange(10,10 + settings['nx'],1)
     if settings['area_size'] == 'small':
         lon = np.arange(-140,-120,1)
@@ -243,8 +282,8 @@ def write_nc(savar, data_field, settings, output='test'):
     nct.createDimension('cluster', 5)
     nct.createDimension('time', None)
 
-    longitude = nct.createVariable('longitude', 'f4', 'longitude')
-    latitude = nct.createVariable('latitude', 'f4', 'latitude')
+    longitude = nct.createVariable('longitude', 'i4', 'longitude')
+    latitude = nct.createVariable('latitude', 'i4', 'latitude')
     ts = nct.createVariable('ts', 'f4', ('cluster', 'time'))
     time = nct.createVariable('time', 'i4', 'time')
     cluster = nct.createVariable('cluster', 'i4', 'cluster')
@@ -264,7 +303,7 @@ def write_nc(savar, data_field, settings, output='test'):
 
 def save_time_series(savar, settings, output='test'):
     user_dir = settings['user_dir']
-    data = savar.network_data
+    data = savar.data_field @ savar.modes_weights.reshape(N, -1).transpose()
     periods = data.shape[0]
     # print('save time series')
     filename = user_dir + f'/Code_Lennart/results/{output}/time_series'
@@ -301,7 +340,7 @@ def create_real_matrices(settings, general_path, links_coeffs):
     number_of_links = 0
     for key in range(settings['N']):
         for link in links_coeffs[key]:
-            if key == 1:
+            if key == 0:
                 number_of_links += 1
             van = link[0][0]
             lag = 1
@@ -316,10 +355,36 @@ def create_real_matrices(settings, general_path, links_coeffs):
     if os.path.isdir(path) != True : os.makedirs(path)
     np.save(path + '/ZZZ_correlated', list(range(N)))
     np.save(path + '/ZZZ_real_links', real_links)
+    print(f'\n\n The real links are {real_links}\n\n')
+    save_matrices(settings, path, pmatrix, val_matrix)
+
+def create_real_matrices_old(settings, general_path, links_coeffs):
+    N = settings['N']
+    pmatrix = [[[1 for lag in range(3)] for x in range(N)] for y in range(N)]
+    val_matrix = [[[0 for lag in range(3)] for x in range(N)] for y in range(N)]
+    number_of_links = 0
+    for key in range(settings['N']):
+        for link in links_coeffs[key]:
+            if link[0][0] == 0:
+                number_of_links += 1
+            van = key
+            lag = 1
+            val = link[1]
+            naar = link[0][0]
+            # print(f'van {van} naar {naar}')
+            pmatrix[van][naar][lag] = 0
+            val_matrix[van][naar][lag] = val
+    real_links = np.ones(N)
+    real_links[:number_of_links] = 0
+    path = general_path + '/matrices/AAA_real'
+    if os.path.isdir(path) != True : os.makedirs(path)
+    np.save(path + '/ZZZ_correlated', list(range(N)))
+    np.save(path + '/ZZZ_real_links', real_links)
+    print(f'\n\n The real links are {real_links}\n\n')
     save_matrices(settings, path, pmatrix, val_matrix)
 
 
-def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, plot_timeseries=False, draw_network=False):
+def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, plot_timeseries=False, draw_network=False, cluster=False):
     nx, ny, T, N = settings['nx'], settings['ny'], settings['T'], settings['N']
     spatial_covariance = settings['spatial_covariance']
     general_path = settings['user_dir'] + '/' + settings['extra_dir'] + '/results/' + settings['filename']
@@ -331,7 +396,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         os.makedirs(remove_path + '/NC')
 
     if settings['random_causal_map']:
-        links_coeffs = create_causal_map(N, verbose)
+        links_coeffs = create_causal_map(N, settings, verbose)
     elif links_coeffs == None:
         print('Using default causal map of Xavier')
         links_coeffs = get_links_coeffs('Xavier')
@@ -344,7 +409,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
     N = settings['N'] = len(links_coeffs)
 
     create_real_matrices(settings, general_path, links_coeffs)
-    if verbose:
+    if verbose and not cluster:
         print('\n---------------------------' +
                 f"\nThe settings are:\n\nNumber of modes = {N}\nnx = {nx}, ny = {ny}, T = {T}\nspatial_covariance = {spatial_covariance}\n" +
                 f"Random modes = {settings['random_modes']}\nSpatial factor = {settings['spatial_factor']}" +
@@ -358,12 +423,13 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
     modes_weights = np.zeros((N, nx, N * nx))
 
     for mode in range(N):
-        modes_weights[mode, :, mode * nx:(mode + 1) * nx] = create_random_mode((nx, nx), random = settings['random_modes'])
+        modes_weights[mode, :, mode * nx:(mode + 1) * nx] = create_random_mode((nx, nx), random = settings['random_modes'], plot=False)
     
     if plot_modes:
-        plt.imshow(modes_weights.sum(axis=0))
-        plt.colorbar()
-        plt.show()
+        if not cluster:
+            plt.imshow(modes_weights.sum(axis=0))
+            plt.colorbar()
+            plt.show()
     
     if settings['noise_use_mean']:
         for mode in range(N):
@@ -373,7 +439,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         noise_weights = modes_weights
     
 
-    if draw_network:
+    if draw_network and not cluster:
         draw_network_func(links_coeffs, settings, output=settings['filename'])
     # sys.exit()
 
@@ -386,25 +452,25 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         spatial_covariance=spatial_covariance,
         covariance_noise_method='geometric_mean',
         # covariance_noise_method='equal_noise',
-        variance_noise=1,
-        # noise_weights=noise_weights,
-        random_noise=(0,settings['noise_level']),
+        variance_noise=settings['noise_level'],
+        noise_weights=noise_weights,
+        # random_noise=(0,settings['noise_level']),
         transient = settings['transient'], 
         n_variables = N,
         verbose = verbose
     )
     savar.create_linear_savar_data()
 
-    if plot_modes:
+    if plot_modes and not cluster:
         modes = varimax(savar.data_field)
         for i in range(5):
-            plt.imshow(modes['weights'][:, i].reshape(30, 150))
+            plt.imshow(modes['weights'][:, i].reshape(settings['nx'], settings['ny']))
             plt.colorbar()
             plt.show()
 
     datafield = savar.data_field.reshape(-1, settings['nx'], settings['ny'])
 
-    if plot_timeseries:
+    if plot_timeseries and not cluster:
         plot_points = settings['plot_points']
         plot_timeseries_func(savar, plot_points, settings, output=settings['filename'])
     
@@ -415,7 +481,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         save_time_series(savar, settings, output=settings['filename'])
 
     if settings['do_pcmci']:
-        data = savar.network_data
+        data = savar.data_field @ savar.modes_weights.reshape(N, -1).transpose()
         # data, _ = pp.var_process(links_coeffs, T=1000)
         dataframe = pp.DataFrame(data)
 
@@ -445,7 +511,8 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
                 value = val_min[mode][link]
                 links_results.append(((link[0], -1 * link[1]), value))
             results[mode] = links_results
-        draw_network_func(links_coeffs, settings, results=results, output=settings['filename'])
+        if not cluster:
+            draw_network_func(links_coeffs, settings, results=results, output=settings['filename'])
 
         
 

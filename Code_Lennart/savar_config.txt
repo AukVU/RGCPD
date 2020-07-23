@@ -1,0 +1,44 @@
+savar_conf = {
+    # Savar
+    "n_variables": 5,
+    "spatial_covariance": 0.5,  <------!!!
+    "time_length": 500,
+    "variance_noise": 10,  # For resolution 40,60 is the good one
+    "noise_weights": None,
+    "covariance_noise_method": "weights_transposed",
+    "transient": 200,
+    "forcing": None,
+    "season": None,
+    "season_weight": None,
+    "linearity": "linear",
+    "nonl_coeff" : 0.5,
+    "forcing_field": None,
+    "w_t": False,
+    "verbose": True,
+    "ornstein_sigma": None,
+    "n_var_ornstein": None,
+    # Weights
+    "resolution": (40, 60),  # Good one is 40-60
+    "spatial_weight_mean": 1,
+    "spatial_weight_std": 0.1,
+    "gaussian_shape": True,
+    "dipole": None,
+    "random_mode": True,
+    "mask_variables": None,
+    # Links
+    "n_links": 10,
+    "auto_coeffs_mean": 0.3,
+    "auto_coffs_std": 0.2,
+    "auto_strength_threshold": 0.2,
+    "auto_random_sign": 0.,
+    "coupling_mean": 0.3,
+    "coupling_std": 0.2,
+    "coupling_strength_threshold": 0.2,
+    "coupling_random_sign": 0.2,
+    "n_non_linear": None,
+    "tau_max": 3,
+    "n_trial": 90000,
+    "model_seed": None,
+}
+
+variance noise

@@ -1,0 +1,1 @@
+scp -r lmp500@login1.labs.vu.nl:Documents/RGCPD/Output/results_multiple/. /home/lmp500/Documents/RGCPD/output/results/

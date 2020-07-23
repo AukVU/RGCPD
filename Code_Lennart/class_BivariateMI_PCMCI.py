@@ -34,7 +34,7 @@ from statsmodels.tsa.stattools import grangercausalitytests
 
 class BivariateMI_PCMCI:
 
-    def __init__(self, name, func=None, kwrgs_func={}, lags=np.array([1]), 
+    def __init__(self, name, func=None, kwrgs_func={}, kwrgs_bivariate={}, lags=np.array([1]), 
                  distance_eps=400, min_area_in_degrees2=3, group_split='together', 
                  calc_ts='region mean', verbosity=1):
         '''
@@ -88,6 +88,11 @@ class BivariateMI_PCMCI:
             self.kwrgs_func = {'alpha':.05, 'FDR_control':True}
         else:
             self.kwrgs_func = kwrgs_func
+        
+        if (kwrgs_bivariate == {}) and (self.bivariate_func.__name__ == 'parcorr_map_time'):
+            self.kwrgs_bivariate = {'lag':1, 'target':False, 'precur':True}
+        else:
+            self.kwrgs_bivariate = kwrgs_bivariate
 
 
         #get_prec_ts & spatial_mean_regions
@@ -162,7 +167,7 @@ class BivariateMI_PCMCI:
                 # correlation map and pvalue at each grid-point:
                 # corr_val, pval = corr_new(prec_lag, RV_ts.values.squeeze())
                 # corr_val, pval = entropy_new(prec_lag, RV_ts.values.squeeze())
-                corr_val, pval = self.bivariate_func(prec_lag, RV_ts.values.squeeze())
+                corr_val, pval = self.bivariate_func(prec_lag, RV_ts.values.squeeze(), **self.kwrgs_bivariate)
                 mask = np.ones(corr_val.size, dtype=bool)
                 if FDR_control == True:
                     # test for Field significance and mask unsignificant values
@@ -268,7 +273,7 @@ def granger_map(field, ts):
     return corr_vals, pvals
 
 
-def parcorr_map(field, ts):
+def parcorr_map_spatial(field, ts):
     x = np.ma.zeros(field.shape[1])
     corr_vals = np.array(x)
     pvals = np.array(x)
@@ -291,6 +296,33 @@ def parcorr_map(field, ts):
         # a = cond_ind_test.get_dependence_measure(data,[0,1])
         # b = cond_ind_test.get_analytic_significance(a, len(ts[0]), 2)
         a, b = cond_ind_test.run_test_raw(ts, np.expand_dims(field[:,i], axis=1), data)
+        corr_vals[i] = a
+        pvals[i] = b
+    return corr_vals, pvals
+
+def parcorr_map_time(field, ts, lag=1, target=False, precur=True):
+    x = np.ma.zeros(field.shape[1])
+    corr_vals = np.array(x)
+    pvals = np.array(x)
+    fieldnans = np.array([np.isnan(field[:,i]).any() for i in range(x.size)])
+    
+    nonans_gc = np.arange(0, fieldnans.size)[fieldnans==False]
+    if target:
+        z = np.expand_dims(ts[:-lag], axis=1)
+    ts = np.expand_dims(ts[lag:], axis=1)
+    for i in nonans_gc:
+
+        cond_ind_test = ParCorr()
+        if precur:
+            if target:
+                z2 = np.expand_dims(field[:-lag, i], axis=1)
+                z = np.concatenate((z,z2), axis=1)
+            else:
+                z = np.expand_dims(field[:-lag, i], axis=1)
+        # a = cond_ind_test.get_dependence_measure(data,[0,1])
+        # b = cond_ind_test.get_analytic_significance(a, len(ts[0]), 2)
+        field_i = np.expand_dims(field[lag:,i], axis=1)
+        a, b = cond_ind_test.run_test_raw(ts, field_i, z)
         corr_vals[i] = a
         pvals[i] = b
     return corr_vals, pvals

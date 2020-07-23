@@ -60,7 +60,7 @@ def calculate_region_maps(precur, TV, df_splits, kwrgs_load): #, lags=np.array([
     # =============================================================================
     # Calculate BivariateMI (correlation) map
     # =============================================================================
-    corr_xr = precur.func(precur_arr, df_splits, TV)
+    corr_xr = precur.bivariateMI_map(precur_arr, df_splits, TV)
     # =============================================================================
     # update class precur
     # =============================================================================

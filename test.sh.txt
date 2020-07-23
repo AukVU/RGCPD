@@ -1,0 +1,17 @@
+#!/bin/bash
+#Set job requirements
+#SBATCH -N 1 --ntasks-per-node=16
+#SBATCH -t 01:30:00
+
+#Loading modules
+module load Python/3.7.2-GCCcore-8.2.0
+module load netCDF/c-4.7.3
+
+#Copy input data to scratch and create output directory
+cp -r $HOME/Documents/RGCPD "$TMPDIR"
+
+#Run program
+python Code_Lennart/call_cts.py cluster
+
+#Copy output data from scratch to home
+cp -r "$TMPDIR"/RGCPD/Code_Lennart/results $HOME/Documents/RGCPD_output

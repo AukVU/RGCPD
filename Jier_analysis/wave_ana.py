@@ -81,28 +81,35 @@ def choose_wavelet_signal(data, families=families, debug=False):
             ren = renyi_entropy(ap, 3)
             rennies.append(ren)
             entr = entropy(ap)
-            ratio = e_ap/ entr if entr else 0.0
-            r_ren = e_ap/ ren if ren else 0.0
+            ratio = e_ap/ entr if entr else 0.01
+            r_ren = e_ap/ ren if ren else 0.01
             bit = rennies[0] - rennies[i-1] if len(rennies) > 2 else 0.0
             if debug == True:
-                print('index', i,'wave ', fam, 'energy', e_ap, 'entropy sh', entr, 'renyi', ren,  'ratio shanny', ratio, "ratio renny", r_ren,'Renyi bit of info', round(bit) ) 
-            info[fam]['energy'].append(e_ap)
+                print('index', i,'wave ', fam, 'energy', np.log10(e_ap), 'entropy sh', entr, 'renyi', ren,  'ratio shanny', np.log10(ratio), "ratio renny", np.log10(r_ren),'Renyi bit of info', np.exp2(round(bit)), sep='\n\n' ) 
+            info[fam]['energy'].append(np.log10(e_ap) if abs(np.log10(e_ap)) != np.inf else 0)
             info[fam]['shanon'].append(entr)
             info[fam]['renyi'].append(ren)
-            info[fam]['r_shanon'].append(ratio)
-            info[fam]['r_renyi'].append(r_ren)
-            info[fam]['bit'].append(round(bit))
+            info[fam]['r_shanon'].append(np.log10(ratio) if abs(np.log10(ratio)) != np.inf else 0)
+            info[fam]['r_renyi'].append(np.log10(r_ren) if abs(np.log10(r_ren)) != np.inf else 0)
+            info[fam]['bit'].append(np.exp2(round(bit)))
+        if debug == True:
+            print('\n*-------------------------------------*\n')
     plot_choice_wavelet_signal(data=info, columns=tests)
 
-def plot_choice_wavelet_signal(data, columns):
+def plot_choice_wavelet_signal(data, columns, savefig=False):
     # TODO FIX THIS PLOT
     df = pd.DataFrame.from_dict(data=data, orient='index').stack().to_frame()
     df = pd.DataFrame(df[0].values.tolist(), index=df.index) 
-
-    # fig, ax = plt.subplots(len(families),len(columns), figsize=(19, 8)) 
-    # fig.suptitle('Choice wavelets for given data', fontsize=18)
-    df.plot(subplots=True,  layout=(len(families), len(df.columns)), figsize=(19, 8))
-    # plt.tight_layout()
+    index = pd.MultiIndex.from_tuples(df.index, names=['wave', 'analysis'])
+    df.index = index 
+    df  = df.rename(columns={i:'level '+str(i) for i, _ in enumerate(df.columns.tolist())})
+    df = df.T
+  
+    for col in columns:
+        df.xs(col, level=('analysis'), axis=1).plot(subplots=True, layout=(4, 4), figsize=(16, 8), title='Analysis  of '+ col+' per wavelet on decomposition level')
+        if savefig == True:
+            plt.savefig('Wavelet/wave_choice'+ col +'_analysis .pdf', dpi=120)
+            plt.savefig('Wavelet/wave_choice'+ col +'_analysis .png', dpi=120)
     plt.show()  
 
 
@@ -137,7 +144,7 @@ def setup_wavelets_rgdata(rg, wave='db4', modes=wv.Modes.periodic):
     rg_data = rg_data.rename(columns={cols[i]:'prec'+str(i) for i in range(1, len(cols)) })
     rg_index = rg_data.index.levels[1]
     precursor_list = [rg_data['prec'+str(i)].values for i in range(1, len(cols))]
-    target = rg_data[cols[0]].values
+    target = rg_data[cols[0]]
     wave  = wv.Wavelet(wave)
     mode=modes 
     return (rg_data, rg_index), (precursor_list, target), (wave, mode)
@@ -159,12 +166,12 @@ def plot_discr_wave_decomp(data, wave):
     plt.tight_layout()
     plt.show()
 
-def create_low_freq_components(data, wave='db4', mode=wv.Modes.periodic, debug=False):
+def create_low_freq_components(data, level=6, wave='db4', mode=wv.Modes.periodic, debug=False):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     s = data
     cA = []
     lvl_decomp = wv.dwt_max_level(len(data), wave.dec_len)
-    lvl_decomp = 6 if lvl_decomp > 6 else lvl_decomp
+    lvl_decomp = level if lvl_decomp > level else lvl_decomp
     for i in range(lvl_decomp): # Using recursion to overwrite signal to go level deepeer
         s, _ =  wv.dwt(s, wave , mode=mode)
         cA.append(s)
@@ -175,7 +182,7 @@ def create_low_freq_components(data, wave='db4', mode=wv.Modes.periodic, debug=F
             print('Level: ', i,'Size: ', len(c))
     return cA
 
-def create_mci_coeff(cA, cA_t, rg_index, debug=False):
+def create_mci_coeff(cA, cA_t, rg_index, rg, debug=False):
 
     obj_rgcpd = []
     for i in range(0,len(cA)):    

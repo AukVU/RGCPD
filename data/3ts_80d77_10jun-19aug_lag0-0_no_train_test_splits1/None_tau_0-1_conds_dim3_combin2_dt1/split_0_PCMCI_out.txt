@@ -1,0 +1,1487 @@
+
+# Initialize conditional independence test
+
+Parameters:
+independence test = par_corr
+significance = analyticmask_type = y
+time 14600, samples 3
+
+##
+## Running Tigramite PC algorithm
+##
+
+Parameters:
+independence test = par_corr
+tau_min = 1
+tau_max = 1
+pc_alpha = None
+max_conds_dim = 3
+max_combinations = 2
+
+
+
+## Variable 3ts
+
+Iterating through pc_alpha = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]:
+
+# pc_alpha = 0.05 (1/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.821
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.169
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.181
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.821
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.181
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.169
+
+Testing condition sets of dimension 1:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = 0.815
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.816
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1)  --> pval = 0.22779 / val = -0.011
+    Non-significance detected.
+
+    Link (0..1..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.063
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.147
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.815
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.063
+
+Algorithm converged for variable 3ts
+
+# pc_alpha = 0.1 (2/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.821
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.169
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.181
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.821
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.181
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.169
+
+Testing condition sets of dimension 1:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = 0.815
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.816
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1)  --> pval = 0.22779 / val = -0.011
+    Non-significance detected.
+
+    Link (0..1..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.063
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.147
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.815
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.063
+
+Algorithm converged for variable 3ts
+
+# pc_alpha = 0.2 (3/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.821
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.169
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.181
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.821
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.181
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.169
+
+Testing condition sets of dimension 1:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = 0.815
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.816
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1)  --> pval = 0.22779 / val = -0.011
+    Non-significance detected.
+
+    Link (0..1..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.063
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.147
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.815
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.063
+
+Algorithm converged for variable 3ts
+
+# pc_alpha = 0.3 (4/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.821
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.169
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.181
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.821
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.181
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.169
+
+Testing condition sets of dimension 1:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = 0.815
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.816
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1)  --> pval = 0.22779 / val = -0.011
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = -0.161
+    No conditions of dimension 1 left.
+
+    Link (0..1..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.063
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.147
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.815
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.063
+        (0..2..sm -1): max_pval = 0.22779, min_val = 0.011
+
+Testing condition sets of dimension 2:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.811
+    No conditions of dimension 2 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.062
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1) (0..1..sm -1)  --> pval = 0.66400 / val = -0.004
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.811
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.062
+
+Algorithm converged for variable 3ts
+
+# pc_alpha = 0.4 (5/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.821
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.169
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.181
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.821
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.181
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.169
+
+Testing condition sets of dimension 1:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = 0.815
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.816
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1)  --> pval = 0.22779 / val = -0.011
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = -0.161
+    No conditions of dimension 1 left.
+
+    Link (0..1..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.063
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.147
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.815
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.063
+        (0..2..sm -1): max_pval = 0.22779, min_val = 0.011
+
+Testing condition sets of dimension 2:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.811
+    No conditions of dimension 2 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.062
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1) (0..1..sm -1)  --> pval = 0.66400 / val = -0.004
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.811
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.062
+
+Algorithm converged for variable 3ts
+
+# pc_alpha = 0.5 (6/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.821
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.169
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.181
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.821
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.181
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.169
+
+Testing condition sets of dimension 1:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = 0.815
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.816
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1)  --> pval = 0.22779 / val = -0.011
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = -0.161
+    No conditions of dimension 1 left.
+
+    Link (0..1..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.063
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.147
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 3 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.815
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.063
+        (0..2..sm -1): max_pval = 0.22779, min_val = 0.011
+
+Testing condition sets of dimension 2:
+
+    Link (3ts -1) --> 3ts (1/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.811
+    No conditions of dimension 2 left.
+
+    Link (0..1..sm -1) --> 3ts (2/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.062
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 3ts (3/3):
+    Combination 0: (3ts -1) (0..1..sm -1)  --> pval = 0.66400 / val = -0.004
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.811
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.062
+
+Algorithm converged for variable 3ts
+
+# Condition selection results:
+    pc_alpha=0.05 got score 98428.9596 with parents [ (3ts -1) (0..1..sm -1) ]
+    pc_alpha=0.1 got score 98428.9596 with parents [ (3ts -1) (0..1..sm -1) ]
+    pc_alpha=0.2 got score 98428.9596 with parents [ (3ts -1) (0..1..sm -1) ]
+    pc_alpha=0.3 got score 98428.9596 with parents [ (3ts -1) (0..1..sm -1) ]
+    pc_alpha=0.4 got score 98428.9596 with parents [ (3ts -1) (0..1..sm -1) ]
+    pc_alpha=0.5 got score 98428.9596 with parents [ (3ts -1) (0..1..sm -1) ]
+
+--> optimal pc_alpha for variable 3ts is 0.05
+
+## Variable 0..1..sm
+
+Iterating through pc_alpha = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]:
+
+# pc_alpha = 0.05 (1/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..1..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.143
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..1..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.975
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.134
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.975
+        (3ts -1): max_pval = 0.00000, min_val = 0.143
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.134
+
+Testing condition sets of dimension 1:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.974
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.00000 / val = -0.070
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.118
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.02072 / val = 0.021
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.108
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.070
+        (0..2..sm -1): max_pval = 0.02072, min_val = 0.021
+
+Testing condition sets of dimension 2:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = -0.067
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.39784 / val = 0.008
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 2 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.067
+
+Algorithm converged for variable 0..1..sm
+
+# pc_alpha = 0.1 (2/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..1..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.143
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..1..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.975
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.134
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.975
+        (3ts -1): max_pval = 0.00000, min_val = 0.143
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.134
+
+Testing condition sets of dimension 1:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.974
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.00000 / val = -0.070
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.118
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.02072 / val = 0.021
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.108
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.070
+        (0..2..sm -1): max_pval = 0.02072, min_val = 0.021
+
+Testing condition sets of dimension 2:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = -0.067
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.39784 / val = 0.008
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 2 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.067
+
+Algorithm converged for variable 0..1..sm
+
+# pc_alpha = 0.2 (3/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..1..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.143
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..1..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.975
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.134
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.975
+        (3ts -1): max_pval = 0.00000, min_val = 0.143
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.134
+
+Testing condition sets of dimension 1:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.974
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.00000 / val = -0.070
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.118
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.02072 / val = 0.021
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.108
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.070
+        (0..2..sm -1): max_pval = 0.02072, min_val = 0.021
+
+Testing condition sets of dimension 2:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = -0.067
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.39784 / val = 0.008
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 2 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.067
+
+Algorithm converged for variable 0..1..sm
+
+# pc_alpha = 0.3 (4/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..1..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.143
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..1..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.975
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.134
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.975
+        (3ts -1): max_pval = 0.00000, min_val = 0.143
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.134
+
+Testing condition sets of dimension 1:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.974
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.00000 / val = -0.070
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.118
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.02072 / val = 0.021
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.108
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.070
+        (0..2..sm -1): max_pval = 0.02072, min_val = 0.021
+
+Testing condition sets of dimension 2:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = -0.067
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.39784 / val = 0.008
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 2 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.067
+
+Algorithm converged for variable 0..1..sm
+
+# pc_alpha = 0.4 (5/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..1..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.143
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..1..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.975
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.134
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.975
+        (3ts -1): max_pval = 0.00000, min_val = 0.143
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.134
+
+Testing condition sets of dimension 1:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.974
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.00000 / val = -0.070
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.118
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.02072 / val = 0.021
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.108
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.070
+        (0..2..sm -1): max_pval = 0.02072, min_val = 0.021
+
+Testing condition sets of dimension 2:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = -0.067
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.39784 / val = 0.008
+    No conditions of dimension 2 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.067
+        (0..2..sm -1): max_pval = 0.39784, min_val = 0.008
+
+Algorithm converged for variable 0..1..sm
+
+# pc_alpha = 0.5 (6/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..1..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.143
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..1..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.975
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.134
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.975
+        (3ts -1): max_pval = 0.00000, min_val = 0.143
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.134
+
+Testing condition sets of dimension 1:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.974
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.00000 / val = -0.070
+    Combination 1: (0..2..sm -1)  --> pval = 0.00000 / val = 0.118
+    No conditions of dimension 1 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1)  --> pval = 0.02072 / val = 0.021
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.108
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.070
+        (0..2..sm -1): max_pval = 0.02072, min_val = 0.021
+
+Testing condition sets of dimension 2:
+
+    Link (0..1..sm -1) --> 0..1..sm (1/3):
+    Combination 0: (3ts -1) (0..2..sm -1)  --> pval = 0.00000 / val = 0.974
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..1..sm (2/3):
+    Combination 0: (0..1..sm -1) (0..2..sm -1)  --> pval = 0.00000 / val = -0.067
+    No conditions of dimension 2 left.
+
+    Link (0..2..sm -1) --> 0..1..sm (3/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.39784 / val = 0.008
+    No conditions of dimension 2 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..1..sm has 3 parent(s):
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.067
+        (0..2..sm -1): max_pval = 0.39784, min_val = 0.008
+
+Algorithm converged for variable 0..1..sm
+
+# Condition selection results:
+    pc_alpha=0.05 got score 76120.0409 with parents [ (0..1..sm -1) (3ts -1) ]
+    pc_alpha=0.1 got score 76120.0409 with parents [ (0..1..sm -1) (3ts -1) ]
+    pc_alpha=0.2 got score 76120.0409 with parents [ (0..1..sm -1) (3ts -1) ]
+    pc_alpha=0.3 got score 76120.0409 with parents [ (0..1..sm -1) (3ts -1) ]
+    pc_alpha=0.4 got score 76121.3257 with parents [ (0..1..sm -1) (3ts -1) (0..2..sm -1) ]
+    pc_alpha=0.5 got score 76121.3257 with parents [ (0..1..sm -1) (3ts -1) (0..2..sm -1) ]
+
+--> optimal pc_alpha for variable 0..1..sm is 0.05
+
+## Variable 0..2..sm
+
+Iterating through pc_alpha = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]:
+
+# pc_alpha = 0.05 (1/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..2..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.205
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.150
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..2..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.972
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.972
+        (3ts -1): max_pval = 0.00000, min_val = 0.205
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.150
+
+Testing condition sets of dimension 1:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.971
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.971
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.39525 / val = 0.008
+    Non-significance detected.
+
+    Link (0..1..sm -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = -0.048
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.121
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 2 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.971
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+
+Algorithm converged for variable 0..2..sm
+
+# pc_alpha = 0.1 (2/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..2..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.205
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.150
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..2..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.972
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.972
+        (3ts -1): max_pval = 0.00000, min_val = 0.205
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.150
+
+Testing condition sets of dimension 1:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.971
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.971
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.39525 / val = 0.008
+    Non-significance detected.
+
+    Link (0..1..sm -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = -0.048
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.121
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 2 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.971
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+
+Algorithm converged for variable 0..2..sm
+
+# pc_alpha = 0.2 (3/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..2..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.205
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.150
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..2..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.972
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.972
+        (3ts -1): max_pval = 0.00000, min_val = 0.205
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.150
+
+Testing condition sets of dimension 1:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.971
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.971
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.39525 / val = 0.008
+    Non-significance detected.
+
+    Link (0..1..sm -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = -0.048
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.121
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 2 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.971
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+
+Algorithm converged for variable 0..2..sm
+
+# pc_alpha = 0.3 (4/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..2..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.205
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.150
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..2..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.972
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.972
+        (3ts -1): max_pval = 0.00000, min_val = 0.205
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.150
+
+Testing condition sets of dimension 1:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.971
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.971
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.39525 / val = 0.008
+    Non-significance detected.
+
+    Link (0..1..sm -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = -0.048
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.121
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 2 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.971
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+
+Algorithm converged for variable 0..2..sm
+
+# pc_alpha = 0.4 (5/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..2..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.205
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.150
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..2..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.972
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.972
+        (3ts -1): max_pval = 0.00000, min_val = 0.205
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.150
+
+Testing condition sets of dimension 1:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.971
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.971
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.39525 / val = 0.008
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = -0.186
+    No conditions of dimension 1 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = -0.048
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.121
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.971
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+        (3ts -1): max_pval = 0.39525, min_val = 0.008
+
+Testing condition sets of dimension 2:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.00000 / val = 0.970
+    No conditions of dimension 2 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1) (3ts -1)  --> pval = 0.00000 / val = -0.049
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1) (0..1..sm -1)  --> pval = 0.11496 / val = 0.014
+    No conditions of dimension 2 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.970
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+        (3ts -1): max_pval = 0.39525, min_val = 0.008
+
+Algorithm converged for variable 0..2..sm
+
+# pc_alpha = 0.5 (6/6):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 0..2..sm (1/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.205
+    No conditions of dimension 0 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0:  --> pval = 0.00000 / val = -0.150
+    No conditions of dimension 0 left.
+
+    Link (0..2..sm -1) --> 0..2..sm (3/3):
+    Combination 0:  --> pval = 0.00000 / val = 0.972
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.972
+        (3ts -1): max_pval = 0.00000, min_val = 0.205
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.150
+
+Testing condition sets of dimension 1:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = 0.971
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = 0.971
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.39525 / val = 0.008
+    Combination 1: (0..1..sm -1)  --> pval = 0.00000 / val = -0.186
+    No conditions of dimension 1 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1)  --> pval = 0.00000 / val = -0.048
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = -0.121
+    No conditions of dimension 1 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.971
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+        (3ts -1): max_pval = 0.39525, min_val = 0.008
+
+Testing condition sets of dimension 2:
+
+    Link (0..2..sm -1) --> 0..2..sm (1/3):
+    Combination 0: (0..1..sm -1) (3ts -1)  --> pval = 0.00000 / val = 0.970
+    No conditions of dimension 2 left.
+
+    Link (0..1..sm -1) --> 0..2..sm (2/3):
+    Combination 0: (0..2..sm -1) (3ts -1)  --> pval = 0.00000 / val = -0.049
+    No conditions of dimension 2 left.
+
+    Link (3ts -1) --> 0..2..sm (3/3):
+    Combination 0: (0..2..sm -1) (0..1..sm -1)  --> pval = 0.11496 / val = 0.014
+    No conditions of dimension 2 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 0..2..sm has 3 parent(s):
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.970
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+        (3ts -1): max_pval = 0.39525, min_val = 0.008
+
+Algorithm converged for variable 0..2..sm
+
+# Condition selection results:
+    pc_alpha=0.05 got score 77349.8089 with parents [ (0..2..sm -1) (0..1..sm -1) ]
+    pc_alpha=0.1 got score 77349.8089 with parents [ (0..2..sm -1) (0..1..sm -1) ]
+    pc_alpha=0.2 got score 77349.8089 with parents [ (0..2..sm -1) (0..1..sm -1) ]
+    pc_alpha=0.3 got score 77349.8089 with parents [ (0..2..sm -1) (0..1..sm -1) ]
+    pc_alpha=0.4 got score 77349.3232 with parents [ (0..2..sm -1) (0..1..sm -1) (3ts -1) ]
+    pc_alpha=0.5 got score 77349.3232 with parents [ (0..2..sm -1) (0..1..sm -1) (3ts -1) ]
+
+--> optimal pc_alpha for variable 0..2..sm is 0.4
+
+## Resulting condition sets:
+
+    Variable 3ts has 2 parent(s):
+    [pc_alpha = 0.05]
+        (3ts -1): max_pval = 0.00000, min_val = 0.815
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.063
+
+    Variable 0..1..sm has 2 parent(s):
+    [pc_alpha = 0.05]
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.974
+        (3ts -1): max_pval = 0.00000, min_val = 0.067
+
+    Variable 0..2..sm has 3 parent(s):
+    [pc_alpha = 0.4]
+        (0..2..sm -1): max_pval = 0.00000, min_val = 0.970
+        (0..1..sm -1): max_pval = 0.00000, min_val = 0.048
+        (3ts -1): max_pval = 0.39525, min_val = 0.008
+
+##
+## Running Tigramite MCI algorithm
+##
+
+Parameters:
+
+independence test = par_corr
+tau_min = 0
+tau_max = 1
+max_conds_py = None
+max_conds_px = None
+
+        link (3ts -1) --> 3ts (1/5):
+        with conds_y = [ (0..1..sm -1) ]
+        with conds_x = [ (3ts -2) (0..1..sm -2) ]
+        pval = 0.00000 | val = 0.761
+
+        link (0..1..sm 0) --> 3ts (2/5):
+        with conds_y = [ (3ts -1) (0..1..sm -1) ]
+        with conds_x = [ (0..1..sm -1) (3ts -1) ]
+        pval = 0.00000 | val = 0.081
+
+        link (0..1..sm -1) --> 3ts (3/5):
+        with conds_y = [ (3ts -1) ]
+        with conds_x = [ (0..1..sm -2) (3ts -2) ]
+        pval = 0.00000 | val = 0.187
+
+        link (0..2..sm 0) --> 3ts (4/5):
+        with conds_y = [ (3ts -1) (0..1..sm -1) ]
+        with conds_x = [ (0..2..sm -1) (0..1..sm -1) (3ts -1) ]
+        pval = 0.00000 | val = -0.286
+
+        link (0..2..sm -1) --> 3ts (5/5):
+        with conds_y = [ (3ts -1) (0..1..sm -1) ]
+        with conds_x = [ (0..2..sm -2) (0..1..sm -2) (3ts -2) ]
+        pval = 0.00017 | val = -0.034
+
+        link (3ts 0) --> 0..1..sm (1/5):
+        with conds_y = [ (0..1..sm -1) (3ts -1) ]
+        with conds_x = [ (3ts -1) (0..1..sm -1) ]
+        pval = 0.00000 | val = 0.081
+
+        link (3ts -1) --> 0..1..sm (2/5):
+        with conds_y = [ (0..1..sm -1) ]
+        with conds_x = [ (3ts -2) (0..1..sm -2) ]
+        pval = 0.00000 | val = -0.070
+
+        link (0..1..sm -1) --> 0..1..sm (3/5):
+        with conds_y = [ (3ts -1) ]
+        with conds_x = [ (0..1..sm -2) (3ts -2) ]
+        pval = 0.00000 | val = 0.875
+
+        link (0..2..sm 0) --> 0..1..sm (4/5):
+        with conds_y = [ (0..1..sm -1) (3ts -1) ]
+        with conds_x = [ (0..2..sm -1) (0..1..sm -1) (3ts -1) ]
+        pval = 0.03540 | val = -0.019
+
+        link (0..2..sm -1) --> 0..1..sm (5/5):
+        with conds_y = [ (0..1..sm -1) (3ts -1) ]
+        with conds_x = [ (0..2..sm -2) (0..1..sm -2) (3ts -2) ]
+        pval = 0.15085 | val = -0.013
+
+        link (3ts 0) --> 0..2..sm (1/5):
+        with conds_y = [ (0..2..sm -1) (0..1..sm -1) (3ts -1) ]
+        with conds_x = [ (3ts -1) (0..1..sm -1) ]
+        pval = 0.00000 | val = -0.286
+
+        link (3ts -1) --> 0..2..sm (2/5):
+        with conds_y = [ (0..2..sm -1) (0..1..sm -1) ]
+        with conds_x = [ (3ts -2) (0..1..sm -2) ]
+        pval = 0.00000 | val = -0.137
+
+        link (0..1..sm 0) --> 0..2..sm (3/5):
+        with conds_y = [ (0..2..sm -1) (0..1..sm -1) (3ts -1) ]
+        with conds_x = [ (0..1..sm -1) (3ts -1) ]
+        pval = 0.03540 | val = -0.019
+
+        link (0..1..sm -1) --> 0..2..sm (4/5):
+        with conds_y = [ (0..2..sm -1) (3ts -1) ]
+        with conds_x = [ (0..1..sm -2) (3ts -2) ]
+        pval = 0.00000 | val = -0.069
+
+        link (0..2..sm -1) --> 0..2..sm (5/5):
+        with conds_y = [ (0..1..sm -1) (3ts -1) ]
+        with conds_x = [ (0..2..sm -2) (0..1..sm -2) (3ts -2) ]
+        pval = 0.00000 | val = 0.860
+
+## Significant links at alpha = 0.05:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | val = 0.761 | conf = (0.000, 0.000)
+        (0..2..sm 0): pval = 0.00000 | val = -0.286 | conf = (0.000, 0.000)
+        (0..1..sm -1): pval = 0.00000 | val = 0.187 | conf = (0.000, 0.000)
+        (0..1..sm 0): pval = 0.00000 | val = 0.081 | conf = (0.000, 0.000)
+        (0..2..sm -1): pval = 0.00017 | val = -0.034 | conf = (0.000, 0.000)
+
+    Variable 0..1..sm has 4 link(s):
+        (0..1..sm -1): pval = 0.00000 | val = 0.875 | conf = (0.000, 0.000)
+        (3ts 0): pval = 0.00000 | val = 0.081 | conf = (0.000, 0.000)
+        (3ts -1): pval = 0.00000 | val = -0.070 | conf = (0.000, 0.000)
+        (0..2..sm 0): pval = 0.03540 | val = -0.019 | conf = (0.000, 0.000)
+
+    Variable 0..2..sm has 5 link(s):
+        (0..2..sm -1): pval = 0.00000 | val = 0.860 | conf = (0.000, 0.000)
+        (3ts 0): pval = 0.00000 | val = -0.286 | conf = (0.000, 0.000)
+        (3ts -1): pval = 0.00000 | val = -0.137 | conf = (0.000, 0.000)
+        (0..1..sm -1): pval = 0.00000 | val = -0.069 | conf = (0.000, 0.000)
+        (0..1..sm 0): pval = 0.03540 | val = -0.019 | conf = (0.000, 0.000)
+
+## Significant links at alpha = 0.1:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.761
+        (0..2..sm 0): pval = 0.00000 | qval = 0.00000 | val = -0.286
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.187
+        (0..1..sm 0): pval = 0.00000 | qval = 0.00000 | val = 0.081
+        (0..2..sm -1): pval = 0.00017 | qval = 0.00020 | val = -0.034
+
+    Variable 0..1..sm has 4 link(s):
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.875
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = 0.081
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = -0.070
+        (0..2..sm 0): pval = 0.03540 | qval = 0.03540 | val = -0.019
+
+    Variable 0..2..sm has 5 link(s):
+        (0..2..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.860
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = -0.286
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = -0.137
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = -0.069
+        (0..1..sm 0): pval = 0.03540 | qval = 0.03540 | val = -0.019
+
+## Significant links at alpha = 0.05:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.761
+        (0..2..sm 0): pval = 0.00000 | qval = 0.00000 | val = -0.286
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.187
+        (0..1..sm 0): pval = 0.00000 | qval = 0.00000 | val = 0.081
+        (0..2..sm -1): pval = 0.00017 | qval = 0.00020 | val = -0.034
+
+    Variable 0..1..sm has 4 link(s):
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.875
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = 0.081
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = -0.070
+        (0..2..sm 0): pval = 0.03540 | qval = 0.03540 | val = -0.019
+
+    Variable 0..2..sm has 5 link(s):
+        (0..2..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.860
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = -0.286
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = -0.137
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = -0.069
+        (0..1..sm 0): pval = 0.03540 | qval = 0.03540 | val = -0.019
+
+## Significant links at alpha = 0.01:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.761
+        (0..2..sm 0): pval = 0.00000 | qval = 0.00000 | val = -0.286
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.187
+        (0..1..sm 0): pval = 0.00000 | qval = 0.00000 | val = 0.081
+        (0..2..sm -1): pval = 0.00017 | qval = 0.00020 | val = -0.034
+
+    Variable 0..1..sm has 3 link(s):
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.875
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = 0.081
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = -0.070
+
+    Variable 0..2..sm has 4 link(s):
+        (0..2..sm -1): pval = 0.00000 | qval = 0.00000 | val = 0.860
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = -0.286
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = -0.137
+        (0..1..sm -1): pval = 0.00000 | qval = 0.00000 | val = -0.069

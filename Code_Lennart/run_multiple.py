@@ -13,6 +13,14 @@ if cluster_func not in sys.path:
     sys.path.append(RGCPD_func)
     sys.path.append(cluster_func)
 
+# df_ana_dir = os.path.join(curr_dir, '..', 'df_analysis/df_analysis/') # add df_ana path
+# fc_dir       = os.path.join(curr_dir, '..', 'forecasting/') # add df_ana path
+# sys.path.append(df_ana_dir) ; sys.path.append(fc_dir)
+# df_ana_dir2 = os.path.join(curr_dir, '..', 'df_analysis/') # add df_ana path
+# sys.path.append(df_ana_dir2)
+df_ana_dir2 = os.path.join(curr_dir, 'df_analysis/') # add df_ana path
+sys.path.append(df_ana_dir2)
+
 import creating_time_series as cts
 import causal_score
 
@@ -81,12 +89,12 @@ def filter_matrices(matrices, locs, locs_intersect=None):
         locs_intersect = list(set.intersection(*map(set, locs)))
     else:
         locs_intersect = locs_intersect[1:]
+    filtered_matrices = np.zeros((len(matrices), len(locs_intersect) + 1, len(locs_intersect) + 1, len(matrices[0][0][0])))
     for i, loc in enumerate(locs):
         indices = list(np.where(np.isin(loc, locs_intersect))[0])
         indices = [0] + [i+1 for i in indices]
-        matrices[i] = matrices[i][indices]
-        matrices[i] = matrices[i][:, indices]
-    return matrices, ([0] + locs_intersect)
+        filtered_matrices[i] = matrices[i][indices][:, indices]
+    return filtered_matrices, ([0] + locs_intersect)
 
      
 
@@ -96,8 +104,8 @@ def filter_matrices(matrices, locs, locs_intersect=None):
 
 def run_multiple(settings, years=None, modes=None, signals=None, noises=None, iterations=10):
     # bivariate_list = [corr_map, entropy_map, granger_map, gpdc_map, cmiknn_map, granger_map]
-    bivariate_list = [corr_map, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time]
-    bivariate_kwrgs_list = [(0,0,0), (5,False,True), (1,False,True), (1,True,False),(10,False,True)]
+    bivariate_list = [corr_map, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time]
+    bivariate_kwrgs_list = [(0,0,0), (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)]
     table_list = None
     test = None
 
@@ -129,9 +137,9 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
     noises_list = list(np.array(noises).flat)
     if noises == None:
-        noises_list = np.arange(0,10,1)
-        table_list = year_list
-        test = 'noise'
+        noises_list = np.arange(0,26,1)
+        table_list = noises_list
+        test = 'nois'
     print(f"\nTested number of noise levels: {noises_list}")
 
 
@@ -147,7 +155,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
     pcmci_df = np.zeros((iterations, len(table_list)))
     print(table_list)
     bivariate_df = np.zeros((len(bivariate_list), iterations, len(table_list)))
-    print(bivariate_df)
+    # print(bivariate_df)
     for signal_i, signal in enumerate(signal_list):
         for year_i, time in enumerate(length_list):
             for mode_i, N in enumerate(modes_list):
@@ -160,13 +168,15 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
                         print(f"Modes: {N}")
                         print(f"Years = {year_list[year_i]}")
                         print(f"Signal = {signal}")
+                        print(f"Noise = {noise}")
                         settings['noise_level'] = noise #0.5
                         settings['signal'] = signal
                         settings['T'] = time
                         cts.create_time_series(settings, links_coeffs, verbose=False,
                                                                 plot_modes=False,
                                                                 plot_timeseries=False,
-                                                                draw_network=False)
+                                                                draw_network=False,
+                                                                cluster=True)
 
                         print("Finished generating!")
                         local_base_path = user_dir
@@ -191,7 +201,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
                             print(kwrgs_bivariate)
 
-                            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=400, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
+                            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=300, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
 
                             start_end_TVdate = None
                             start_end_date = None
@@ -223,7 +233,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
                             rg.calc_corr_maps()
 
-                            rg.plot_maps_corr(save=True)
+                            # rg.plot_maps_corr(save=True)
 
                             rg.cluster_list_MI()
 
@@ -261,8 +271,8 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
                             # val_matrix = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])[most_common_p_matrix]
                             # val_matrix = np.mean(val_matrix, axis=0)
 
-                            parents = rg.parents_dict[0][0]
-                            parents = [i[0] for i in parents if i[1] == -1]
+                            # parents = rg.parents_dict[0][0]
+                            # parents = [i[0] for i in parents if i[1] == -1]
 
 
 
@@ -360,7 +370,7 @@ settings['N'] = 5
 settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 5114
 settings['spatial_covariance'] = 0.3
 settings['random_modes'] = False
-settings['noise_use_mean'] = True
+settings['noise_use_mean'] = False
 settings['noise_level'] = 0
 settings['transient'] = 200
 settings['spatial_factor'] = 0.1
@@ -396,4 +406,4 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-run_multiple(settings, years=[5], modes=[7], signals=None, noises=[3], iterations=4)
+run_multiple(settings, years=[9], modes=[7], signals=[0.7], noises=None, iterations=30)

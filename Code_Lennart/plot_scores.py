@@ -23,6 +23,8 @@ def to_name(old_name):
         name = 'PCMCI directly on time series'
     elif old_name == 'parcorr_map':
         name = 'Partial correlation'
+    elif old_name == 'N epsilon_corr_map':
+        name = 'Correlation'
     else:
         name = old_name
     return name
@@ -35,7 +37,7 @@ def to_test(old_test):
     elif old_test == 'time':
         test = 'Years'
     elif old_test == 'DBSC':
-        test = 'DBSCAN'
+        test = 'DBSCAN distance_eps'
     else:
         test = old_test
     return test
@@ -46,7 +48,10 @@ def plot_scores(settings, path=None):
     if path == None:
         path = local_base_path + f'/Code_Lennart/results/scores/{output}'
     plt.figure(figsize=(20,5))
-    for subdir, dirs, files in os.walk(path):
+    for subdir, dirs, files in os.walk(path, topdown=True):
+        print(dirs)
+        dirs[:] = [d for d in dirs if d not in ['plot']]
+        
         for file in files:
             method = to_name(file[5:-4])
             test = file[:4]
@@ -72,12 +77,23 @@ def plot_scores(settings, path=None):
             df['Mode'][:] = repeats
             sns.lineplot(x='Mode', y='Score', ci=95, data=df, label=method)
             axes = plt.gca()
-            axes.set_ylim([0,1.05])
-            axes.set_xticks(repeats)
-            axes.set_xlabel(to_test(test), fontsize=18)
-            axes.set_ylabel('Score', fontsize=18)
+    axes.set_ylim([0.55,1.03])
+    # axes.set_xlim([197,603])
+    axes.set_xticks(repeats)
+    axes.set_xlabel(to_test(test), fontsize=24)
+    axes.set_ylabel('Score', fontsize=24)
             # plt.show()
-    plt.legend(loc=3, prop={'size': 18})
+    ax = plt.gca()
+    ax.tick_params(axis = 'both', which = 'major', labelsize = 18)
+    plt.legend(prop={'size': 24},loc='lower center', bbox_to_anchor=(0.5, 1.05),
+          ncol=2)
+    
+    filepath = path + '/plot'
+    if os.path.isdir(filepath) != True : os.makedirs(filepath)
+    filename = filepath  + f'/{to_test(test)}.pdf'
+    if os.path.isfile(filename):
+        os.remove(filename)
+    plt.savefig(filename, format='pdf',bbox_inches='tight')
     plt.show()
 
 
@@ -115,5 +131,8 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-path = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD/Results_Lennart/scores'
+test = 'NOISE_1'
+
+user_dir = settings['user_dir']
+path = user_dir + f'/Results_Lennart/scores/' + test
 plot_scores(settings, path=path)

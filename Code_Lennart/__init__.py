@@ -8,7 +8,7 @@ from class_RGCPD import RGCPD
 # from func_fc import fcev
 from class_EOF import EOF
 # from class_BivariateMI import BivariateMI
-from class_BivariateMI_PCMCI import BivariateMI
+from class_BivariateMI_PCMCI import BivariateMI_PCMCI
 
 print('INIT2')
 

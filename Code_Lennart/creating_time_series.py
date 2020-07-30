@@ -14,6 +14,7 @@ from scipy.signal import savgol_filter
 from tigramite.pcmci import PCMCI
 from tigramite.independence_tests import ParCorr
 import tigramite.data_processing as pp
+from tigramite.plotting import plot_graph
 
 import seaborn as sns
 sns.set()
@@ -84,6 +85,41 @@ def plot_timeseries_func(savar, plot_points, settings, output='test'):
     plt.savefig(filename, format='pdf')
     # plt.show()
 
+def pcmci_plot(links_coeffs, settings, results=None, output='test'):
+    print('Plotting')
+    N = settings['N']
+    var_names = range(N)
+    var_names = [f'Precur {i}' for i in var_names]
+    var_names[0] = 'Target'
+    if results == None:
+        link_matrix = np.zeros((settings['N'], settings['N'], 11), dtype=bool)
+        val_matrix = np.zeros((settings['N'], settings['N'], 11))
+        for i, link in enumerate(links_coeffs):
+            for sublink in links_coeffs[link]:
+                link_matrix[sublink[0][0]][i][sublink[0][1]] = True
+                val_matrix[sublink[0][0]][i][sublink[0][1]] = sublink[1]
+        user_dir = settings['user_dir']
+        filepath = user_dir + f'/Code_Lennart/results/{output}/plots'
+        if os.path.isdir(filepath) != True : os.makedirs(filepath)
+        filename = filepath  + '/network_tigramite.pdf'
+        if os.path.isfile(filename):
+            os.remove(filename)
+        plot_graph(val_matrix, link_matrix=link_matrix, save_name=filename, var_names=var_names, node_label_size=1)
+    elif results != None:
+        link_matrix = np.zeros((settings['N'], settings['N'], 11), dtype=bool)
+        val_matrix = np.zeros((settings['N'], settings['N'], 11))
+        for i, link in enumerate(results):
+            for sublink in results[link]:
+                link_matrix[sublink[0][0]][i][sublink[0][1]] = True
+                val_matrix[sublink[0][0]][i][sublink[0][1]] = sublink[1]
+        user_dir = settings['user_dir']
+        filepath = user_dir + f'/Code_Lennart/results/{output}/plots'
+        if os.path.isdir(filepath) != True : os.makedirs(filepath)
+        filename = filepath  + '/network_tigramite_pcmci.pdf'
+        if os.path.isfile(filename):
+            os.remove(filename)
+        plot_graph(val_matrix, link_matrix=link_matrix, save_name=filename, var_names=var_names, node_label_size=1)
+
 def draw_network_func(links_coeffs, settings, results=None, output='test'):
     M = nx.DiGraph()
     M.add_nodes_from(range(settings['N']))
@@ -95,9 +131,14 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
 
     for mode in links_coeffs:
         for link in links_coeffs[mode]:
-            start_node = mode
-            end_node = link[0][0]
-            M.add_edges_from([(start_node, end_node, {'color': 'red', 'weight': link[1]*5, 'length': 10})])
+            start_node = link[0][0]
+            end_node = mode
+            color = 'red'
+            link_strength = link[1]
+            if link[1] < 0:
+                link_strength = -1 * link[1]
+                color = 'blue'
+            M.add_edges_from([(start_node, end_node, {'color': color, 'weight': link_strength * 5, 'length': 10})])
 
     pos = nx.spectral_layout(M)
     pos = graphviz_layout(M, prog='neato', root=0, args='')
@@ -112,8 +153,8 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
         plt.subplot(122)
         for mode in results:
             for link in results[mode]:
-                start_node = mode
-                end_node = link[0][0]
+                start_node = link[0][0]
+                end_node = mode
                 N.add_edges_from([(start_node, end_node, {'color': 'red', 'weight': link[1]*5, 'length': 10})])
 
         pos = nx.spectral_layout(N)
@@ -147,17 +188,19 @@ def create_causal_map(N, settings, verbose=False):
                 for link in range(np.random.randint(1,3)):
                     # choice = np.random.choice(possible_links)
                     # possible_links.remove(choice)
-                    strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
+                    # strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
+                    strength = max(0, 0.1 * np.random.uniform(low=0,high=3) + settings['signal']) * np.random.choice([-1,1])
                     if verbose:
                         print(f"Link {link + 1} with strength {strength}")
                     links_coeffs[mode] += [((link + 1, 10), strength)]
             elif mode == (N - 1):
                 pass
             else:
-                for link in range(np.random.randint(start,3)):
+                for link in range(np.random.randint(start,4)):
                     choice = np.random.choice(possible_links)
                     possible_links.remove(choice)
-                    links_coeffs[mode] += [((choice, 10), 0.1 * np.random.uniform(low=-1,high=1) + settings['signal'])]
+                    strength = (0.1 * np.random.uniform(low=-2,high=0) + settings['signal']) * np.random.choice([-1,1])
+                    links_coeffs[mode] += [((choice, 10), strength)]
             autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
         try:
             check_stability(links_coeffs)
@@ -441,7 +484,9 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
     if draw_network and not cluster:
         draw_network_func(links_coeffs, settings, output=settings['filename'])
+        pcmci_plot(links_coeffs, settings, output=settings['filename'])
     # sys.exit()
+
 
     savar = models.savarModel(
         links_coeffs=links_coeffs,
@@ -450,7 +495,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         nx=nx,
         T=T,
         spatial_covariance=spatial_covariance,
-        covariance_noise_method='geometric_mean',
+        # covariance_noise_method='geometric_mean',
         # covariance_noise_method='equal_noise',
         variance_noise=settings['noise_level'],
         noise_weights=noise_weights,
@@ -491,7 +536,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         if verbose:
             pcmci.print_significant_links(p_matrix=pcmci_output['p_matrix'],
                                                 val_matrix=pcmci_output['val_matrix'],
-                                                alpha_level=0.0001)
+                                                alpha_level=0.01)
 
 
         pcmci_matrix_path = general_path + '/matrices/pcmci_test'
@@ -512,7 +557,8 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
                 links_results.append(((link[0], -1 * link[1]), value))
             results[mode] = links_results
         if not cluster:
-            draw_network_func(links_coeffs, settings, results=results, output=settings['filename'])
+            # draw_network_func(links_coeffs, settings, results=results, output=settings['filename'])
+            pcmci_plot(links_coeffs, settings, results=results, output=settings['filename'])
 
         
 

@@ -61,7 +61,7 @@ if len(sys.argv) > 1:
     local_base_path = sys.argv[1]
 else:
     print('Not cluster')
-    local_base_path = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD/Code_Lennart/results"
+    local_base_path = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD" #/Code_Lennart/results
 print(local_base_path)
 local_script_dir = os.path.join(local_base_path, "ERA5" )
 # sys.exit()
@@ -113,14 +113,14 @@ settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
 
-# output = 'era5'
-output =  'test_met_savar7'
-bivariate = corr_map
+output = 'era5'
+# output =  'test_met_savar11'
+# bivariate = corr_map
 # bivariate = entropy_map
 # bivariate = entropy_map_pearson
 # bivariate = granger_map
 # bivariate = parcorr_map_spatial
-# bivariate = parcorr_map_time
+bivariate = parcorr_map_time
 # bivariate = gpdc_map
 # bivariate = rcot_map
 # bivariate = cmiknn_map
@@ -128,9 +128,9 @@ bivariate = corr_map
 
 kwrgs_bivariate = {}
 if bivariate == parcorr_map_time:
-    lag = 1
-    target = False
-    precur = True
+    lag = 5
+    target = True
+    precur = False
     kwrgs_bivariate = {'lag':lag, 'target':target, 'precur':precur}
 
 if output == 'era5':
@@ -150,7 +150,7 @@ if output == 'era5':
     ]
 
     # list_for_EOFS = [EOF(name='st2', neofs=1, selbox=[-180, 360, -15, 30])]
-    list_for_MI   = [BivariateMI_PCMCI(name='st2', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True})]
+    list_for_MI   = [BivariateMI_PCMCI(name='st2', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=400, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
 
 else:
     list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
@@ -162,11 +162,11 @@ else:
     list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=400, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
 
 # start_end_TVdate = ('06-24', '08-22')
-start_end_TVdate = None
+# start_end_TVdate = None
 
-#start_end_TVdate = ('06-15', '08-31')
-# start_end_date = ('1-1', '12-31')
-start_end_date = None
+start_end_TVdate = ('06-15', '08-31')
+start_end_date = ('1-1', '12-31')
+# start_end_date = None
 
 RGCPD_path = local_base_path + f'/{output}/output_RGCPD/{bivariate.__name__}'
 if bivariate.__name__ == 'parcorr_map_time':
@@ -193,7 +193,7 @@ rg.pp_TV()
 
 #kwrgs_events={'event_percentile':66}
 kwrgs_events=None
-rg.traintest(method='random10', kwrgs_events=kwrgs_events)
+rg.traintest(method='random5', kwrgs_events=kwrgs_events)
 
 rg.calc_corr_maps()
 
@@ -256,22 +256,31 @@ locs = rename_labels(rg)
 
 rg.get_ts_prec(precur_aggr=None)
 
+# keys = rg.df_data.columns[0]
 rg.PCMCI_df_data(pc_alpha=None, 
                  tau_max=2,
                  max_combinations=2)
 
 rg.PCMCI_get_links(alpha_level=0.1)
 
-rg.PCMCI_plot_graph(s=1)
+kwrgs = {'link_colorbar_label':'cross-MCI',
+                     'node_colorbar_label':'auto-MCI',
+                     'curved_radius':.4,
+                     'arrowhead_size':4000,
+                     'arrow_linewidth':50,
+                     'label_fontsize':14,
+                     'node_label_size':1}
+rg.PCMCI_plot_graph(s=1, variable='1ts', kwrgs=kwrgs)
+rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
 
 
 
 rg.quick_view_labels()
 
-rg.plot_maps_sum()
+rg.plot_maps_sum(cols=['corr'])
 
-parents = rg.parents_dict[0][0]
-parents = [i[0] for i in parents if i[1] == -1]
+# parents = rg.parents_dict[0][0]
+# parents = [i[0] for i in parents if i[1] == -1]
 
 
 
@@ -294,7 +303,7 @@ val_matrix = np.mean(val_matrices, axis=0)
 # locs = list(set(flatten(locs)))
 # locs = [0] + locs_filtered
 print(f'\n\nFound regions {locs}')
-print(f'Found parents for split 0: {list(np.array(locs)[parents])}\n')
+# print(f'Found parents for split 0: {list(np.array(locs)[parents])}\n')
 # print(common_length)
 cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
 np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)

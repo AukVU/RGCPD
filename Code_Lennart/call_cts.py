@@ -5,12 +5,12 @@ import sys
 import creating_time_series as cts
 
 settings = {}
-settings['N'] = 5
-settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 1461 #5114
+settings['N'] = 8
+settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 1826 #5114
 settings['spatial_covariance'] = 0.25
 settings['random_modes'] = False
 settings['noise_use_mean'] = False
-settings['noise_level'] = 18
+settings['noise_level'] = 10
 settings['transient'] = 200
 settings['spatial_factor'] = 0.1
 
@@ -19,7 +19,7 @@ if len(sys.argv) > 1:
 else:
     settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 settings['extra_dir'] = 'Code_Lennart'
-settings['filename'] = 'test_met_savar7'
+settings['filename'] = 'test_met_savar11'
 
 # sys.exit()
 settings['random_causal_map'] = True

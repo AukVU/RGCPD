@@ -81,12 +81,12 @@ def filter_matrices(matrices, locs, locs_intersect=None):
         locs_intersect = list(set.intersection(*map(set, locs)))
     else:
         locs_intersect = locs_intersect[1:]
+    filtered_matrices = np.zeros((len(matrices), len(locs_intersect) + 1, len(locs_intersect) + 1, len(matrices[0][0][0])))
     for i, loc in enumerate(locs):
         indices = list(np.where(np.isin(loc, locs_intersect))[0])
         indices = [0] + [i+1 for i in indices]
-        matrices[i] = matrices[i][indices]
-        matrices[i] = matrices[i][:, indices]
-    return matrices, ([0] + locs_intersect)
+        filtered_matrices[i] = matrices[i][indices][:, indices]
+    return filtered_matrices, ([0] + locs_intersect)
 
      
 
@@ -105,7 +105,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
     DBSCAN_list = list(np.array(cluster).flat)
     if cluster == None:
-        DBSCAN_list = np.arange(400, 460, 50)
+        DBSCAN_list = np.arange(200, 610, 50)
         table_list = DBSCAN_list
         test = 'DBSCAN epsilon' 
     print(f"\nTested cluster epsilons: {DBSCAN_list}")
@@ -131,13 +131,14 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
             print(f'Iteration {iteration + 1}/{iterations}')
             print('')
             print(f"cluster_eps: {cluster_eps}")
-            settings['noise_level'] = 3 #0.5
+            settings['noise_level'] = 10 #0.5
             settings['signal'] = 0.6
-            settings['T'] = 1461
+            settings['T'] = 1826
             cts.create_time_series(settings, links_coeffs, verbose=False,
                                                     plot_modes=False,
                                                     plot_timeseries=False,
-                                                    draw_network=False)
+                                                    draw_network=False,
+                                                    cluster=True)
 
             print("Finished generating!")
             local_base_path = user_dir
@@ -193,7 +194,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
             rg.calc_corr_maps()
 
-            rg.plot_maps_corr(save=True)
+            # rg.plot_maps_corr(save=True)
 
             rg.cluster_list_MI()
 
@@ -326,11 +327,11 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
 
 settings = {}
-settings['N'] = 5
+settings['N'] = 7
 settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 5114
 settings['spatial_covariance'] = 0.3
 settings['random_modes'] = False
-settings['noise_use_mean'] = True
+settings['noise_use_mean'] = False
 settings['noise_level'] = 0
 settings['transient'] = 200
 settings['spatial_factor'] = 0.1
@@ -366,4 +367,4 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-run_DBSCAN_test(settings, cluster=None, iterations=2)
+run_DBSCAN_test(settings, cluster=None, iterations=30)

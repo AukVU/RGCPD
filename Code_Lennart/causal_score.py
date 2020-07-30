@@ -83,7 +83,7 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
             results[f'{test} p_value'].append(score)
             # results[f'{test} value'].append(score)
         for j, mode in enumerate(correlated):
-            p_score, real_mask = calculate_p_value_score(all_files[i][j], real[j], correlated, measure=settings['measure'], alpha=settings['alpha'], target_only=target_only)
+            p_score, real_mask = calculate_p_value_score(all_files[i][j], real[mode], correlated, measure=settings['measure'], alpha=settings['alpha'], target_only=target_only)
             results[f'{test} p_value'][mode] = p_score
             # val_score = calculate_val_score(all_files[i][number_of_modes + j], real[number_of_modes + j], real_mask, correlated, measure=settings['val_measure'], target_only=target_only)
             # results[f'{test} value'][mode] = val_score
@@ -112,7 +112,7 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
 # settings = {}
 # settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 # settings['extra_dir'] = 'Code_Lennart'
-# settings['filename'] = 'test_met_savar7'
+# settings['filename'] = 'test_met_savar11'
 # settings['N'] = 5
 
 # settings['alpha'] = 0.01

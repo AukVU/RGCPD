@@ -1,4 +1,5 @@
 import os, sys, inspect, time
+from pathlib import Path
 curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))) # script directory
 main_dir = '/'.join(curr_dir.split('/')[:-1])
 sub_dir = os.path.join(main_dir, 'RGCPD/')
@@ -12,96 +13,68 @@ from RGCPD import RGCPD
 from RGCPD import BivariateMI
 import wave_ana as wa 
 import synthetic_data as sd 
-from tqdm import tqdm
+import multiprocessing as mp 
+from multiprocessing import Process
 
 path_data = os.path.join(main_dir, 'data')
-current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
+current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data')
+ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_data')
 
 rg_sst  = wa.generate_rgcpd()
 rg_wind = wa.generate_rgcpd(prec_path='z500hpa_1979-2018_1_12_daily_2.5deg.nc')
 rg_sm = wa.generate_rgcpd(prec_path='sm2_1979-2018_1_12_daily_1.0deg.nc')
 
-rg_sst_obj = wa.create_rgcpd_obj(rg=rg_sst)
-rg_sm_obj = wa.create_rgcpd_obj(rg=rg_sm)
-rg_wind_obj = wa.create_rgcpd_obj(rg=rg_wind)
+rg_sst_obj = wa.create_rgcpd_obj(rg=rg_sst, precur_aggr=1)
+rg_sm_obj = wa.create_rgcpd_obj(rg=rg_sm, precur_aggr=1)
+rg_wind_obj = wa.create_rgcpd_obj(rg=rg_wind,precur_aggr=1)
 
 rg_sst_data = wa.setup_wavelets_rgdata(rg=rg_sst_obj)
 rg_wind_data = wa.setup_wavelets_rgdata(rg=rg_wind_obj)
 rg_sm_data = wa.setup_wavelets_rgdata(rg=rg_sm_obj)
-(rg_data_sm, rg_index_sm), (precursor_list_sm, target_sm), (wave, mode) = rg_sm_data
-(rg_data_sst, rg_index_sst), (precursor_list_sst, target_sst), const = rg_sst_data
-(rg_data_zh, rg_index_zh), (precursor_list_zh, target_zh), const = rg_wind_data
+(rg_data_sm, rg_index_sm),  (wave, mode) = rg_sm_data
+(rg_data_sst, rg_index_sst), _  = rg_sst_data
+(rg_data_zh, rg_index_zh), _ = rg_wind_data
 
 
-def to_csv(rg_data, prec='sst_'):
+def to_csv(rg_data, prec='sst_', prec_aggr='1'):
+    print('[INFO] Starting writing csv file... ')
     cols = rg_data.columns.tolist()
+    csv_path = os.path.join(current_analysis_path ,prec[:-1])
+    Path(csv_path).mkdir(parents=True, exist_ok=True )
     for i in range(len(cols)):
-        rg_data[cols[i]].to_csv(os.path.join(current_analysis_path, prec+str(cols[i]+'.csv') ), header=['value'])
+        rg_data[cols[i]].to_csv(os.path.join(csv_path, prec+str(cols[i]+'_'+prec_aggr+'.csv') ), header=[cols[i]])
+    print('[INFO] Done writing csv file of columns')
 
+def stationarity_test(rg_data):
+    print(f'[INFO] Stationary test on the following columns {rg_data.columns.tolist()}\n')
+    return rg_data.apply(lambda serie: sd.stationarity_test(serie.values), axis=0)
 
+def evaluate_data_ar(rg_data, title, path=ar_data_path):
+    print('[INFO] Evaluating AR data to save...')
+    cols = rg_data.columns.tolist()
+    for _, col in enumerate(cols):
+        const_, ar_ = sd.evaluate_data_ar(rg_data[col], col=col)
+        np.savez(os.path.join(path, 'ar_'+title+'_'+col+'_c.npz'), const=const_, ar=ar_)
+    print('[INFO] Evaluation successfull \n')
 
 if __name__ == "__main__":
 
-    
-    to_csv(rg_data_sst)
-    to_csv(rg_data_sm, prec='sm_')
-    to_csv(rg_data_zh, prec='zh_')
+    for data, prec in zip([rg_data_sst, rg_data_sm, rg_data_zh],['sst_', 'sm_', 'zh_']):
+        to_csv(data, prec=prec)
+    for data in [rg_data_sst, rg_data_sm, rg_data_zh]:
+        stationarity_test(data)
 
-    sd.stationarity_test(serie=rg_data_sst['3ts'].values)
-    print("sst target")
-    sd.stationarity_test(serie=rg_data_sst['prec1'].values)
-    print("sst prec1")
-    sd.stationarity_test(serie=rg_data_sst['prec2'].values)
-    print("sst prec2")
+    # Process does not run any faster
+    # for data, title in zip([rg_data_sst, rg_data_sm, rg_data_zh],['sst', 'sm', 'zh']):
+    #     p = Process(target=evaluate_data_ar, args=(data, title,))
+    #     p.start()
+    #     p.join()
 
-    sd.stationarity_test(serie=rg_data_sm['3ts'].values)
-    print("sm target")
-    sd.stationarity_test(serie=rg_data_sm['prec1'].values)
-    print("sm prec1")
-    sd.stationarity_test(serie=rg_data_sm['prec2'].values)
-    print("sm prec2")
-
-    sd.stationarity_test(serie=rg_data_zh['3ts'].values)
-    print("zh target")
-    sd.stationarity_test(serie=rg_data_zh['prec1'].values)
-    print("zh prec1")
-    sd.stationarity_test(serie=rg_data_zh['prec2'].values)
-    print("zh prec2")
-    sd.stationarity_test(serie=rg_data_zh['prec3'].values)
-    print("zh prec3")
-    sd.stationarity_test(serie=rg_data_zh['prec4'].values)
-    print("zh prec4")
-
-    # # TODO THIS IS TIME CONSUMING PICKLE THIS 
-# with tqdm( desc="Writing to file", bar_format="{l_bar}{bar} [ time left: {remaining} ]") as pbar:
-    start = time.time()
-    const_ts, ar_ts  = sd.evaluate_data_ar(data=rg_data_sst['3ts'].values)
-    print("Elapsed target ", time.time() -start)
-    const_p1, ar_p1 = sd.evaluate_data_ar(data=rg_data_sst['prec1'].values) 
-    const_p2, ar_p2 = sd.evaluate_data_ar(data=rg_data_sst['prec2'].values)
-    
-    np.savez('ar_sst_t_c.npz', x=ar_ts, y=const_ts)
-    np.savez('ar_sst_p1_c.npz', x=ar_p1, y=const_p1)
-    np.savez('ar_sst_p2_c.npz', x=ar_p2, y=const_p2)
-
-    print('Done saving sst ar')
-    const_ts, ar_ts  = sd.evaluate_data_ar(data=rg_data_sm['3ts'].values)
-    const_p1, ar_p1 = sd.evaluate_data_ar(data=rg_data_sm['prec1'].values)
-    const_p2, ar_p2 = sd.evaluate_data_ar(data=rg_data_sm['prec2'].values)
-
-    np.savez('ar_sm_t_c.npz', x=ar_ts, y=const_ts)
-    np.savez('ar_sm_p1_c.npz', x=ar_p1, y=const_p1)
-    np.savez('ar_sm_p2_c.npz', x=ar_p2,y=const_p2)
-    print('Done saving sm ar')
-    const_ts, ar_ts  = sd.evaluate_data_ar(data=rg_data_zh['3ts'].values)
-    const_p1, ar_p1 = sd.evaluate_data_ar(data=rg_data_zh['prec1'].values)
-    const_p2, ar_p2 = sd.evaluate_data_ar(data=rg_data_zh['prec2'].values)
-    const_p3, ar_p3 = sd.evaluate_data_ar(data=rg_data_zh['prec3'].values)
-    const_p4, ar_p4 = sd.evaluate_data_ar(data=rg_data_zh['prec4'].values)
-
-    np.savez('ar_zh_t_c.npz', x=ar_ts, y=const_ts)
-    np.savez('ar_zh_p1_c.npz', x=ar_p1,y=const_p1)
-    np.savez('ar_zh_p2_c.npz', x=ar_p2,y=const_p2)
-    np.savez('ar_zh_p3_c.npz', x=ar_p3,y=const_p3)
-    np.savez('ar_zh_p4_c.npz', x=ar_p4,y=const_p4)
-    print('Done saving zh ar')
+    p = None
+    if mp.cpu_count() >= 4:
+        p = mp.Pool(mp.cpu_count()-2)
+    else:
+        p = mp.Pool(mp.cpu_count()-1)
+    p.starmap(evaluate_data_ar,zip([rg_data_sst, rg_data_sm, rg_data_zh],['sst', 'sm', 'zh']) )
+    p.close()
+    p.join()

@@ -153,7 +153,7 @@ fig = plt.figure(figsize=(19, 8))
 fig.suptitle('Using Stationary Wavelet transform', fontsize=15)
 a = rg_data['prec1'].values
 w  = wv.Wavelet('db4')
-coeffs =  wv.swt(a, w, 5,norm=True)
+coeffs =  wv.swt(a, w, 3,norm=True)
 ca , cd = [], []
 for ap, det  in reversed(coeffs):
     ca.append(ap)

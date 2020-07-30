@@ -52,13 +52,13 @@ def entropy(signal):
 def renyi_entropy(X, alpha):
     assert alpha >= 0, f"Error: renyi_entropy only accepts values of alpha >= 0, but alpha = {alpha}."  # DEBUG
     if np.isinf(alpha):
-        # XXX Min entropy!
+        #  Min entropy!
         return - np.log2(np.max(X))
     elif np.isclose(alpha, 0):
-        # XXX Max entropy!
+        # Max entropy!
         return np.log2(len(X))
     elif np.isclose(alpha, 1):
-        # XXX Shannon entropy!
+        #  Shannon entropy!
         return entropy(X)
     else:
         counts = Counter(X).most_common()
@@ -143,11 +143,11 @@ def setup_wavelets_rgdata(rg, wave='db4', modes=wv.Modes.periodic):
     rg_data  = rg.df_data[cols]
     rg_data = rg_data.rename(columns={cols[i]:'prec'+str(i) for i in range(1, len(cols)) })
     rg_index = rg_data.index.levels[1]
-    precursor_list = [rg_data['prec'+str(i)].values for i in range(1, len(cols))]
-    target = rg_data[cols[0]]
+    # precursor_list = [rg_data['prec'+str(i)].values for i in range(1, len(cols))]
+    # target = rg_data[cols[0]]
     wave  = wv.Wavelet(wave)
     mode=modes 
-    return (rg_data, rg_index), (precursor_list, target), (wave, mode)
+    return (rg_data, rg_index),  (wave, mode)
 
 def plot_discr_wave_decomp(data, wave):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"

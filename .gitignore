@@ -503,3 +503,6 @@ MigrationBackup/
 *.h5
 Jier_tigermite/
 ERA5/
+launch.json 
+settings.json 
+data/

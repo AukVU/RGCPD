@@ -27,7 +27,7 @@ warnings.simplefilter('ignore', InterpolationWarning)
 # TODO Look if simulation of more than one realization is needed and if so why, comment it. 
 # Above is only needed when we want to test ground truth data scenarios against our target data. 
 
-# TODO ADJUSST NAME OF PLOTS TO DIFFERENTIATE 
+# TODO EVALUATE HOW TO HANDLE EVALUATION OF DATA IN AR OR ARMA SENSE, WHEN CALLED WITH ONE TS CSV WITH ONE COLUMN
 
 synthetic = dict()
 synthetic['ARrange'] = np.array([.75, -.25])
@@ -47,7 +47,6 @@ def generate_combination_lags(end_range=2):
         return list(it.product(range(1,end_range), repeat=2))
 
 def extract_lags_aic_bic_info_synth(y:pd.Series, combos:list):
-    # TODO INCLUDE CONSTANT IN  EQUATION IF NEEDED
     print('[INFO] Starting manually fitting ARMA process..')
     summaries = []
     aic, bic = 10000000000, 10000000000
@@ -143,18 +142,18 @@ def determine_order(man_model:list, aut_model_order:list, check_info_score:list=
         if 'aic' in check_info_score:
             if min(man_aic) <= aut_aic:
                 idx_aic = next( (i for i , v in enumerate(temp) if v[0] == min(man_aic)),-1 )
-                print("[DEBUG] Small AIC mannually ", temp[idx_aic])
+                print("[DEBUG] Small AIC mannually chosen ", temp[idx_aic])
                 aic_check = True
             elif aut_aic < min(man_aic):
-                print("[DEBUG] Small AIC automatically ", aut_aic, aut_order)
+                print("[DEBUG] Small AIC automatically chosen ", aut_aic, aut_order)
                 aut_aic_check = True
         if 'bic' in check_info_score:
             if min(man_bic) <= aut_bic:
                 idx_bic = next( (i for i , v in enumerate(temp) if v[0] == min(man_bic)),-1 )
-                print("[DEBUG] Small BIC mannually ", temp[idx_bic])
+                print("[DEBUG] Small BIC mannually chosen ", temp[idx_bic])
                 bic_check = True
             elif aut_bic < min(man_bic):
-                print("[DEBUG] Small BIC automatically ", aut_bic, aut_order)
+                print("[DEBUG] Small BIC automatically chosen ", aut_bic, aut_order)
                 aut_bic_check = True
 
     print("[INFO] Done determining order.\n")
@@ -220,8 +219,8 @@ def display_info_ts(y:pd.Series, figsize=(16, 8), title="TS", lags=20, save_fig:
     fig.add_subplot(326).hist(serie, bins= 40, density=True)
     plt.tight_layout()
     if save_fig == True:
-        plt.savefig('Fitted/AR/times_serie_'+name+'_stats.pdf', dpi=120)
-        plt.savefig('Fitted/AR/time_serie_'+name+'stats.png', dpi=120)
+        plt.savefig('Fitted/AR/times_serie_'+title+'_stats.pdf', dpi=120)
+        plt.savefig('Fitted/AR/time_serie_'+title+'stats.png', dpi=120)
     plt.show()
 
 def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(16, 8), title="", lags=20, save_fig:bool=False, debug:bool=False):
@@ -295,7 +294,7 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:s
     plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.7)
 
     plt.plot(_dates, signal, '-k', label='Precursor data', alpha=0.3)
-    plt.title('Chosen fitted model params with original data')
+    plt.title(title)
     plt.xlabel('Dates')
     plt.ylabel('Variance ins temperature')
     plt.legend()
@@ -323,29 +322,31 @@ def evaluate_synthetic_data(display:bool=False):
         display_info_ts(pd.Series(y), title='Synthetic generated')
         display_pierce_LJbox(model.resid, dates=dates, title='Synthetic generated')
 
-def evaluate_data_ar(data, ic='aic', method='mle',disp=0, debug=True, display=False, save_fig= False):
-
+def evaluate_data_ar(data, col,  ic='aic', method='mle', disp=0, title='Fitted  AR on precurso', debug=True, display=False, save_fig= False):
+    
+    assert isinstance(data, pd.Series), f"Expect pandas Series, {type(data)} given"
     if debug == True:
         print('[DEBUG] Start fitting AR process ')
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
         temp_dates = pd.DatetimeIndex(data.index.levels[1], freq='infer')
-        temp_m = pd.DataFrame(data=data['values'].values, index=temp_dates, columns=['values'])
+        temp_m = pd.DataFrame(data=data.values, index=temp_dates, columns=[col])
         ar_model = st.tsa.ar_model.AR(temp_m).fit(ic=ic, method=method, maxiter=len(data), disp=disp)
 
     if debug == True:
         print('[DEBUG] Done fitting AR process')
 
     if display == True:
-        display_info_ts(ar_model.resid, title='Fitted  RGCPD precursor')
-        display_pierce_LJbox(ar_model.resid, dates=temp_dates, title='Fitted RGCPD precursor', debug=False)
-        display_info_ts(data['values'], title='OriginalPrecursor')
-        display_pierce_LJbox(data['values'], dates=temp_dates, title='OriginalPrecursor', debug=False)
+        display_info_ts(ar_model.resid, title=title)
+        display_pierce_LJbox(ar_model.resid, dates=temp_dates, title=title, debug=False)
+        display_info_ts(data, title='Original Precursor')
+        display_pierce_LJbox(data, dates=temp_dates, title='Original Precursor', debug=False)
 
     return ar_model.params[0], ar_model.params[1:] 
 
-def evaluate_data_arma(signal, display:bool=False, aic_check:bool=False, debug:bool=False):
-    
+def evaluate_data_arma(signal, display:bool=False, title='Fitted ARMA precursor', aic_check:bool=False, debug:bool=False):
+
+    assert isinstance(signal, pd.Series), f"Expect pandas Series, {type(signal)} given"
     ar_ma_params, aci_info, summaries = fit_manually_data(signal['values'], arparams=np.array([.75, -.25]), maparams=np.array([.65, .35]), nobs=synthetic['nobs'], startyear=signal.index[0][1], end_range=5,synthetics=False)
     ar, ma, sigma, order = check_stationarity_invertibility(aci_info, ar_ma_params,check_info_score=['aic', 'bic'] ,nobs=len(signal), get_params=True,aic_check=aic_check)
     aut_order = fit_automatically_data(y=signal['values'], pmax=4, qmax=4, ic=['aic', 'bic'])
@@ -360,10 +361,10 @@ def evaluate_data_arma(signal, display:bool=False, aic_check:bool=False, debug:b
         temp_dates = pd.DatetimeIndex(signal.index.levels[1], freq='infer')
         temp_m = pd.DataFrame(data=signal['values'].values, index=temp_dates)
         model = sm.tsa.ARMA(temp_m, order=order[-1]).fit(trend='c', disp=-1)
-        display_info_ts(model.resid, title='Fitted  RGCPD precursor')
-        display_pierce_LJbox(model.resid, dates=temp_dates, title='Fitted RGCPD precursor')
-        display_info_ts(signal['values'], title='OriginalPrecursor')
-        display_pierce_LJbox(signal['values'], dates=temp_dates, title='OriginalPrecursor')
+        display_info_ts(model.resid, title=title)
+        display_pierce_LJbox(model.resid, dates=temp_dates, title=title)
+        display_info_ts(signal['values'], title='Original Precursor')
+        display_pierce_LJbox(signal['values'], dates=temp_dates, title='Original Precursor')
 
     return ar, ma, sigma, order
 
@@ -412,12 +413,12 @@ def stationarity_test(serie, regression='c', debug=False):
     # ADF Test
     results = adfuller(serie, autolag='AIC')
     if debug == True:
-        print(f'ADF Statistic: {results[0]}')
-        print(f'p-value: {results[1]}')
-        print('Critial Values:')
+        print(f'[DBEUG] ADF Statistic: {results[0]}')
+        print(f'[DEBUG] p-value: {results[1]}')
+        print('[DEBUG] Critial Values:')
         for key, value in results[4].items():
             print(f'   {key}, {value}')
-    print(f'Result ADF: The series is {"NOT " if results[1] > 0.05 else ""}stationary')
+    print(f'[INFO] Result ADF: The series is {"NOT " if results[1] > 0.05 else ""}stationary')
     adf = False if results[1] > 0.05 else True
 
     # KPSS Test
@@ -427,19 +428,21 @@ def stationarity_test(serie, regression='c', debug=False):
     except:
         result = kpss(serie, regression='ct', lags='auto')
     if debug == True:
-        print('\nKPSS Statistic: %f' % result[0])
-        print('p-value: %f' % result[1])
-        print('Critial Values:')
+        print(f'\n [DEBUG] KPSS Statistic:  {result[0]} ')
+        print(f'[DEBUG] p-value: {result[1]} ')
+        print('[DEBUG] Critial Values:')
         for key, value in result[3].items():
             print(f'   {key}, {value}')
-    print(f'Result KPSS: The series is {"NOT " if result[1] < 0.05 else ""}stationary')
+    print(f'[INFO] Result KPSS: The series is {"NOT " if result[1] < 0.05 else ""}stationary')
     kps = False if result[1] < 0.05 else True
     return adf and kps
 
 
 if __name__ == "__main__":
-    # pass
-    current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
+    pass 
+    # current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data')
+    # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_data')
+    # # DEBUG  CREATING POLYNOMIAL
     # target_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_3ts.csv'), engine='python', index_col=[0, 1])
     # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1.csv'), engine='python', index_col=[0, 1])
     # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2.csv'), engine='python', index_col=[0, 1])
@@ -459,35 +462,22 @@ if __name__ == "__main__":
     # pp(poly_p1)
     # pp(poly_ts)
     # pp(poly_dep)
+    # poly1 = create_polynomial_fit_ar(ar=arr, sigma=var, data=first_sst, const=const)
+    # polyt = create_polynomial_fit_ar(ar=arrt, sigma=np.var(target['values'].values), data=target, const=constt)
+    # polydep = create_polynomial_fit_ar_depence(x0 = poly1, x1=polyt, alpha=arr, beta=arrt, data=target)
+    # pp(poly1)
+    # pp(polyt)
+    # pp(polydep)
     # display_poly_data_ar(simul_data=poly_dep, ar=[ar_sst_t[0], ar_sst_p1[0]], signal=target_sst)
-        # Synthetic data is to play and understand sampling process
+
+        
+        
+    # DEBUG Synthetic data is to play and understand sampling process
     # evaluate_synthetic_data()
 
-    target = pd.read_csv(os.path.join(current_analysis_path, 'target.csv'), engine='python', index_col=[0,1])
-    t_scale = target.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
-    t_minmax = target.apply(lambda x: (x - x.min()) / (x.max() - x.min()), axis=0)  
-    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec.csv'), engine='python', index_col=[0, 1])
-    f_scale  = first_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
-    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec.csv'), engine='python', index_col=[0, 1])
-    s_scale = second_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
-    var_1 = np.var(first_sst['values'].values)
-    var_2 = np.var(second_sst['values'].values)
-    var_ts = np.var(target['values'].values)
-
-    var_1_s = np.var(f_scale['values'].values)
-    var_2_s = np.var(s_scale['values'].values)
-    var_ts_s = np.var(t_scale['values'].values)
-
-    # stationarity_test(target['values'].values)
-    # stationarity_test(t_scale['values'])
-    # stationarity_test(t_minmax['values'])
-
-    # p1 = stationarity_test(first_sst['values'].values)
-    # ts = stationarity_test(target['values'].values)
-    # p2 = stationarity_test(second_sst['values'].values)
-
-    # print(var_1, var_1_s, sep='\n\n')
-    # print(var_2, var_2_s, sep='\n\n')
+ 
+  
+    # DBEUG TO VISUALY INVESTIGATE TS
     # fig, ax = plt.subplots(3,  1, figsize=(16, 8), dpi=90)
     # with pd.plotting.plot_params.use('x_compat', True):
     #     target.plot(title='target',  ax=ax[0])
@@ -499,63 +489,84 @@ if __name__ == "__main__":
     #     # s_scale.plot(title='Scale p2', ax=ax[6])
     #     plt.tight_layout(h_pad=1.5)
     #     plt.show()
- 
-    const_p1, ar_p1 = evaluate_data_ar(data=first_sst, display=False, debug=True)
-    poly1 = create_polynomial_fit_ar(ar=ar_p1, sigma=var_1, data=first_sst, const=const_p1)
-    const_p1_s, ar_p1_s = evaluate_data_ar(data=f_scale, display=False, debug=True)
-    poly1_s = create_polynomial_fit_ar(ar=ar_p1_s, sigma=var_1_s, data=f_scale, const=const_p1_s)
-    display_poly_data_ar(simul_data=poly1, signal=first_sst['values'], ar=ar_p1)
-    display_poly_data_ar(simul_data=poly1_s, signal=f_scale['values'], ar=ar_p1_s)
-    plt.show()
+    
+    # DEBUG FOR STANDARDISATION VS NORMALISATION OF DATA
+    # target = pd.read_csv(os.path.join(current_analysis_path, 'target.csv'), engine='python', index_col=[0,1])
+    # t_scale = target.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+    # t_minmax = target.apply(lambda x: (x - x.min()) / (x.max() - x.min()), axis=0)  
+    # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec.csv'), engine='python', index_col=[0, 1])
+    # f_scale  = first_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+    # f_minmax = first_sst.apply(lambda x: (x - x.min()) / (x.max() - x.min()), axis=0) 
+    # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec.csv'), engine='python', index_col=[0, 1])
+    # s_scale = second_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+    # var_1 = np.var(first_sst['values'].values)
+    # var_2 = np.var(second_sst['values'].values)
+    # var_ts = np.var(target['values'].values)
+
+    # var_1_s = np.var(f_scale['values'].values)
+    # var_2_s = np.var(s_scale['values'].values)
+    # var_ts_s = np.var(t_scale['values'].values)
+
+    # var_1_mm = np.var(f_minmax['values'].values)
+    # # stationarity_test(target['values'].values)
+    # # stationarity_test(t_scale['values'])
+    # # stationarity_test(t_minmax['values'])
+
+    # p1 = stationarity_test(first_sst['values'].values)
+    # ts = stationarity_test(target['values'].values)
+    # p2 = stationarity_test(second_sst['values'].values)
+
+
+    # const_p1, ar_p1 = evaluate_data_ar(data=first_sst, display=False, debug=True)
+    # poly1 = create_polynomial_fit_ar(ar=ar_p1, sigma=var_1, data=first_sst, const=const_p1)
+    # const_p1_s, ar_p1_s = evaluate_data_ar(data=f_scale, display=False, debug=True)
+    # poly1_s = create_polynomial_fit_ar(ar=ar_p1_s, sigma=var_1_s, data=f_scale, const=const_p1_s)
+    # const_p1_mm, ar_p1_mm = evaluate_data_ar(data=f_minmax, display=False, debug=True)
+    # poly1_mm = create_polynomial_fit_ar(ar=ar_p1_mm, sigma=var_1_mm, data=f_minmax, const=const_p1_mm)
+    # display_poly_data_ar(simul_data=poly1, signal=first_sst['values'], ar=ar_p1, title='Ar2 fit on original prec')
+    # display_poly_data_ar(simul_data=poly1_s, signal=f_scale['values'], ar=ar_p1_s, title='Ar2 fit on standardise prec')
+    # display_poly_data_ar(simul_data=poly1_mm, signal=f_minmax['values'], ar=ar_p1_mm, title='Ar2 fit on normalised prec')
+    # plt.show()
+
+    # DEBUG TO INVESTIGATE ARMA2AR VS PURE AR
     # if (p1 and p2 and ts) == True:
         
-        # CHANGING FROM ARMA TO AR IS CREATE DISSAPEARING AR PROCESS THE SAME AS WHITENOISE, ONLY USE ARMA TO CHECK VARIABILITY OF PROCESS
-        # ar, ma, sigma, order = evaluate_data_arma(signal=second_sst, display=False, aic_check=True, debug=False)
+    #     # CHANGING FROM ARMA TO AR IS CREATE DISSAPEARING AR PROCESS THE SAME AS WHITENOISE, ONLY USE ARMA TO CHECK VARIABILITY OF PROCESS
+    #     ar, ma, sigma, order = evaluate_data_arma(signal=first_sst, display=False, aic_check=True, debug=False)
         
-        # UNNECESSARY
-        # arr = st.tsa.arima_process.arma2ar(ma, ar, lags=len(first_sst))
-        # const = (1 + arr.sum())/len(arr)
-        # with warnings.catch_warnings():
-        #     warnings.filterwarnings("ignore")
-        #     marr = st.tsa.ar_model.AR(first_sst['values']).fit(ic='aic' ,method='mle', maxiter=len(first_sst), disp=0)
-        #     const = marr.params[0]
-        #     arr = marr.params[1:]
-        #     arr_ = st.tsa.arima_process.arma2ar(ma, ar, lags=len(first_sst))
-        #     const_ = (1 + arr_.sum())/len(arr_)
-        #     # print(const, const_, arr, arr_, sep='\n')
-        #     arr_s = create_polynomial_fit_ar(ar=arr, sigma=var_1, data=first_sst, const=const)
-        #     arr_ss = create_polynomial_fit_ar(ar=arr_, sigma=var_1, data=first_sst, const=const_)
-            # plt.plot(arr_s, '-k', label='AR')
-            # plt.plot(arr_ss, 'r', label='ARMA2AR')
-            # plt.legend(loc=0)
-            # display_poly_data_ar(simul_data=arr_s, ar=arr, signal=first_sst)
-            # display_poly_data_ar(simul_data=arr_ss, ar=arr_, signal=first_sst)
-            # plt.show()
-        #     tarr = st.tsa.ar_model.AR(target['values']).fit(ic='aic' ,method='mle', maxiter=len(target), disp=0)
-        #     constt = tarr.params[0]
-        #     arrt = tarr.params[1:]
-            # pp(arr)
-            # pp(arrt)
+    #     # UNNECESSARY
+    #     # arr = st.tsa.arima_process.arma2ar(ma, ar, lags=len(first_sst))
+    #     # const = (1 + arr.sum())/len(arr)
+    #     with warnings.catch_warnings():
+    #         warnings.filterwarnings("ignore")
+    #         marr = st.tsa.ar_model.AR(first_sst['values']).fit(ic='aic' ,method='mle', maxiter=len(first_sst), disp=0)
+    #         const = marr.params[0]
+    #         arr = marr.params[1:]
+    #         arr_ = st.tsa.arima_process.arma2ar(ma, ar, lags=len(first_sst))
+    #         const_ = (1 + arr_.sum())/len(arr_)
+    #         # print(const, const_, arr, arr_, sep='\n')
+    #         arr_s = create_polynomial_fit_ar(ar=arr, sigma=var_1, data=first_sst, const=const)
+    #         arr_ss = create_polynomial_fit_ar(ar=arr_, sigma=var_1, data=first_sst, const=const_)
+    #         plt.plot(arr_s, '-k', label='AR')
+    #         plt.plot(arr_ss, 'r', label='ARMA2AR')
+    #         plt.legend(loc=0)
+    #         display_poly_data_ar(simul_data=arr_s, ar=arr, signal=first_sst, title='AR2 fit on prec original')
+    #         display_poly_data_ar(simul_data=arr_ss, ar=arr_, signal=first_sst, title='AR2 fit from ARMA2AR')
+    #         plt.show()
+            
+            # DEBUG investigate fittedvalues  from ARMA/AR process 
 
-        # polyARMA = create_polynomial_fit_arma(ar=ar, ma=ma,sigma=var_2, data=second_sst)
-        # poly1 = create_polynomial_fit_ar(ar=arr, sigma=var, data=first_sst, const=const)
-        # polyt = create_polynomial_fit_ar(ar=arrt, sigma=np.var(target['values'].values), data=target, const=constt)
-        # polydep = create_polynomial_fit_ar_depence(x0 = poly1, x1=polyt, alpha=arr, beta=arrt, data=target)
-        # pp(poly1)
-        # pp(polyt)
-        # pp(polydep)
-        
-        # fig, ax = plt.subplots(3, 1, figsize=(19,8))
-        # first_sst.plot(label='original', ax=ax[0])
-        # marr.fittedvalues.plot(label='Fitted', ax=ax[1])
-        # plt.legend(loc=0)
-        # plt.show()
-        # display_poly_data_arma(simul_data=polyARMA, ar=ar, ma=ma, order=order, signal=second_sst)
-        # display_poly_data_ar(simul_data=poly1,signal=first_sst, ar=arr)
-        # display_poly_data_ar(simul_data=polyt, signal=target, ar=arrt)
-        # display_poly_data_ar(simul_data=poly1, ar=arr, signal=first_sst)
-        # display_poly_data_ar(simul_data=polydep,signal=target, ar=[arr[0], arrt[0]])
-        # plt.show()
+            # fig, ax = plt.subplots(3, 1, figsize=(19,8))
+            # first_sst.plot(label='original', ax=ax[0])
+            # marr.fittedvalues.plot(label='Fitted', ax=ax[1])
+            # plt.legend(loc=0)
+            # plt.show()
+            # display_poly_data_arma(simul_data=polyARMA, ar=ar, ma=ma, order=order, signal=second_sst)
+            # display_poly_data_ar(simul_data=poly1,signal=first_sst, ar=arr)
+            # display_poly_data_ar(simul_data=polyt, signal=target, ar=arrt)
+            # display_poly_data_ar(simul_data=poly1, ar=arr, signal=first_sst)
+            # display_poly_data_ar(simul_data=polydep,signal=target, ar=[arr[0], arrt[0]])
+            # plt.show()
         
 
 

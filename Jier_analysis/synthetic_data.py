@@ -279,8 +279,8 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:s
     _dates = pd.DatetimeIndex(signal.index.levels[1], freq='infer')
     l = ''
     if dep == True:
-        for i in range(len(ar[:2])):
-            l +=str(round(ar[i], 2))+'Y_{t-1}+' 
+        for i, idx in zip(range(len(ar)), ['-1', '-2', '-1']):
+            l +=str(round(ar[i], 2))+'Y_{t'+f'{idx}'+'}+' 
     else:
         for i in range(len(ar[:2])):
             l +=str(round(ar[i], 2))+'Y_{t-'+f'{i+1}'+'}+' 
@@ -322,7 +322,7 @@ def evaluate_synthetic_data(display:bool=False):
         display_info_ts(pd.Series(y), title='Synthetic generated')
         display_pierce_LJbox(model.resid, dates=dates, title='Synthetic generated')
 
-def evaluate_data_ar(data, col,  ic='aic', method='mle', disp=0, title='Fitted  AR on precurso', debug=True, display=False, save_fig= False):
+def evaluate_data_ar(data, col,  ic='aic', method='mle', disp=0, title='Fitted  AR on precursor', debug=True, display=False, save_fig= False):
     
     assert isinstance(data, pd.Series), f"Expect pandas Series, {type(data)} given"
     if debug == True:
@@ -349,7 +349,7 @@ def evaluate_data_arma(signal, display:bool=False, title='Fitted ARMA precursor'
     assert isinstance(signal, pd.Series), f"Expect pandas Series, {type(signal)} given"
     ar_ma_params, aci_info, summaries = fit_manually_data(signal['values'], arparams=np.array([.75, -.25]), maparams=np.array([.65, .35]), nobs=synthetic['nobs'], startyear=signal.index[0][1], end_range=5,synthetics=False)
     ar, ma, sigma, order = check_stationarity_invertibility(aci_info, ar_ma_params,check_info_score=['aic', 'bic'] ,nobs=len(signal), get_params=True,aic_check=aic_check)
-    aut_order = fit_automatically_data(y=signal['values'], pmax=4, qmax=4, ic=['aic', 'bic'])
+    aut_order = fit_automatically_data(y=signal, pmax=4, qmax=4, ic=['aic', 'bic'])
     determine_order(aci_info, aut_model_order=aut_order,check_info_score=['aic', 'bic'])
 
     if debug == True:
@@ -359,12 +359,12 @@ def evaluate_data_arma(signal, display:bool=False, title='Fitted ARMA precursor'
 
     if display == True:
         temp_dates = pd.DatetimeIndex(signal.index.levels[1], freq='infer')
-        temp_m = pd.DataFrame(data=signal['values'].values, index=temp_dates)
+        temp_m = pd.DataFrame(data=signal.values, index=temp_dates)
         model = sm.tsa.ARMA(temp_m, order=order[-1]).fit(trend='c', disp=-1)
         display_info_ts(model.resid, title=title)
         display_pierce_LJbox(model.resid, dates=temp_dates, title=title)
-        display_info_ts(signal['values'], title='Original Precursor')
-        display_pierce_LJbox(signal['values'], dates=temp_dates, title='Original Precursor')
+        display_info_ts(signal, title='Original Precursor')
+        display_pierce_LJbox(signal, dates=temp_dates, title='Original Precursor')
 
     return ar, ma, sigma, order
 
@@ -384,27 +384,33 @@ def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
     
     return simul_data
 
-def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int):
+def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool, gamma:float=0.2,  x1:np.array=np.zeros(100)):
 
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
     simul_data = np.zeros(N)
     simul_data[0] = const + epsilon[0]
-    simul_data[1] =  const + ar[0] * simul_data[0] + epsilon[1]
+    if dependance == True:
+        simul_data[1] =  const + ar[0] * simul_data[0] + epsilon[1] + gamma * x1[0]
+    else:
+        simul_data[1] =  const + ar[0] * simul_data[0] + epsilon[1]
     for i in range(2, N):
-        simul_data[i] = const + ar[0] * simul_data[i -1] + ar[1] * simul_data[i - 2] + epsilon[i]
+        if dependance == True:
+            simul_data[i] = const + ar[0] * simul_data[i -1] + ar[1] * simul_data[i - 2] + epsilon[i] + gamma * x1[i  -1]
+        else:    
+            simul_data[i] = const + ar[0] * simul_data[i -1] + ar[1] * simul_data[i - 2] + epsilon[i]
  
     return simul_data
 
-def create_polynomial_fit_ar_depence(x0:np.array, x1:np.array,alpha:np.array, beta:np.array, data:pd.Series):
+def create_polynomial_fit_ar_depence(x0:np.array, x1:np.array, gamma:float, data:pd.Series):
 
     N =  len(data)
     # sigma:float
     # epsilon = np.random.normal(loc=0, scale=sigma, size=N)
     simul_data = np.zeros(N)
-    simul_data[0] = alpha[0]* x0[0] + beta[0]* x1[0] 
+    simul_data[0] = x0[0] + gamma * x1[0] 
     for i in range(1, N):
-        simul_data[i] = alpha[0]* x0[i -1] + beta[0]* x1[i - 1] 
+        simul_data[i] = x0[i -1] + gamma * x1[i - 1] 
         # alpha[0] * simul_data[i -1] + alpha[1] * simul_data[i - 2] + beta[0] * simul_data[i -1] + epsilon[i] + beta[1] * simul_data[i - 2]
 
     return simul_data
@@ -440,24 +446,54 @@ def stationarity_test(serie, regression='c', debug=False):
 
 if __name__ == "__main__":
     pass 
-    # current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data')
-    # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_data')
+    # current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
+    # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_Data')
+
     # # DEBUG  CREATING POLYNOMIAL
-    # target_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_3ts.csv'), engine='python', index_col=[0, 1])
-    # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1.csv'), engine='python', index_col=[0, 1])
-    # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2.csv'), engine='python', index_col=[0, 1])
-    # ar_t = np.load('ar_sst_t_c.npz')
-    # ar_p1 = np.load('ar_sst_p1_c.npz')
-    # ar_p2 = np.load('ar_sst_p2_c.npz')
-    # ar_sst_t, const_sst_t = ar_t['x'] , ar_t['y']
-    # ar_sst_p1, const_sst_p1 = ar_p1['x'], ar_p1['y']
-    # ar_sst_p2, cosnt_sst_p2 = ar_p2['x'] ,ar_p2['y']
+    # target_sst = pd.read_csv(os.path.join(current_analysis_path, 'target_10.csv'), engine='python', index_col=[0, 1])
+    # target_sst = target_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+    # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec_10.csv'), engine='python', index_col=[0, 1])
+    # first_sst = first_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+    # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec_10.csv'), engine='python', index_col=[0, 1])
+    # second_sst = second_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+
+    # var_1 = np.var(first_sst.values)
+    # var_2 = np.var(second_sst.values)
+    # var_ts = np.var(target_sst.values)
+
+
+    # const_p1, ar_p1 = evaluate_data_ar(data=first_sst['values'],col='values', display=False, debug=True)
+    # const_p2, ar_p2 = evaluate_data_ar(data=second_sst['values'],col='values',  display=False, debug=True)
+    # const_ts, ar_ts = evaluate_data_ar(data=target_sst['values'], col='values', display=False, debug=True)
+    # poly_p1= create_polynomial_fit_ar(ar=ar_p1, sigma=np.var(first_sst.values), data=first_sst, const=const_p1, dependance=False)
+    # poly_ts = create_polynomial_fit_ar(ar=ar_ts, sigma=np.var(target_sst.values), data=target_sst, const=const_ts, dependance=False )
+    # # poly_dep = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
+    # poly_dep_ = create_polynomial_fit_ar(ar=ar_ts, sigma=np.var(target_sst.values), data=target_sst, const=const_ts, gamma=0.1, dependance=True, x1=poly_p1)
+
+    # # pp(poly_dep)
+    # # pp(poly_dep_)
+
+    # # display_poly_data_ar(simul_data=poly_dep, ar=[0.1], signal=target_sst, dep=True)
+    # display_poly_data_ar(simul_data=poly_dep_, ar=[ar_p1[:2][0], ar_p1[:2][1], 0.1], signal=target_sst, dep=True )
+    # plt.show()
+
+    # TODO Fix these nans by calculation of AR processes if daily means become smaller
+    # ar_t = np.load(os.path.join(ar_data_path, 'ar_sst_3ts_c.npz'))
+    # ar_p1 = np.load(os.path.join(ar_data_path, 'ar_sst_prec1_c.npz'))
+    # ar_p2 = np.load(os.path.join(ar_data_path, 'ar_sst_prec2_c.npz'))
+
+    # const_sst_t, ar_sst_t = ar_t['const'] , ar_t['ar']
+    # const_sst_p1, ar_sst_p1 = ar_p1['const'], ar_p1['ar']
+    # cosnt_sst_p2, ar_sst_p2= ar_p2['const'] ,ar_p2['ar']
+
+  
     # pp(ar_sst_p1)
     # pp(ar_sst_t)
     # print('---------------------')
-    # poly_p1= create_polynomial_fit_ar(ar_sst_p1, sigma=np.var(first_sst['value'].values), data=first_sst, const=const_sst_p1)
-    # poly_ts = create_polynomial_fit_ar(ar=ar_sst_t, sigma=np.var(target_sst['value'].values), data=target_sst, const=const_sst_t )
-    # poly_dep = create_polynomial_fit_ar_depence(x0=poly_p1, alpha=ar_sst_p1, x1=poly_ts, beta=ar_sst_t, data=target_sst)
+    # poly_p1= create_polynomial_fit_ar(ar=ar_sst_p1, sigma=np.var(first_sst.values), data=first_sst, const=const_sst_p1, dependance=False)
+    # poly_ts = create_polynomial_fit_ar(ar=ar_sst_t, sigma=np.var(target_sst.values), data=target_sst, const=const_sst_t, dependance=False )
+    # poly_dep = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
+    # poly_dep = create_polynomial_fit_ar(ar=ar_sst_t, sigma=np.var(target_sst.values), data=target_sst, const=const_sst_t,gamma=0.1, dependance=True, x1=poly_p1)
     # print('-------------------')
     # pp(poly_p1)
     # pp(poly_ts)

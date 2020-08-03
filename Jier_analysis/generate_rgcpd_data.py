@@ -49,12 +49,14 @@ def stationarity_test(rg_data):
     print(f'[INFO] Stationary test on the following columns {rg_data.columns.tolist()}\n')
     return rg_data.apply(lambda serie: sd.stationarity_test(serie.values), axis=0)
 
-def evaluate_data_ar(rg_data, title, path=ar_data_path):
+def evaluate_data_ar(rg_data, title, path=ar_data_path, prec_aggr='1'):
     print('[INFO] Evaluating AR data to save...')
     cols = rg_data.columns.tolist()
+    ar_path = os.path.join(path , title)
+    Path(ar_path).mkdir(parents=True, exist_ok=True )
     for _, col in enumerate(cols):
         const_, ar_ = sd.evaluate_data_ar(rg_data[col], col=col)
-        np.savez(os.path.join(path, 'ar_'+title+'_'+col+'_c.npz'), const=const_, ar=ar_)
+        np.savez(os.path.join(ar_path, 'ar_'+title+'_'+col+'_c_'+prec_aggr+'.npz'), const=const_, ar=ar_)
     print('[INFO] Evaluation successfull \n')
 
 if __name__ == "__main__":

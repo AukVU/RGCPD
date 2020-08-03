@@ -22,6 +22,8 @@ import tigramite
 from tigramite import data_processing as pp
 from tigramite import plotting as tp
 # TODO USE ARTIFICIAL DATA COEFFICIENT AND WAVELET TIME SCALE VS RGCPD DATA TO BE EVALUATED WITH PCMCI, SHOW IN PLOTS 
+# TODO MODULARISED PROCEDURES AND STANDARDISE EVERY TS FIRST
+# TODO FIRST SAVE ALL AR COEFFS WITH THE ACCORDING AGGREGATION
 
 current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
 

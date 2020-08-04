@@ -150,6 +150,7 @@ def setup_wavelets_rgdata(rg, wave='db4', modes=wv.Modes.periodic):
     return (rg_data, rg_index),  (wave, mode)
 
 def plot_discr_wave_decomp(data, wave):
+    # TODO WAY TO SAVE FIGURES WITH DISTINCT NAMES
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     lvl_decomp = wv.dwt_max_level(len(data), wave.dec_len)
     fig, ax = plt.subplots(lvl_decomp, 2, figsize=(19, 8))
@@ -213,6 +214,7 @@ def extract_mci_lags(to_clean_mci_df, lag=0):
     return lag_target, lag_precurs
 
 def plot_mci_pred_relation(cA, prec_lag, savefig=False):
+    # TODO RECOGNISABLE WAY TO SAVE DISTINCTS PLOTS
     x_as = np.arange(1, len(cA)+1)
     x_as = np.exp2(x_as)
     plt.figure(figsize=(19,8), dpi=120)

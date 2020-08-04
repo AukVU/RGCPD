@@ -506,3 +506,4 @@ ERA5/
 launch.json 
 settings.json 
 data/
+*.code-workspace

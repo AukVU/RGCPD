@@ -291,16 +291,16 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:s
 
     ci_low, ci_high  = stats.DescrStatsW(simul_data).tconfint_mean()
     plt.fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.9, label=r'95 % confidence interval')
-    plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.7)
+    plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
 
     plt.plot(_dates, signal, '-k', label='Precursor data', alpha=0.3)
     plt.title(title)
-    plt.xlabel('Dates')
-    plt.ylabel('Variance ins temperature')
+    plt.xlabel('Dates ')
+    plt.ylabel('Variance in temperature Celsius')
     plt.legend()
     if save_fig == True:
-        plt.savefig('Fitted/AR/AR2Fit on prec.pdf', dpi=120)
-        plt.savefig('Fitted/AR/AR2Fit on prec.png', dpi=120)
+        plt.savefig('Fitted/AR/'+title+'.pdf', dpi=120)
+        plt.savefig('Fitted/AR/'+title+'.png', dpi=120)
 
     # plt.show()
 
@@ -385,7 +385,7 @@ def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
     return simul_data
 
 def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool, gamma:float=0.2,  x1:np.array=np.zeros(100)):
-
+    print('[INFO] Start running polynomial fit...')
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
     simul_data = np.zeros(N)
@@ -399,20 +399,15 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, de
             simul_data[i] = const + ar[0] * simul_data[i -1] + ar[1] * simul_data[i - 2] + epsilon[i] + gamma * x1[i  -1]
         else:    
             simul_data[i] = const + ar[0] * simul_data[i -1] + ar[1] * simul_data[i - 2] + epsilon[i]
- 
+    print('[INFO] Polynomial fit done ...')
     return simul_data
 
 def create_polynomial_fit_ar_depence(x0:np.array, x1:np.array, gamma:float, data:pd.Series):
-
+    print('[INFO] Start running polynomial fit dependance...')
     N =  len(data)
-    # sigma:float
-    # epsilon = np.random.normal(loc=0, scale=sigma, size=N)
     simul_data = np.zeros(N)
-    simul_data[0] = x0[0] + gamma * x1[0] 
-    for i in range(1, N):
-        simul_data[i] = x0[i -1] + gamma * x1[i - 1] 
-        # alpha[0] * simul_data[i -1] + alpha[1] * simul_data[i - 2] + beta[0] * simul_data[i -1] + epsilon[i] + beta[1] * simul_data[i - 2]
-
+    simul_data = x0 + gamma * x1
+    print('[INFO] Polynomial fit dependance done.')
     return simul_data
 
 def stationarity_test(serie, regression='c', debug=False):

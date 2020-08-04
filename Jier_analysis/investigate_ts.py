@@ -18,148 +18,107 @@ import wave_ana as wa
 from RGCPD import RGCPD
 from RGCPD import BivariateMI
 import wave_ana as wa 
-import tigramite
-from tigramite import data_processing as pp
-from tigramite import plotting as tp
-# TODO USE ARTIFICIAL DATA COEFFICIENT AND WAVELET TIME SCALE VS RGCPD DATA TO BE EVALUATED WITH PCMCI, SHOW IN PLOTS 
-# TODO MODULARISED PROCEDURES AND STANDARDISE EVERY TS FIRST
-# TODO FIRST SAVE ALL AR COEFFS WITH THE ACCORDING AGGREGATION
-
-current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
+import multiprocessing as mp 
 
 
-path_data = os.path.join(main_dir, 'data')
-current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
+# TODO Fix fitting on target it is not right.
 
-rg_sst  = wa.generate_rgcpd()
-rg_wind = wa.generate_rgcpd(prec_path='z500hpa_1979-2018_1_12_daily_2.5deg.nc')
-rg_sm = wa.generate_rgcpd(prec_path='sm2_1979-2018_1_12_daily_1.0deg.nc')
 
-rg_sst_obj = wa.create_rgcpd_obj(rg=rg_sst, precur_aggr=5)
-rg_sm_obj = wa.create_rgcpd_obj(rg=rg_sm, precur_aggr=5)
-rg_wind_obj = wa.create_rgcpd_obj(rg=rg_wind, precur_aggr=5)
+def generate_rgcpd_default(default=True, doc=""):
+    if default == True:
+        return wa.generate_rgcpd()
+    else:
+        return wa.generate_rgcpd(prec_path=doc)
 
-rg_sst_data = wa.setup_wavelets_rgdata(rg=rg_sst_obj)
-rg_wind_data = wa.setup_wavelets_rgdata(rg=rg_wind_obj)
-rg_sm_data = wa.setup_wavelets_rgdata(rg=rg_sm_obj)
-(rg_data_sm, rg_index_sm),  (wave, mode) = rg_sm_data
-(rg_data_sst, rg_index_sst), _ = rg_sst_data
-(rg_data_zh, rg_index_zh), _ = rg_wind_data
+def generate_rgcpd_object_prec_aggr(rg, precur_aggr):
+    return wa.create_rgcpd_obj(rg=rg, precur_aggr=precur_aggr)
+   
+def generate_rgcpd_data(rg_obj_aggr):
+    rg_data_tuples = wa.setup_wavelets_rgdata(rg=rg_obj_aggr)
+    (rg_data, rg_index),  (wave, mode) = rg_data_tuples
+    return rg_data, rg_index , wave, mode
 
-sd.stationarity_test(serie=rg_data_sst['3ts'].values)
-print("sst target")
-sd.stationarity_test(serie=rg_data_sst['prec1'].values)
-print("sst prec1")
-sd.stationarity_test(serie=rg_data_sst['prec2'].values)
-print("sst prec2")
+def verify_stationarity(rg_data, target ):
+    print(f"[INFO] Evaluating stationarity of {target}")
+    rg_data.apply(lambda x : sd.stationarity_test(x.values), axis=0)
 
-sd.stationarity_test(serie=rg_data_sm['3ts'].values)
-print("sm target")
-sd.stationarity_test(serie=rg_data_sm['prec1'].values)
-print("sm prec1")
-sd.stationarity_test(serie=rg_data_sm['prec2'].values)
-print("sm prec2")
+def extract_ar_data(rg_data, col):
+    rg_data = rg_data.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+    const, ar  = sd.evaluate_data_ar(data=rg_data[col], col = col)
+    return const, ar 
 
-sd.stationarity_test(serie=rg_data_zh['3ts'].values)
-print("zh target")
-sd.stationarity_test(serie=rg_data_zh['prec1'].values)
-print("zh prec1")
-sd.stationarity_test(serie=rg_data_zh['prec2'].values)
-print("zh prec2")
-sd.stationarity_test(serie=rg_data_zh['prec3'].values)
-print("zh prec3")
-sd.stationarity_test(serie=rg_data_zh['prec4'].values)
-print("zh prec4")
+def polynomial_fit(ar, rg_data, col, sigma, const, dependance, x1=np.zeros((100)), gamma=0.1):
+    return sd.create_polynomial_fit_ar(ar, sigma=sigma, data=rg_data[col], const=const, dependance=dependance, gamma=gamma, x1=x1)
 
-const_sst_ts, ar_sst_ts  = sd.evaluate_data_ar(data=rg_data_sst['3ts'], col='3ts')
-const_sst_p1, ar_sst_p1 = sd.evaluate_data_ar(data=rg_data_sst['prec1'], col='prec1') 
-const_sst_p2, ar_sst_p2 = sd.evaluate_data_ar(data=rg_data_sst['prec2'], col='prec2')
+def polynomial_fit_dependance(x0, x1, gamma, data):
+    return sd.create_polynomial_fit_ar_depence(x0=x0, x1=x1, gamma=gamma, data=data)
 
-const_sm_ts, ar_sm_ts  = sd.evaluate_data_ar(data=rg_data_sm['3ts'], col='3ts')
-const_sm_p1, ar_sm_p1 = sd.evaluate_data_ar(data=rg_data_sm['prec1'], col='prec1')
-const_sm_p2, ar_sm_p2 = sd.evaluate_data_ar(data=rg_data_sm['prec2'], col='prec2')
+def display_polynome(poly, ar_list, rg_data, col, title,  save_fig, dependance):
+    sd.display_poly_data_ar(simul_data=poly, ar=ar_list, signal=rg_data[col], save_fig=save_fig, dep=dependance, title=title)
+    
 
-const_zh_ts, ar_zh_ts  = sd.evaluate_data_ar(data=rg_data_zh['3ts'], col='3ts')
-const_zh_p1, ar_zh_p1 = sd.evaluate_data_ar(data=rg_data_zh['prec1'], col='prec1')
-const_zh_p2, ar_zh_p2 = sd.evaluate_data_ar(data=rg_data_zh['prec2'], col='prec2')
-const_zh_p3, ar_zh_p3 = sd.evaluate_data_ar(data=rg_data_zh['prec3'], col='prec3')
-const_zh_p4, ar_zh_p4 = sd.evaluate_data_ar(data=rg_data_zh['prec4'],col='prec4')
+def create_wavelet_details(poly, index_poly, wave, level, mode, debug=True):
+    return wa.create_low_freq_components(pd.Series(poly, index=index_poly), level=level, wave=wave, mode=mode , debug=debug)
 
-# target_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_3ts.csv'), engine='python', index_col=[0,1])
-# first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1.csv'), engine='python', index_col=[0,1])
-# second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2.csv'), engine='python', index_col=[0, 1])
-# # var_sst = np.var(first_sst['values'].values)
-# ar_sst_t = np.load('ar_sst_t.npy')
-# ar_sst_p1 = np.load('ar_sst_p1.npy')
-# ar_sst_p2 = np.load('ar_sst_p2.npy')
+def  get_mci_coeffs_lag(details_prec, details_target, index, rg_obj, debug=False):
+    mci_obj = wa.create_mci_coeff(cA=details_prec, cA_t=details_target, rg_index=index, rg=rg_obj, debug=debug)
+    _ , prec_lag = wa.extract_mci_lags(to_clean_mci_df=mci_obj, lag=0)
+    return prec_lag
 
-# target_sm = pd.read_csv(os.path.join(current_analysis_path, 'sm_3ts.csv'), engine='python', index_col=[0,1])
-# first_sm = pd.read_csv(os.path.join(current_analysis_path, 'sm_prec1.csv'), engine='python',index_col=[0,1])
-# second_sm = pd.read_csv(os.path.join(current_analysis_path, 'sm_prec2.csv'), engine='python',index_col=[0,1])
+def plot_mci_prediction(detail_prec, prec_lag, savefig=False):
+    wa.plot_mci_pred_relation(cA=detail_prec, prec_lag=prec_lag, savefig=savefig)
 
-# # COEFFICIENTS
-# ar_t = np.load('ar_sm_t_c.npz')
-# ar_p1 = np.load('ar_sm_p1_c.npz')
-# ar_p2 = np.load('ar_sm_p2_c.npz')
-# ar_sm_t, const_sm_t = ar_t['x'] , ar_t['y']
-# ar_sm_p1, const_sm_p1 = ar_p1['x'], ar_p1['y']
-# ar_sm_p2, cosnt_sm_p2 = ar_p2['x'] ,ar_p2['y']
+def display_wavelet_decomposition(poly, index, wave):
+    wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), wave=wave)
+    plt.show()
 
-# # N_ = len(target_sm)
-# # index = target_sm.index.levels[1]
-# # dep_t = sd.create_polynomial_fit_ar_depence(alpha=ar_sm_t, beta=ar_sm_p1, sigma=np.var(target_sm), data=target_sm, const=const_sm_t)
-# # poly_p1 = sd.create_polynomial_fit_ar(ar=ar_sm_p1, sigma=np.var(first_sm), data=first_sm, const=const_sm_p1)
-# # plt.plot(dep_t, 'r')
-# # plt.plot(poly_p1, 'k')
-# # plt.show()
-# # # CONTAINER
 
-# ar_t = np.load('ar_sst_t_c.npz')
-# ar_p1 = np.load('ar_sst_p1_c.npz')
-# ar_p2 = np.load('ar_sst_p2_c.npz')
-# ar_sst_t, const_sst_t = ar_t['x'] , ar_t['y']
-# ar_sst_p1, const_sst_p1 = ar_p1['x'], ar_p1['y']
-# ar_sst_p2, cosnt_sst_p2 = ar_p2['x'] ,ar_p2['y']
-poly_p1= sd.create_polynomial_fit_ar(ar_sst_p1, sigma=np.var(rg_data_sst['prec1'].values), data=rg_data_sst['prec1'], const=const_sst_p1, dependance=False)
-poly_ts = sd.create_polynomial_fit_ar(ar=ar_sst_ts, sigma=np.var(rg_data_sst['3ts'].values), data=rg_data_sst['3ts'], const=const_sst_ts, dependance=False )
-poly_dep = sd.create_polynomial_fit_ar(ar=ar_sst_ts, x1=poly_p1, sigma=np.var(rg_data_sst['3ts'].values), data=rg_data_sst['3ts'], const=const_sst_ts, dependance=True, gamma=0.1)
-sd.display_poly_data_ar(simul_data=poly_dep, ar=[ar_sst_ts[:2][0], ar_sst_ts[:2][1], 0.1000], signal=rg_data_sst['3ts'])
-plt.show()
-poly_p1_sm= sd.create_polynomial_fit_ar(ar_sm_p1, sigma=np.var(rg_data_sm['prec1'].values), data=rg_data_sm['prec1'], const=const_sm_p1, dependance=False)
-poly_ts_sm = sd.create_polynomial_fit_ar(ar=ar_sm_ts, sigma=np.var(rg_data_sm['3ts'].values), data=rg_data_sm['3ts'], const=const_sm_ts, dependance=False )
-poly_dep_sm = sd.create_polynomial_fit_ar(ar=ar_sm_ts, x1=poly_p1_sm, sigma=np.var(rg_data_sm['3ts'].values), data=rg_data_sm['3ts'], const=const_sm_ts, dependance=True, gamma=0.1)
-sd.display_poly_data_ar(simul_data=poly_dep_sm, ar=[ar_sm_ts[:2][0], ar_sm_ts[:2][1], 0.1], signal=rg_data_sm['3ts'])
-plt.show()
-# # poly_p1, eps_p2 = sd.create_polynomial_fit_ar(ar_p1, sigma=np.var(rg_data['prec1'].values), data=rg_data['prec1'].values, const=const_p1)
-# # poly_p2, eps_p2 = sd.create_polynomial_fit_ar(ar_p2, sigma=np.var(rg_data['prec2'].values), data=rg_data['prec2'].values, const=const_p2)
-# # np.random.seed(42)
-# # plt.plot(poly_ts)
-# # plt.show()
-sst_p1_cA = wa.create_low_freq_components(pd.Series(poly_p1, index=rg_index_sst), level=3, wave=wave, mode=mode , debug=True)
-sst_dep_cA = wa.create_low_freq_components(pd.Series(poly_dep, index=rg_index_sst), level=3, wave=wave, mode=mode, debug=True)
 
-sm_p1_cA = wa.create_low_freq_components(pd.Series(poly_p1_sm, index=rg_index_sm), level=3, wave=wave, mode=mode, debug=True)
-sm_dep_cA = wa.create_low_freq_components(pd.Series(poly_dep_sm, index=rg_index_sm), level=3, wave=wave, mode=mode, debug=True)
+if __name__ == "__main__":
+    # rg_wind = wa.generate_rgcpd(prec_path='z500hpa_1979-2018_1_12_daily_2.5deg.nc')
+    # rg_sm = wa.generate_rgcpd(prec_path='sm2_1979-2018_1_12_daily_1.0deg.nc')
 
-sst_obj_rgcpd = wa.create_mci_coeff(cA=sst_p1_cA, cA_t=sst_dep_cA, rg_index=rg_index_sm, rg=rg_sst_obj, debug=False)
-sm_obj_rgcpd = wa.create_mci_coeff(cA=sm_p1_cA, cA_t=sm_dep_cA, rg_index=rg_index_sm, rg=rg_sm_obj, debug=False)
+    # sst_p1_cA = wa.create_low_freq_components(pd.Series(poly_p1, index=rg_index_sst), level=3, wave=wave, mode=mode , debug=True)
+    # sst_dep_cA = wa.create_low_freq_components(pd.Series(poly_dep, index=rg_index_sst), level=3, wave=wave, mode=mode, debug=True)
+    # sst_obj_rgcpd = wa.create_mci_coeff(cA=sst_p1_cA, cA_t=sst_dep_cA, rg_index=rg_index_sm, rg=rg_sst_obj, debug=False)
+    # # sm_obj_rgcpd = wa.create_mci_coeff(cA=sm_p1_cA, cA_t=sm_dep_cA, rg_index=rg_index_sm, rg=rg_sm_obj, debug=False)
+    # _, sst_prec_lag = wa.extract_mci_lags(to_clean_mci_df=sst_obj_rgcpd, lag=0)
+    # _, sm_prec_lag = wa.extract_mci_lags(to_clean_mci_df=sm_obj_rgcpd, lag=0)
+    # wa.plot_mci_pred_relation(cA=sst_p1_cA, prec_lag=sst_prec_lag, savefig=False)
+    # wa.plot_mci_pred_relation(cA=sm_p1_cA, prec_lag=sm_prec_lag, savefig=False)
 
-_, sst_prec_lag = wa.extract_mci_lags(to_clean_mci_df=sst_obj_rgcpd, lag=0)
-_, sm_prec_lag = wa.extract_mci_lags(to_clean_mci_df=sm_obj_rgcpd, lag=0)
+    if(len(sys.argv) <= 2):
+        print("Parameter error, this is how you should call this")
+        print("python " + sys.argv[0] + "<prec_aggr><gamma><target><precursor><data><precursor_path>")
+        sys.exit(1)
+    else:   
+        prec_aggr = int(sys.argv[1])
+        gamma = float(sys.argv[2])
+        target = sys.argv[3]
+        precursor = sys.argv[4]
+        data = sys.argv[5]
+        prec_path = sys.argv[6]
 
-wa.plot_mci_pred_relation(cA=sst_p1_cA, prec_lag=sst_prec_lag, savefig=False)
-wa.plot_mci_pred_relation(cA=sm_p1_cA, prec_lag=sm_prec_lag, savefig=False)
 
-# wa.plot_discr_wave_decomp(data=pd.Series(poly_p1, index=rg_index_sst), wave=wave)
-# plt.show()
-# wa.plot_discr_wave_decomp(data=pd.Series(poly_ts, index=rg_index_sst), wave=wave)
-# plt.show()
-# wa.plot_discr_wave_decomp(data=pd.Series(poly_dep, index=rg_index_sst), wave=wave)
-# plt.show()
+    rg = generate_rgcpd_default(default=False, doc=prec_path)
+    rg_obj_aggr =  generate_rgcpd_object_prec_aggr(rg=rg, precur_aggr=prec_aggr)
+    rg_data, rg_index , wave, mode = generate_rgcpd_data(rg_obj_aggr=rg_obj_aggr)
+    verify_stationarity(rg_data=rg_data, target=data )
 
-# wa.plot_discr_wave_decomp(data=pd.Series(poly_p1_sm, index=rg_index_sst), wave=wave)
-# plt.show()
-# wa.plot_discr_wave_decomp(data=pd.Series(poly_ts_sm, index=rg_index_sst), wave=wave)
-# plt.show()
-# wa.plot_discr_wave_decomp(data=pd.Series(poly_dep_sm, index=rg_index_sst), wave=wave)
-# plt.show()
+    
+    p = mp.Pool(mp.cpu_count()-1)
+    answer  = p.starmap_async(extract_ar_data,zip([rg_data, rg_data],[target, precursor]))
+    result_3ts, result_prec1 =  answer.get()
+    p.close()
+    p.join()
+    const_ts, ar_ts = result_3ts
+    const_p1, ar_p1 = result_prec1
+
+    poly_p1 = polynomial_fit(ar=ar_p1, rg_data=rg_data, col=precursor, sigma=np.var(rg_data[precursor].values), const=const_p1, dependance=False)
+    poly_ts = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.var(rg_data[target].values), const=const_ts, dependance=False)
+    poly_dep = polynomial_fit_dependance(x0=poly_ts,  gamma=gamma, data=rg_data[target],  x1=poly_p1)
+
+    display_polynome(poly=poly_dep, ar_list=[ar_ts[:2][0], ar_ts[:2][1], gamma], rg_data=rg_data, col=target, title=f'AR fit dependance {gamma} gamma', save_fig=False, dependance=True)
+    display_polynome(poly=poly_ts, ar_list=ar_ts, rg_data=rg_data, col=target, title=f'AR fit on {target} target', save_fig=False, dependance=False)
+    display_polynome(poly=poly_p1, ar_list=ar_p1, rg_data=rg_data, col=precursor, title=f'AR fit on {precursor} precursor', save_fig=False, dependance=False)
+    plt.show()

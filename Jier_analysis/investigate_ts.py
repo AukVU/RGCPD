@@ -21,11 +21,11 @@ import wave_ana as wa
 import multiprocessing as mp 
 
 
-# TODO Fix fitting on target it is not right.
+# TODO Check if checking ar values > 1 to shift if helps for daily means
 
 
-def generate_rgcpd_default(default=True, doc=""):
-    if default == True:
+def generate_rgcpd_default(doc=""):
+    if doc == " ":
         return wa.generate_rgcpd()
     else:
         return wa.generate_rgcpd(prec_path=doc)
@@ -94,31 +94,31 @@ if __name__ == "__main__":
     else:   
         prec_aggr = int(sys.argv[1])
         gamma = float(sys.argv[2])
-        target = sys.argv[3]
+        target_ = sys.argv[3]
         precursor = sys.argv[4]
         data = sys.argv[5]
-        prec_path = sys.argv[6]
+        prec_path = ' ' if len(sys.argv) < 7 else sys.argv[6]
 
 
-    rg = generate_rgcpd_default(default=False, doc=prec_path)
+    rg = generate_rgcpd_default(doc=prec_path)
     rg_obj_aggr =  generate_rgcpd_object_prec_aggr(rg=rg, precur_aggr=prec_aggr)
-    rg_data, rg_index , wave, mode = generate_rgcpd_data(rg_obj_aggr=rg_obj_aggr)
-    verify_stationarity(rg_data=rg_data, target=data )
+    rg_data_, rg_index , wave, mode = generate_rgcpd_data(rg_obj_aggr=rg_obj_aggr)
+    verify_stationarity(rg_data=rg_data_, target=data )
 
     
     p = mp.Pool(mp.cpu_count()-1)
-    answer  = p.starmap_async(extract_ar_data,zip([rg_data, rg_data],[target, precursor]))
+    answer  = p.starmap_async(extract_ar_data,zip([rg_data_, rg_data_],[target_, precursor]))
     result_3ts, result_prec1 =  answer.get()
     p.close()
     p.join()
     const_ts, ar_ts = result_3ts
     const_p1, ar_p1 = result_prec1
+   
+    poly_p1 = polynomial_fit(ar=ar_p1, rg_data=rg_data_, col=precursor, sigma=np.std(rg_data_[precursor].values), const=const_p1, dependance=False)
+    poly_ts = polynomial_fit(ar=ar_ts, rg_data=rg_data_, col=target_, sigma=np.std(rg_data_[target_].values), const=const_ts, dependance=False)
+    poly_dep = polynomial_fit_dependance(x0=poly_ts,  gamma=gamma, data=rg_data_[target_],  x1=poly_p1)
 
-    poly_p1 = polynomial_fit(ar=ar_p1, rg_data=rg_data, col=precursor, sigma=np.var(rg_data[precursor].values), const=const_p1, dependance=False)
-    poly_ts = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.var(rg_data[target].values), const=const_ts, dependance=False)
-    poly_dep = polynomial_fit_dependance(x0=poly_ts,  gamma=gamma, data=rg_data[target],  x1=poly_p1)
-
-    display_polynome(poly=poly_dep, ar_list=[ar_ts[:2][0], ar_ts[:2][1], gamma], rg_data=rg_data, col=target, title=f'AR fit dependance {gamma} gamma', save_fig=False, dependance=True)
-    display_polynome(poly=poly_ts, ar_list=ar_ts, rg_data=rg_data, col=target, title=f'AR fit on {target} target', save_fig=False, dependance=False)
-    display_polynome(poly=poly_p1, ar_list=ar_p1, rg_data=rg_data, col=precursor, title=f'AR fit on {precursor} precursor', save_fig=False, dependance=False)
+    display_polynome(poly=poly_dep, ar_list=[ar_ts[:2][0], ar_ts[:2][1], gamma], rg_data=rg_data_, col=target_, title=f'AR fit dependance {gamma} gamma', save_fig=False, dependance=True)
+    display_polynome(poly=poly_ts, ar_list=ar_ts, rg_data=rg_data_, col=target_, title=f'AR fit on {target_} target', save_fig=False, dependance=False)
+    display_polynome(poly=poly_p1, ar_list=ar_p1, rg_data=rg_data_, col=precursor, title=f'AR fit on {precursor} precursor', save_fig=False, dependance=False)
     plt.show()

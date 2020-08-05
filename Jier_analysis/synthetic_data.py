@@ -20,6 +20,9 @@ register_matplotlib_converters()
 np.random.seed(12345)
 plt.style.use('seaborn')
 from tqdm import tqdm
+from sklearn.preprocessing import PowerTransformer 
+from scipy.stats import normaltest
+
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, InterpolationWarning
 warnings.simplefilter('ignore', ConvergenceWarning)
 warnings.simplefilter('ignore', InterpolationWarning)
@@ -391,15 +394,17 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, de
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
     simul_data = np.zeros(N)
     simul_data[0] = const + epsilon[0]
+    ar_0, ar_1 = ar[0], ar[1]
+
     if dependance == True:
-        simul_data[1] =  const + ar[0] * simul_data[0] + epsilon[1] + gamma * x1[0]
+        simul_data[1] =  const + ar_0 * simul_data[0] + epsilon[1] + gamma * x1[0]
     else:
-        simul_data[1] =  const + ar[0] * simul_data[0] + epsilon[1]
+        simul_data[1] =  const + ar_0 * simul_data[0] + epsilon[1]
     for i in range(2, N):
         if dependance == True:
-            simul_data[i] = const + (ar[0] * simul_data[i -1]) + (ar[1] * simul_data[i - 2])+ epsilon[i] + (gamma * x1[i  -1])
+            simul_data[i] = const + (ar_0 * simul_data[i -1]) + (ar_1 * simul_data[i - 2])+ epsilon[i] + (gamma * x1[i  -1])
         else:    
-            simul_data[i] = const + (ar[0] * simul_data[i -1]) + (ar[1] * simul_data[i - 2]) + epsilon[i]
+            simul_data[i] = const + (ar_0 * simul_data[i -1]) + (ar_1 * simul_data[i - 2]) + epsilon[i]
     print('[INFO] Polynomial fit done.')
     return simul_data
 
@@ -412,16 +417,25 @@ def create_polynomial_fit_ar_depence(x0:np.array, x1:np.array, gamma:float, data
     return simul_data
 
 def stationarity_test(serie, regression='c', debug=False):
-    # ADF Test
-    results = adfuller(serie, autolag='AIC')
-    if debug == True:
-        print(f'[DBEUG] ADF Statistic: {results[0]}')
-        print(f'[DEBUG] p-value: {results[1]}')
-        print('[DEBUG] Critial Values:')
-        for key, value in results[4].items():
-            print(f'   {key}, {value}')
-    print(f'[INFO] Result ADF: The series is {"NOT " if results[1] > 0.05 else ""}stationary')
-    adf = False if results[1] > 0.05 else True
+    
+    adf = None
+    try:
+        # ADF Test
+        results = adfuller(serie, autolag='AIC')
+        if debug == True:
+            print(f'[DBEUG] ADF Statistic: {results[0]}')
+            print(f'[DEBUG] p-value: {results[1]}')
+            print('[DEBUG] Critial Values:')
+            for key, value in results[4].items():
+                print(f'   {key}, {value}')
+        print(f'[INFO] Result ADF: The serie is {"NOT " if results[1] > 0.05 else ""}stationary')
+        adf = False if results[1] > 0.05 else True
+    except ValueError as err:
+        print(f'[ERROR] {err}. Using polynomial root testing to evaluate')
+        ts = np.polynomial.polynomial.Polynomial(serie)
+        print(f'[INFO] Polynomial Time Serie {ts} and its roots {ts.roots()}')
+        adf = np.all([True if i.real > 1.0 else False  for i in  ts.roots() ])
+        print(f'[INFO] ADF with roots testing stationarity is  {adf}')
 
     # KPSS Test
     result = None
@@ -435,32 +449,108 @@ def stationarity_test(serie, regression='c', debug=False):
         print('[DEBUG] Critial Values:')
         for key, value in result[3].items():
             print(f'   {key}, {value}')
-    print(f'[INFO] Result KPSS: The series is {"NOT " if result[1] < 0.05 else ""}stationary')
+    print(f'[INFO] Result KPSS: The trend of the serie is {"NOT " if result[1] < 0.05 else ""}stationary')
     kps = False if result[1] < 0.05 else True
-    return adf and kps
+    return (adf , kps)
+
+def preprocess_ts(serie, col, threshold=0.05, debug=False):
+
+    print(f'\n[INFO] Preprocessing Time serie \'{col}\' with first  standardising')
+
+    serie = serie.apply(lambda x : (x - x.mean())/ x.std(), axis=0)
+    index = serie.index
+    p_value = normaltest(serie)[1][0] 
+    print(f'[INFO] Time serie p_value  {p_value}')
+    stat_bool = stationarity_test(serie=serie[col], debug=debug)
+    if stat_bool[0] and stat_bool[1] == True:
+        print('[INFO] Time serie hass passed stationarity\n')
+        return serie
+    # else:
+    
+    #     print('[INFO] Time serie is still not stationair, tranforming the time serie to gaussian like approximation')
+    #     pt = PowerTransformer(method='yeo-johnson')
+    #     pt.fit(serie[col].values.reshape(-1, 1))
+    #     trans_serie = pt.transform(serie[col].values.reshape(-1, 1))
+    #     p_value = normaltest(trans_serie)[1][0]
+    #     print(f'[INFO] Gaussian approximation with p-value {p_value}')
+    #     if p_value <= threshold:
+    #         print(f'[INFO] Transformed time serie is an approximation of a gaussian p-value {p_value}')
+    #         stat_bool = stationarity_test(serie=np.ravel(trans_serie))
+    #         if stat_bool == True:
+    #             print('[INFO] Transformed time serie is stationair\n')
+    #             return pd.DataFrame(data=np.ravel(trans_serie), index=index, columns=[col])
+
+    #         else:
+    #             raise ValueError('Transformed serie is still non-stationary')
+    #     else:
+    #         raise ValueError('Serie cannot be transform from non-gaussian distribution to an approximation')
+
+
+def postprocess_ar(ar):
+    print('\n[INFO] Postprocess Ar coefficients to examine stationarity')
+    stat_bool = stationarity_test(ar)
+    if stat_bool[0] and stat_bool[1] == False:
+        print('[INFO] Ar coefficient not stationair, applying first order differencing\n')
+        ar_ = difference(ar)
+        stats_bool = stationarity_test(ar_)
+        if stats_bool[0] and stats_bool[1] == True:
+            print('[INFO] Ar coefficient stationarity test passed, postprocess done\n')
+            return ar_
+    print('[INFO] Postprocess done.')
+    return ar
+
+def difference(dataset, interval=1):
+    dataset = [ val for _, val in enumerate(dataset)]
+    diff = [dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))]
+    return np.array(diff)
 
 
 if __name__ == "__main__":
-    pass 
-#     current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
+    # pass 
+    current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
 #     # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_Data')
 
-#     # # DEBUG  CREATING POLYNOMIAL
-#     target_sst = pd.read_csv(os.path.join(current_analysis_path, 'target_10.csv'), engine='python', index_col=[0, 1])
-#     target_sst = target_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
-#     first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec_10.csv'), engine='python', index_col=[0, 1])
-#     first_sst = first_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
-#     # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec_10.csv'), engine='python', index_col=[0, 1])
-#     # second_sst = second_sst.apply(lambda x: (x-x.mean())/ x.std(), axis=0)
+    # # DEBUG  CREATING POLYNOMIAL
+    target_sst = pd.read_csv(os.path.join(current_analysis_path, 'target_10.csv'), engine='python', index_col=[0, 1])
+    target_sst = preprocess_ts(serie=target_sst, col='values')
 
-#     # var_1 = np.var(first_sst.values)
-#     # var_2 = np.var(second_sst.values)
-#     # var_ts = np.var(target_sst.values)
+    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec_10.csv'), engine='python', index_col=[0, 1])
+    first_sst = preprocess_ts(serie=first_sst, col='values')
+
+    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec_10.csv'), engine='python', index_col=[0, 1])
+    second_sst = preprocess_ts(serie=second_sst, col='values')
+
+ 
+
+    # pt = PowerTransformer(method='yeo-johnson')
+    # pt.fit(second_sst['values'].values.reshape(-1, 1))
+    # transformed_s2 = pt.transform(second_sst['values'].values.reshape(-1, 1))
+    # print(transformed_s2.shape, np.ravel(transformed_s2))
+    # s2 = pd.DataFrame(data=np.ravel(transformed_s2), index=target_sst.index, columns=['values'])
+    # print(s2)
+    # const_p1, ar_p1 = evaluate_data_ar(data=first_sst['values'],col='values', display=False, debug=True)
+    # const_p2, ar_p2 = evaluate_data_ar(data=second_sst['values'],col='values',  display=False, debug=True)
+    # # const_p2, ar_p2 = evaluate_data_ar(data=s2['values'], col='values',  display=False, debug=True)
+    const_ts, ar_ts = evaluate_data_ar(data=target_sst['values'], col='values', display=False, debug=True)
+    st_p1 = postprocess_ar(ar_ts)
+    # st_p2 = stationarity_test(ar_p2)
+    # st_ts = postprocess_ar(ar_ts)
+    # print(st_p1, st_ts)
+    
+    # print(np.mean(ar_p1), np.mean(ar_ts), np.mean(ar_p2))
 
 
-#     const_p1, ar_p1 = evaluate_data_ar(data=first_sst['values'],col='values', display=False, debug=True)
-#     # const_p2, ar_p2 = evaluate_data_ar(data=second_sst['values'],col='values',  display=False, debug=True)
-#     const_ts, ar_ts = evaluate_data_ar(data=target_sst['values'], col='values', display=False, debug=True)
+    # ar = [val for _,val in enumerate(ar_p2)]
+  
+    # pp(second_sst.values)
+    # pp(transformed_ar)
+    # print(f'P-value sklearn transform {normaltest(transformed_ar)[1][0]}')
+    # fig, ax = plt.subplots(2,  1, figsize=(16, 8), dpi=90)
+    # second_sst['values'].plot(ax=ax[0])
+    # ax[1].plot(transformed_ar)
+    # plt.show()
+   
+
 #     poly_p1= create_polynomial_fit_ar(ar=ar_p1, sigma=np.std(first_sst.values), data=first_sst, const=const_p1, dependance=False)
 #     poly_ts = create_polynomial_fit_ar(ar=ar_ts, sigma=np.std(target_sst.values), data=target_sst, const=const_ts, dependance=False )
 #     poly_dep = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)

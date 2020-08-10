@@ -19,6 +19,7 @@ from scipy.fftpack import fft
 from copy import deepcopy
 from pprint import pprint as pp 
 from pandas.plotting import register_matplotlib_converters
+import  statsmodels.stats.api as stats
 from RGCPD import RGCPD
 from RGCPD import BivariateMI
 import core_pp
@@ -85,7 +86,7 @@ def choose_wavelet_signal(data, families=families, debug=False):
             r_ren = e_ap/ ren if ren else 0.01
             bit = rennies[0] - rennies[i-1] if len(rennies) > 2 else 0.0
             if debug == True:
-                print('index', i,'wave ', fam, 'energy', np.log10(e_ap), 'entropy sh', entr, 'renyi', ren,  'ratio shanny', np.log10(ratio), "ratio renny", np.log10(r_ren),'Renyi bit of info', np.exp2(round(bit)), sep='\n\n' ) 
+                print('[DBEUG] index', i,'wave ', fam, 'energy', np.log10(e_ap), 'entropy sh', entr, 'renyi', ren,  'ratio shanny', np.log10(ratio), "ratio renny", np.log10(r_ren),'Renyi bit of info', np.exp2(round(bit)), sep='\n\n' ) 
             info[fam]['energy'].append(np.log10(e_ap) if abs(np.log10(e_ap)) != np.inf else 0)
             info[fam]['shanon'].append(entr)
             info[fam]['renyi'].append(ren)
@@ -94,7 +95,7 @@ def choose_wavelet_signal(data, families=families, debug=False):
             info[fam]['bit'].append(np.exp2(round(bit)))
         if debug == True:
             print('\n*-------------------------------------*\n')
-    plot_choice_wavelet_signal(data=info, columns=tests)
+    # plot_choice_wavelet_signal(data=info, columns=tests)
 
 def plot_choice_wavelet_signal(data, columns, savefig=False):
     # TODO FIX THIS PLOT
@@ -112,6 +113,36 @@ def plot_choice_wavelet_signal(data, columns, savefig=False):
             plt.savefig('Wavelet/wave_choice'+ col +'_analysis .png', dpi=120)
     plt.show()  
 
+def wavelet_var(data, col, wavelet, levels):
+    assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
+    print(f'[INFO] Wavelet variance per scale analysis start of {col}..')
+    ap = data[col]  
+    result_var_level = np.zeros(levels)
+    for i, _ in enumerate(range(levels)):
+        ap, _ = wv.dwt(ap, wavelet)
+        result_var_level[i] =  np.dot(ap, ap)/len(ap)
+    print('[INFO] Wavelet variant scale analysis done. ')
+    return result_var_level
+
+def plot_wavelet_var(var_result, title, savefig=False):
+    plt.figure(16, 8, dpi=90)
+    ci_low, ci_high  = stats.DescrStatsW(var_result).tconfint_mean()
+    scales = np.arange(1, len(var_result)+1)
+    scales = np.exp2(scales)
+    plt.fill_between(scales, var_result - ci_low, var_result + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
+    plt.plot(scales, var_result, color='k', alpha=0.6, label=r'Var result of $\tau$')
+    plt.xlabel(f'Scales $\tau$')
+    plt.ylabel(f'Wavelet variance $\nu^2$')
+    plt.title(f'Wavelet variance per level  up to {title} deep')
+    plt.yscale('log',basey=10) 
+    plt.xscale('log',basex=2)
+    plt.tight_layout()
+    plt.legend(loc=0)
+    if savefig == True:
+        plt.savefig('Wavelet/wave_var_scale'+ title +'_analysis .pdf', dpi=120)
+        plt.savefig('Wavelet/wave_var_scale'+ title +'_analysis .png', dpi=120)
+
+    plt.show()
 
 def generate_rgcpd(target=3, prec_path='sst_1979-2018_2.5deg_Pacific.nc'):
     path_data = os.path.join(main_dir, 'data')
@@ -149,8 +180,7 @@ def setup_wavelets_rgdata(rg, wave='db4', modes=wv.Modes.periodic):
     mode=modes 
     return (rg_data, rg_index),  (wave, mode)
 
-def plot_discr_wave_decomp(data, wave):
-    # TODO WAY TO SAVE FIGURES WITH DISTINCT NAMES
+def plot_discr_wave_decomp(data, wave, name='DWT decomposition', savefig=False):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     lvl_decomp = wv.dwt_max_level(len(data), wave.dec_len)
     fig, ax = plt.subplots(lvl_decomp, 2, figsize=(19, 8))
@@ -165,6 +195,9 @@ def plot_discr_wave_decomp(data, wave):
                 ax[i, 0].set_title('Approximation coeffs', fontsize=14)
                 ax[i, 1].set_title('Details coeffs', fontsize=14)
     plt.tight_layout()
+    if savefig == True:
+            plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .pdf', dpi=120)
+            plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .png', dpi=120)
     plt.show()
 
 def create_low_freq_components(data, level=6, wave='db4', mode=wv.Modes.periodic, debug=False):
@@ -178,7 +211,7 @@ def create_low_freq_components(data, level=6, wave='db4', mode=wv.Modes.periodic
         cA.append(s)
     
     if debug == True:
-        print('Inspecting approximations length of low freq')
+        print('[DEBUG] Inspecting approximations length of low freq')
         for i, c in enumerate(cA):
             print('Level: ', i,'Size: ', len(c))
     return cA
@@ -227,3 +260,4 @@ def plot_mci_pred_relation(cA, prec_lag, savefig=False):
         plt.savefig('Wavelet/Mci/Mci_prec_lag0.pdf', dpi=120)
         plt.savefig('Wavelet/Mci/Mci_prec_lag0.png', dpi=120)
     plt.show()
+

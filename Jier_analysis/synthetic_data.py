@@ -14,6 +14,7 @@ import itertools as it
 import  statsmodels.stats.api as stats
 from statsmodels.tsa.stattools import adfuller, kpss 
 from statsmodels.tsa.arima_process import  arma_generate_sample, ArmaProcess
+from statsmodels.regression.linear_model import yule_walker
 from pprint import pprint as pp 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -22,6 +23,7 @@ plt.style.use('seaborn')
 from tqdm import tqdm
 from sklearn.preprocessing import PowerTransformer 
 from scipy.stats import normaltest
+import multiprocessing as mp
 
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, InterpolationWarning
 warnings.simplefilter('ignore', ConvergenceWarning)
@@ -293,10 +295,10 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:s
     plt.figure(figsize=(16, 8), dpi=90)
 
     ci_low, ci_high  = stats.DescrStatsW(simul_data).tconfint_mean()
-    plt.fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.9, label=r'95 % confidence interval')
+    plt.fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
     plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
 
-    plt.plot(_dates, signal, '-k', label='Precursor data', alpha=0.3)
+    plt.plot(_dates, signal, '-k', label='Precursor data', alpha=0.5)
     plt.title(title)
     plt.xlabel('Dates ')
     plt.ylabel('Variance in temperature Celsius')
@@ -347,6 +349,14 @@ def evaluate_data_ar(data, col,  ic='aic', method='mle', disp=0, title='Fitted  
 
     return ar_model.params[0], ar_model.params[1:] 
 
+def evaluate_data_yule_walker(data, col, order=2, method='mle', debug=False):
+    print(f'[INFO] Start applying Yule-Walker algorithm for AR process serie {col}')
+    rho, sigma = yule_walker(data[col], order=order, method=method)
+    if debug == True:
+        print(f'[DEBUG] rho : {rho}, sigma: {sigma}', sep='\n')
+    print('[INFO] Evaluation done.')
+    return rho, sigma
+
 def evaluate_data_arma(signal, display:bool=False, title='Fitted ARMA precursor', aic_check:bool=False, debug:bool=False):
 
     assert isinstance(signal, pd.Series), f"Expect pandas Series, {type(signal)} given"
@@ -387,9 +397,9 @@ def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
     
     return simul_data
 
-def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, gamma:float=0.1,  x1:np.array=np.zeros(100)):
+def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False,  gamma:float=0.1,  x1:np.array=np.zeros(100)):
     print('[INFO] Start running polynomial fit...')
-    print(f'[DEBUG] Dependence is set to {dependance}')
+    print(f'[DEBUG] Dependence is set to {dependance} mean data {np.mean(data.values)} std data {np.std(data.values)}')
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
     simul_data = np.zeros(N)
@@ -406,7 +416,12 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, de
         else:    
             simul_data[i] = const + (ar_0 * simul_data[i -1]) + (ar_1 * simul_data[i - 2]) + epsilon[i]
     print('[INFO] Polynomial fit done.')
-    return simul_data
+    if yule_walker == True:
+        print('[INFO] Yule walker standardisation')
+        simul = np.array([(i - np.mean(simul_data))/(np.std(simul_data)) for i in simul_data])    
+        return simul 
+    else:
+        return simul_data
 
 def create_polynomial_fit_ar_depence(x0:np.array, x1:np.array, gamma:float, data:pd.Series):
     print('[INFO] Start running polynomial fit dependance...')
@@ -416,7 +431,7 @@ def create_polynomial_fit_ar_depence(x0:np.array, x1:np.array, gamma:float, data
     print('[INFO] Polynomial fit dependance done.')
     return simul_data
 
-def stationarity_test(serie, regression='c', debug=False):
+def stationarity_test(serie, regression='c', only_adf=False, debug=False):
     
     adf = None
     try:
@@ -436,6 +451,8 @@ def stationarity_test(serie, regression='c', debug=False):
         print(f'[INFO] Polynomial Time Serie {ts} and its roots {ts.roots()}')
         adf = np.all([True if i.real > 1.0 else False  for i in  ts.roots() ])
         print(f'[INFO] ADF with roots testing stationarity is  {adf}')
+    if only_adf == True:
+        return adf
 
     # KPSS Test
     result = None
@@ -462,63 +479,70 @@ def preprocess_ts(serie, col, threshold=0.05, debug=False):
     p_value = normaltest(serie)[1][0] 
     print(f'[INFO] Time serie p_value  {p_value}')
     stat_bool = stationarity_test(serie=serie[col], debug=debug)
-    if stat_bool[0] and stat_bool[1] == True:
+    if (stat_bool[0] == True) and (stat_bool[1] == True) :
         print('[INFO] Time serie hass passed stationarity\n')
         return serie
-    # else:
-    
-    #     print('[INFO] Time serie is still not stationair, tranforming the time serie to gaussian like approximation')
-    #     pt = PowerTransformer(method='yeo-johnson')
-    #     pt.fit(serie[col].values.reshape(-1, 1))
-    #     trans_serie = pt.transform(serie[col].values.reshape(-1, 1))
-    #     p_value = normaltest(trans_serie)[1][0]
-    #     print(f'[INFO] Gaussian approximation with p-value {p_value}')
-    #     if p_value <= threshold:
-    #         print(f'[INFO] Transformed time serie is an approximation of a gaussian p-value {p_value}')
-    #         stat_bool = stationarity_test(serie=np.ravel(trans_serie))
-    #         if stat_bool == True:
-    #             print('[INFO] Transformed time serie is stationair\n')
-    #             return pd.DataFrame(data=np.ravel(trans_serie), index=index, columns=[col])
-
-    #         else:
-    #             raise ValueError('Transformed serie is still non-stationary')
-    #     else:
-    #         raise ValueError('Serie cannot be transform from non-gaussian distribution to an approximation')
-
+    else:
+        print('[INFO] Time serie is still not stationair, tranforming the time serie to gaussian like approximation')
+        pt = PowerTransformer(method='yeo-johnson', standardize=False)
+        pt.fit(serie[col].values.reshape(-1, 1))
+        trans_serie = pt.transform(serie[col].values.reshape(-1, 1))
+        p_value = normaltest(trans_serie)[1][0]
+        print(f'[INFO] Gaussian approximation with p-value {p_value}')
+        trans_df = pd.DataFrame(data=np.ravel(trans_serie), index=index, columns=[col])
+        stat_bool = stationarity_test(serie=trans_df[col], debug=debug)
+        if stat_bool[0] == True:
+            print(f'[INFO] Transformed time serie is stationair ADF {stat_bool[0]},  KPSS {stat_bool[1]}\n')
+            return trans_df
 
 def postprocess_ar(ar):
+    # TODO CATCH ERRORS IN KPSS BY USING TRY /EXCEPT CONSTRUCTION, Fix this logic!!! Try also multiple time
     print('\n[INFO] Postprocess Ar coefficients to examine stationarity')
-    stat_bool = stationarity_test(ar)
-    if stat_bool[0] and stat_bool[1] == False:
-        print('[INFO] Ar coefficient not stationair, applying first order differencing\n')
+    # stat_bool = None
+    # try:
+    # stat_bool = stationarity_test(ar)
+    # if (stat_bool[0]== False) or (stat_bool[1] ==False):
+    #     print(f'[ERROR] Ar coefficient not stationair, applying first order differencing \n{ar} ADF {stat_bool[0]} KPSS {stat_bool[1]}\n')
+    #     ar_ = difference(ar)
+    #     print(f'[DEBUG] DIFF AR {ar_}' )
+    #     stats_bool = stationarity_test(ar_)
+    #     if (stats_bool[0] ==True) or (stats_bool[1] == True):
+    #         print(f'[PASS] Ar coefficient stationarity and trend stationarity test passed, postprocess done\n {ar_} ADF {stat_bool[0]} KPSS {stat_bool[1]}\n')
+    #         return ar_
+    #     print('[INFO] Postprocess done.')
+    #     return ar
+    # except:
+    stat_bool = stationarity_test(ar, only_adf=True)
+    if (stat_bool== False):
+        print(f'[INFO] Ar coefficient not stationair, applying first order differencing \t\n{ar}\n')
         ar_ = difference(ar)
-        stats_bool = stationarity_test(ar_)
-        if stats_bool[0] and stats_bool[1] == True:
-            print('[INFO] Ar coefficient stationarity test passed, postprocess done\n')
+        stats_bool = stationarity_test(ar_, only_adf=True)
+        if stats_bool==True :
+            print(f'[INFO] Ar coefficient stationarity test passed, postprocess done\t\n {ar_}\n')
             return ar_
-    print('[INFO] Postprocess done.')
-    return ar
+        print('[INFO] Postprocess done.')
+        return ar
 
 def difference(dataset, interval=1):
-    dataset = [ val for _, val in enumerate(dataset)]
+    # dataset = [ val for _, val in enumerate(dataset)]
     diff = [dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))]
     return np.array(diff)
 
 
 if __name__ == "__main__":
-    # pass 
+    
     current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
-#     # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_Data')
+    # # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_Data')
 
-    # # DEBUG  CREATING POLYNOMIAL
-    target_sst = pd.read_csv(os.path.join(current_analysis_path, 'target_10.csv'), engine='python', index_col=[0, 1])
-    target_sst = preprocess_ts(serie=target_sst, col='values')
+    # # # DEBUG  CREATING POLYNOMIAL
+    target_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_3ts_1.csv'), engine='python', index_col=[0, 1])
+    target_sst = preprocess_ts(serie=target_sst, col='3ts')
 
-    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'first_sst_prec_10.csv'), engine='python', index_col=[0, 1])
-    first_sst = preprocess_ts(serie=first_sst, col='values')
+    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1_1.csv'), engine='python', index_col=[0, 1])
+    first_sst = preprocess_ts(serie=first_sst, col='prec1')
 
-    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'second_sst_prec_10.csv'), engine='python', index_col=[0, 1])
-    second_sst = preprocess_ts(serie=second_sst, col='values')
+    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2_1.csv'), engine='python', index_col=[0, 1])
+    second_sst = preprocess_ts(serie=second_sst, col='prec2')
 
  
 
@@ -528,18 +552,26 @@ if __name__ == "__main__":
     # print(transformed_s2.shape, np.ravel(transformed_s2))
     # s2 = pd.DataFrame(data=np.ravel(transformed_s2), index=target_sst.index, columns=['values'])
     # print(s2)
-    # const_p1, ar_p1 = evaluate_data_ar(data=first_sst['values'],col='values', display=False, debug=True)
-    # const_p2, ar_p2 = evaluate_data_ar(data=second_sst['values'],col='values',  display=False, debug=True)
-    # # const_p2, ar_p2 = evaluate_data_ar(data=s2['values'], col='values',  display=False, debug=True)
-    const_ts, ar_ts = evaluate_data_ar(data=target_sst['values'], col='values', display=False, debug=True)
-    st_p1 = postprocess_ar(ar_ts)
-    # st_p2 = stationarity_test(ar_p2)
-    # st_ts = postprocess_ar(ar_ts)
-    # print(st_p1, st_ts)
+    # p = mp.Pool(mp.cpu_count()-1)
+    # answer  = p.starmap_async(evaluate_data_ar,zip([target_sst['3ts'], first_sst['prec1'], second_sst['prec2']] ,['3ts', 'prec1', 'prec2']))
+    # result_3ts, result_prec1, result_prec2 =  answer.get()
+    # p.close()
+    # p.join()
+    # const_ts, ar_ts = result_3ts
+    # const_p1, ar_p1 = result_prec1
+    # const_p2, ar_p2 = result_prec2
+    # const_p1, ar_p1 = evaluate_data_ar(data=first_sst['prec1'],col='prec1', display=False, debug=True)
+    # const_p2, ar_p2 = evaluate_data_ar(data=second_sst['prec2'],col='prec2',  display=False, debug=True)
+    # const_ts, ar_ts = evaluate_data_ar(data=target_sst['3ts'], col='3ts', display=False, debug=True)
+    rho_ts, sigma_ts = evaluate_data_yule_walker(target_sst, col='3ts', order=2, method='mle', debug=True)
+    rho_1, sigma_1 = evaluate_data_yule_walker(first_sst, col='prec1', order=2, method='mle', debug=True)
+    rho_2, sigma_2 = evaluate_data_yule_walker(second_sst, col='prec2', order=2, method='mle', debug=True)
+
+
+    st_p1 = postprocess_ar(rho_1)
+    st_p2 = postprocess_ar(rho_2)
+    st_ts = postprocess_ar(rho_ts)
     
-    # print(np.mean(ar_p1), np.mean(ar_ts), np.mean(ar_p2))
-
-
     # ar = [val for _,val in enumerate(ar_p2)]
   
     # pp(second_sst.values)
@@ -551,17 +583,15 @@ if __name__ == "__main__":
     # plt.show()
    
 
-#     poly_p1= create_polynomial_fit_ar(ar=ar_p1, sigma=np.std(first_sst.values), data=first_sst, const=const_p1, dependance=False)
-#     poly_ts = create_polynomial_fit_ar(ar=ar_ts, sigma=np.std(target_sst.values), data=target_sst, const=const_ts, dependance=False )
-#     poly_dep = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
-#     poly_dep_ = create_polynomial_fit_ar(ar=ar_ts, sigma=np.std(target_sst.values), data=target_sst, const=const_ts, gamma=0.1, dependance=True, x1=poly_p1)
-# # 
-#     pp(poly_dep)
-#     pp(poly_dep_)
+    # poly_p1= create_polynomial_fit_ar(ar=st_p1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, dependance=False)
+    # poly_ts = create_polynomial_fit_ar(ar=st_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, yule_walker=True, dependance=False )
+    # poly_dep_ = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
+    # # poly_dep_ = create_polynomial_fit_ar(ar=st_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, gamma=0.1, yule_walker=True, dependance=True, x1=poly_p1)
 
-#     display_poly_data_ar(simul_data=poly_dep, ar=[0.1], signal=target_sst, dep=True)
-#     display_poly_data_ar(simul_data=poly_dep_, ar=[ar_ts[:2][0], ar_ts[:2][1], 0.1], signal=target_sst, dep=True )
-#     plt.show()
+
+    # display_poly_data_ar(simul_data=poly_ts, ar=st_ts,  signal=target_sst, dep=False)
+    # display_poly_data_ar(simul_data=poly_dep_, ar=[rho_ts[0], rho_ts[1], 0.1], signal=target_sst, dep=True )
+    # plt.show()
 
     # TODO Fix these nans by calculation of AR processes if daily means become smaller
     # ar_t = np.load(os.path.join(ar_data_path, 'ar_sst_3ts_c.npz'))

@@ -108,6 +108,7 @@ class savarModel:
 
         # Obtain some useful parameters
         graph, max_lag = create_graph(self.links_coeffs, return_lag=True)
+        # print(graph)
         n_var = graph.shape[0]
 
         if self.verbose:

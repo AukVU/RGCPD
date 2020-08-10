@@ -25,6 +25,7 @@ import sys
 import matplotlib.pyplot as plt
 
 import csv
+import os
 
 from tigramite.independence_tests import ParCorr
 from tigramite.independence_tests import GPDC
@@ -168,6 +169,13 @@ class BivariateMI_PCMCI:
                 # corr_val, pval = corr_new(prec_lag, RV_ts.values.squeeze())
                 # corr_val, pval = entropy_new(prec_lag, RV_ts.values.squeeze())
                 corr_val, pval = self.bivariate_func(prec_lag, RV_ts.values.squeeze(), **self.kwrgs_bivariate)
+                # plt.imshow(corr_val.reshape(lat.size, lon.size))
+                # plt.show()
+                # f_name = 'corr_map_{}_test'.format(self.bivariate_func.__name__)
+                # path_out = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD/Code_Lennart/results/multiple_test/output_RGCPD"
+
+                # fig_path = os.path.join(path_out, f_name)+'.pdf'
+                # plt.savefig(fig_path, bbox_inches='tight')
                 mask = np.ones(corr_val.size, dtype=bool)
                 if FDR_control == True:
                     # test for Field significance and mask unsignificant values
@@ -248,7 +256,17 @@ def corr_map(field, ts):
     x = np.ma.zeros(field.shape[1])
     corr_vals = np.array(x)
     pvals = np.array(x)
+
+    
     fieldnans = np.array([np.isnan(field[:,i]).any() for i in range(x.size)])
+
+    # plt.imshow(fieldnans.reshape(lat.size, lon.size))
+    # plt.show()
+    # f_name = 'field_corr_map_test'
+    # path_out = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD/Code_Lennart/results/multiple_test/output_RGCPD"
+
+    # fig_path = os.path.join(path_out, f_name)+'.pdf'
+    # plt.savefig(fig_path, bbox_inches='tight')
     
     nonans_gc = np.arange(0, fieldnans.size)[fieldnans==False]
     
@@ -267,8 +285,8 @@ def granger_map(field, ts):
     for i in nonans_gc:
         data = np.concatenate((ts, np.expand_dims(field[:,i], axis=1)), axis=1)
         granger = grangercausalitytests(data, [1, 10], verbose=False)
-        # corr_vals[i], pvals[i], _, _ = granger[10][0]['ssr_ftest']
-        corr_vals[i], pvals[i], _ = granger[1][0]['ssr_chi2test']
+        corr_vals[i], pvals[i], _, _ = granger[10][0]['ssr_ftest']
+        # corr_vals[i], pvals[i], _ = granger[1][0]['ssr_chi2test']
         # print(' hoi')
     return corr_vals, pvals
 

@@ -104,8 +104,10 @@ def filter_matrices(matrices, locs, locs_intersect=None):
 
 def run_multiple(settings, years=None, modes=None, signals=None, noises=None, iterations=10):
     # bivariate_list = [corr_map, entropy_map, granger_map, gpdc_map, cmiknn_map, granger_map]
-    bivariate_list = [corr_map, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time]
-    bivariate_kwrgs_list = [(0,0,0), (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)]
+    bivariate_list = [corr_map, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time] #, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time
+    bivariate_kwrgs_list = [(0,0,0), (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)] #, (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)
+    # bivariate_list = [corr_map]
+    # bivariate_kwrgs_list = [(0,0,0)]
     table_list = None
     test = None
 
@@ -137,7 +139,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
     noises_list = list(np.array(noises).flat)
     if noises == None:
-        noises_list = np.arange(0,26,1)
+        noises_list = np.arange(15,16,1)
         table_list = noises_list
         test = 'nois'
     print(f"\nTested number of noise levels: {noises_list}")
@@ -201,7 +203,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
                             print(kwrgs_bivariate)
 
-                            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=300, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
+                            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=300, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
                             start_end_TVdate = None
                             start_end_date = None
@@ -233,7 +235,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
                             rg.calc_corr_maps()
 
-                            # rg.plot_maps_corr(save=True)
+                            rg.plot_maps_corr(save=True)
 
                             rg.cluster_list_MI()
 
@@ -249,11 +251,11 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
                                 continue
 
 
-                            rg.PCMCI_df_data(pc_alpha=None, 
+                            rg.PCMCI_df_data(pc_alpha=0.01, 
                                             tau_max=2,
                                             max_combinations=2)
 
-                            rg.PCMCI_get_links(alpha_level=0.1)
+                            rg.PCMCI_get_links(alpha_level=0.01)
 
                             # rg.PCMCI_plot_graph(s=1)
 
@@ -278,6 +280,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
 
                             pcmci_matrix_path = local_base_path + f'/{output}' + f'/matrices/{bivariate.__name__}'
+                            # print(f"Matrix {bivariate.__name__} path: {pcmci_matrix_path}")
                             if bivariate.__name__ == 'parcorr_map_time':
                                 pcmci_matrix_path = pcmci_matrix_path + f'-{lag}-{target}-{precur}'
                             # settings = {'N': len(rg.pcmci_results_dict[0])}
@@ -406,4 +409,13 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-run_multiple(settings, years=[9], modes=[7], signals=[0.7], noises=None, iterations=30)
+run_multiple(settings, years=[9], modes=[7], signals=[0.15], noises=None, iterations=1)
+
+
+
+# plt.imshow(xrvals.values[i][0])
+#                 plt.show()
+#                 f_name = 'corr_map_{}_test_{}'.format(precur_name, i)
+
+#                 fig_path = os.path.join(self.path_outsub1, f_name)+self.figext
+#                 plt.savefig(fig_path, bbox_inches='tight')

@@ -15,11 +15,15 @@ def calculate_p_value_score(found, real, correlated, measure='', alpha=0.001, ta
     found_matrix = found_matrix_orig
     if target_only:
         real_matrix = real_matrix_orig[0]
-        found_matrix = found_matrix_orig[0]
+        found_matrix = found_matrix[0]
 
     accuracy = 0.0
     if measure == 'Average':
         accuracy = (found_matrix == real_matrix).mean()
+    # print(f"found = {found}")
+    # if 'pcmci_test' in found:
+    #     print(f"Score PCMCI test test test:{accuracy}")
+    #     print(found_matrix_orig == real_matrix_orig)
     return accuracy, real_matrix
 
 def calculate_val_score(found, real, mask, correlated, measure='', target_only=True):
@@ -57,6 +61,7 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
         if i == 0:
             tests = dirs
         files_paths = [os.path.join(subdir, file) for file in files]
+        files_paths = sorted(files_paths, key=str.lower)
         all_files.append(files_paths)
         i += 1
     all_files = all_files[1:]
@@ -65,6 +70,8 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
     
     real = all_files[0]
     real_links = np.load(general_path + '/AAA_real/ZZZ_real_links.npy')
+    N = len(real_links)
+    real_links = [0] + [(0.1 * i / (N - 2)) for i, l in enumerate(real_links[1:])]
 
     results = {}
     for test in tests:

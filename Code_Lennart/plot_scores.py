@@ -57,7 +57,8 @@ def plot_scores(settings, path=None):
             test = file[:4]
             file = os.path.join(subdir, file)
             df = pd.read_csv(file)
-            df = df.replace(0, np.NaN).T
+            # df = df.replace(0, np.NaN).T
+            df = df.T
             r, c = len(df[0]), len(list(df))
             ndata = []
             for col in df.columns:
@@ -77,7 +78,7 @@ def plot_scores(settings, path=None):
             df['Mode'][:] = repeats
             sns.lineplot(x='Mode', y='Score', ci=95, data=df, label=method)
             axes = plt.gca()
-    axes.set_ylim([0.55,1.03])
+    axes.set_ylim([0.2,1.03])
     # axes.set_xlim([197,603])
     axes.set_xticks(repeats)
     axes.set_xlabel(to_test(test), fontsize=24)
@@ -131,7 +132,7 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-test = 'NOISE_1'
+test = 'TIME'
 
 user_dir = settings['user_dir']
 path = user_dir + f'/Results_Lennart/scores/' + test

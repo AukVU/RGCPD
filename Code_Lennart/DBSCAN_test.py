@@ -105,7 +105,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
     DBSCAN_list = list(np.array(cluster).flat)
     if cluster == None:
-        DBSCAN_list = np.arange(200, 610, 50)
+        DBSCAN_list = np.arange(100, 410, 50)
         table_list = DBSCAN_list
         test = 'DBSCAN epsilon' 
     print(f"\nTested cluster epsilons: {DBSCAN_list}")
@@ -132,7 +132,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
             print('')
             print(f"cluster_eps: {cluster_eps}")
             settings['noise_level'] = 10 #0.5
-            settings['signal'] = 0.6
+            # settings['signal'] = 0.6
             settings['T'] = 1826
             cts.create_time_series(settings, links_coeffs, verbose=False,
                                                     plot_modes=False,
@@ -162,7 +162,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
             print(kwrgs_bivariate)
 
-            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=cluster_eps, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
+            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.1, 'FDR_control':False}, distance_eps=cluster_eps, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)
 
             start_end_TVdate = None
             start_end_date = None
@@ -328,11 +328,11 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
 settings = {}
 settings['N'] = 7
-settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 5114
-settings['spatial_covariance'] = 0.3
+settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 3287
+settings['spatial_covariance'] = 50
 settings['random_modes'] = False
 settings['noise_use_mean'] = False
-settings['noise_level'] = 0
+settings['noise_level'] = 10
 settings['transient'] = 200
 settings['spatial_factor'] = 0.1
 
@@ -366,5 +366,7 @@ links_coeffs = 'model3'
 settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
+
+settings['signal'] = 0.25
 
 run_DBSCAN_test(settings, cluster=None, iterations=30)

@@ -70,7 +70,7 @@ def get_links_coeffs(links_coeffs):
 
 def plot_timeseries_func(savar, plot_points, settings, output='test'):
     fig, axes = plt.subplots(settings['N'], 2)
-    plt.setp(axes, xlim=(1,plot_points), ylim=(-10,10))
+    plt.setp(axes, xlim=(1,plot_points)) #, ylim=(-10,10)
 
     for plot in range(min(settings['N'], 7)):
         axes[plot,0].plot(savar.network_data[:plot_points, plot])
@@ -178,7 +178,8 @@ def create_causal_map(N, settings, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
-        autocorrelation = 0.1 * np.random.random() + 0.8
+        # autocorrelation = 0.1 * np.random.random() + 0.8
+        autocorrelation = settings['signal'] - 0.1
         for mode in range(0, N):
             possible_links = list(range(N))
             del possible_links[mode]
@@ -189,19 +190,25 @@ def create_causal_map(N, settings, verbose=False):
                     # choice = np.random.choice(possible_links)
                     # possible_links.remove(choice)
                     # strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
-                    strength = max(0, 0.1 * np.random.uniform(low=0,high=3) + settings['signal']) * np.random.choice([-1,1])
+                    strength = max(0, settings['signal']) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
                     if verbose:
                         print(f"Link {link + 1} with strength {strength}")
                     links_coeffs[mode] += [((link + 1, 10), strength)]
             elif mode == (N - 1):
+                # print('passed')
                 pass
             else:
+                if N > 5:
+                    if mode == (N - 3):
+                        # print('passed')
+                        pass
                 for link in range(np.random.randint(start,4)):
                     choice = np.random.choice(possible_links)
                     possible_links.remove(choice)
-                    strength = (0.1 * np.random.uniform(low=-2,high=0) + settings['signal']) * np.random.choice([-1,1])
+                    strength = (settings['signal'] - 0.1) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=-3,high=0) + 
                     links_coeffs[mode] += [((choice, 10), strength)]
             autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
+            autocorrelation = settings['signal'] - 0.05
         try:
             check_stability(links_coeffs)
             result = "Generated"
@@ -210,46 +217,59 @@ def create_causal_map(N, settings, verbose=False):
             pass
     return links_coeffs
 
-# def create_causal_map_inv(N, settings, verbose=False):
-#     result = None
-#     while result == None:
-#         links_coeffs = {}
-#         autocorrelation = 0.1 * np.random.random() + 0.8
-#         for mode in range(0, N):
-#             links_coeffs[mode] = [((mode, 10), autocorrelation)]
-#         for mode in range(0, N):
-#             possible_links = list(range(N))
-#             del possible_links[mode]
-#             start = 1
-#             if mode == 0:
-#                 for link in range(np.random.randint(1,3)):
-#                     # choice = np.random.choice(possible_links)
-#                     # possible_links.remove(choice)
-#                     strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
-#                     if verbose:
-#                         print(f"Link {link + 1} with strength {strength}")
-#                     links_coeffs[link + 1] += [((mode, 10), strength)]
-#             elif mode == (N - 1):
-#                 pass
-#             else:
-#                 for link in range(np.random.randint(start,3)):
-#                     choice = np.random.choice(possible_links)
-#                     possible_links.remove(choice)
-#                     links_coeffs[choice] += [((mode, 10), 0.1 * np.random.uniform(low=-1,high=1) + settings['signal'])]
-#             autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
-#         try:
-#             check_stability(links_coeffs)
-#             result = "Generated"
-#         except:
-#             # print("New try making causal map")
-#             pass
-#     return links_coeffs
+def create_causal_map_all_links(N, settings, verbose=False):
+    result = None
+    while result == None:
+        links_coeffs = {}
+        autocorrelation = 0.1 * np.random.random() + 0.8
+        # autocorrelation = settings['signal'] - 2
+        for mode in range(0, N):
+            # possible_links = list(range(N))
+            # del possible_links[mode]
+            links_coeffs[mode] = [((mode, 10), autocorrelation)]
+            autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
+            # autocorrelation = settings['signal'] - 1
+            # start = 1
+            # if mode == 0:
+        strengths = [(settings['signal'] - ((settings['signal'] / 2) * m / (N-2))) for m in range(N-1)]
+        # print(f'Strengths = {strengths}')
+        mode = 0
+        for link in range(N-1):
+            # choice = np.random.choice(possible_links)
+            # possible_links.remove(choice)
+            # strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
+            strength = max(0, strengths[link]) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
+            if verbose:
+                print(f"Link {link + 1} with strength {strength}")
+            links_coeffs[mode] += [((link + 1, 10), strength)]
+            # elif mode == (N - 1):
+            #     # print('passed')
+            #     pass
+            # else:
+            #     if N > 5:
+            #         if mode == (N - 3):
+            #             # print('passed')
+            #             pass
+            #     for link in range(np.random.randint(start,3)):
+            #         choice = np.random.choice(possible_links)
+            #         possible_links.remove(choice)
+            #         strength = (settings['signal'] - 0.1) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=-3,high=0) + 
+            #         links_coeffs[mode] += [((choice, 10), strength)]
+            # autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
+        # links_coeffs[N-1] += [((0, 10), 0.1)]
+        try:
+            check_stability(links_coeffs)
+            result = "Generated"
+        except:
+            # print("New try making causal map")
+            pass
+    return links_coeffs
 
 def write_nc(savar, data_field, settings, output='test'):
     user_dir = settings['user_dir']
     filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}.nc'
     nc = Dataset(filename, 'w', format='NETCDF4')
-    data = savar.network_data
+    data = savar.data_field @ savar.modes_weights.reshape(settings['N'], -1).transpose()
     # clusters = data.shape[1] - 1
     # columns = clusters / 2
     # columns = int(columns * 2 - 1)
@@ -279,6 +299,8 @@ def write_nc(savar, data_field, settings, output='test'):
 
     print(f'DATA FIELD heeft size: {data_field.shape}')
     temp_data = data_field[:, :, settings['nx']:]
+    # print(f"lon = {lon.shape}")
+    # print(f'temp_data = {temp_data.shape}')
 
     nc.createDimension('longitude', len(lon))
     nc.createDimension('latitude', len(lat))
@@ -306,6 +328,7 @@ def write_nc(savar, data_field, settings, output='test'):
     filename = user_dir + f'/Code_Lennart/results/{output}/NC/{output}_target.nc'
     nct = Dataset(filename, 'w', format='NETCDF4')
     lon = np.arange(0, (settings['N'] - 1) * settings['nx'],1)
+    # print(f"lon = {lon.shape}")
     lat = np.arange(10,10 + settings['nx'],1)
     if settings['area_size'] == 'small':
         lon = np.arange(-140,-120,1)
@@ -317,6 +340,7 @@ def write_nc(savar, data_field, settings, output='test'):
     tstarget = np.zeros((5, data.shape[0]))
     for i in range(5):
         tstarget[i,:] = data[:,0]
+    # print(f'tstarget = {tstarget.shape}')
     
     # tstarget = data_field[:, :, :30]
 
@@ -389,7 +413,7 @@ def create_real_matrices(settings, general_path, links_coeffs):
             lag = 1
             val = link[1]
             naar = key
-            # print(f'van {van} naar {naar}')
+            # print(f'van {van} naar {naar} with val {val}')
             pmatrix[van][naar][lag] = 0
             val_matrix[van][naar][lag] = val
     real_links = np.ones(N)
@@ -399,6 +423,7 @@ def create_real_matrices(settings, general_path, links_coeffs):
     np.save(path + '/ZZZ_correlated', list(range(N)))
     np.save(path + '/ZZZ_real_links', real_links)
     print(f'\n\n The real links are {real_links}\n\n')
+    # print(pmatrix)
     save_matrices(settings, path, pmatrix, val_matrix)
 
 def create_real_matrices_old(settings, general_path, links_coeffs):
@@ -431,6 +456,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
     nx, ny, T, N = settings['nx'], settings['ny'], settings['T'], settings['N']
     spatial_covariance = settings['spatial_covariance']
     general_path = settings['user_dir'] + '/' + settings['extra_dir'] + '/results/' + settings['filename']
+    # print(f"general_path: {general_path}")
 
     if (settings['netcdf4'] or settings['save_time_series'] or settings['do_pcmci'] or
                               settings['save_matrices']    or (settings['plot_points'] != None)):
@@ -439,7 +465,8 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         os.makedirs(remove_path + '/NC')
 
     if settings['random_causal_map']:
-        links_coeffs = create_causal_map(N, settings, verbose)
+        # links_coeffs = create_causal_map(N, settings, verbose)
+        links_coeffs = create_causal_map_all_links(N, settings, verbose)
     elif links_coeffs == None:
         print('Using default causal map of Xavier')
         links_coeffs = get_links_coeffs('Xavier')
@@ -540,6 +567,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
 
         pcmci_matrix_path = general_path + '/matrices/pcmci_test'
+        # print(f"PCMCI path: {pcmci_matrix_path}")
         if os.path.isdir(pcmci_matrix_path) != True : os.makedirs(pcmci_matrix_path)
         np.save(pcmci_matrix_path + '/ZZZ_correlated', list(range(settings['N'])))
         p_matrix = pcmci_output['p_matrix'][:, :, [0,10,11]]

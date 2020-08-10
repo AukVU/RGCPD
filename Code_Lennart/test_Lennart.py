@@ -91,6 +91,7 @@ if len(sys.argv) > 1:
 else:
     settings['user_dir'] = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD"
     user_dir = settings['user_dir']  + '/' + settings['extra_dir'] + '/results'
+local_base_path = user_dir
 print(f"DIR is: {user_dir}")
 
 
@@ -113,14 +114,14 @@ settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
 
-output = 'era5'
-# output =  'test_met_savar11'
-# bivariate = corr_map
+# output = 'era5'
+output =  'test_met_savar11'
+bivariate = corr_map
 # bivariate = entropy_map
 # bivariate = entropy_map_pearson
 # bivariate = granger_map
 # bivariate = parcorr_map_spatial
-bivariate = parcorr_map_time
+# bivariate = parcorr_map_time
 # bivariate = gpdc_map
 # bivariate = rcot_map
 # bivariate = cmiknn_map
@@ -128,7 +129,7 @@ bivariate = parcorr_map_time
 
 kwrgs_bivariate = {}
 if bivariate == parcorr_map_time:
-    lag = 5
+    lag = 1
     target = True
     precur = False
     kwrgs_bivariate = {'lag':lag, 'target':target, 'precur':precur}
@@ -150,7 +151,7 @@ if output == 'era5':
     ]
 
     # list_for_EOFS = [EOF(name='st2', neofs=1, selbox=[-180, 360, -15, 30])]
-    list_for_MI   = [BivariateMI_PCMCI(name='st2', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=400, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
+    list_for_MI   = [BivariateMI_PCMCI(name='st2', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=300, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
 
 else:
     list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
@@ -159,7 +160,7 @@ else:
     ]
 
     # list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True})]
-    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=400, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
+    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.1, 'FDR_control':False}, distance_eps=200, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
 # start_end_TVdate = ('06-24', '08-22')
 # start_end_TVdate = None
@@ -243,12 +244,12 @@ def filter_matrices(matrices, locs, locs_intersect=None):
         locs_intersect = list(set.intersection(*map(set, locs)))
     else:
         locs_intersect = locs_intersect[1:]
+    filtered_matrices = np.zeros((len(matrices), len(locs_intersect) + 1, len(locs_intersect) + 1, len(matrices[0][0][0])))
     for i, loc in enumerate(locs):
         indices = list(np.where(np.isin(loc, locs_intersect))[0])
         indices = [0] + [i+1 for i in indices]
-        matrices[i] = matrices[i][indices]
-        matrices[i] = matrices[i][:, indices]
-    return matrices, ([0] + locs_intersect)
+        filtered_matrices[i] = matrices[i][indices][:, indices]
+    return filtered_matrices, ([0] + locs_intersect)
 
 locs = rename_labels(rg)
 
@@ -263,19 +264,19 @@ rg.PCMCI_df_data(pc_alpha=None,
 
 rg.PCMCI_get_links(alpha_level=0.1)
 
-kwrgs = {'link_colorbar_label':'cross-MCI',
-                     'node_colorbar_label':'auto-MCI',
-                     'curved_radius':.4,
-                     'arrowhead_size':4000,
-                     'arrow_linewidth':50,
-                     'label_fontsize':14,
-                     'node_label_size':1}
-rg.PCMCI_plot_graph(s=1, variable='1ts', kwrgs=kwrgs)
-rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
+# kwrgs = {'link_colorbar_label':'cross-MCI',
+#                      'node_colorbar_label':'auto-MCI',
+#                      'curved_radius':.4,
+#                      'arrowhead_size':4000,
+#                      'arrow_linewidth':50,
+#                      'label_fontsize':14,
+#                      'node_label_size':1}
+# rg.PCMCI_plot_graph(s=1, variable='1ts', kwrgs=kwrgs)
+# rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
 
 
 
-rg.quick_view_labels()
+# rg.quick_view_labels()
 
 rg.plot_maps_sum(cols=['corr'])
 

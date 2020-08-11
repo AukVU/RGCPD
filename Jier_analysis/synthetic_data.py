@@ -350,7 +350,7 @@ def evaluate_data_ar(data, col,  ic='aic', method='mle', disp=0, title='Fitted  
     return ar_model.params[0], ar_model.params[1:] 
 
 def evaluate_data_yule_walker(data, col, order=2, method='mle', debug=False):
-    print(f'[INFO] Start applying Yule-Walker algorithm for AR process serie {col}')
+    print(f'\n[INFO] Start applying Yule-Walker algorithm for AR process serie {col}')
     rho, sigma = yule_walker(data[col], order=order, method=method)
     if debug == True:
         print(f'[DEBUG] rho : {rho}, sigma: {sigma}', sep='\n')
@@ -398,7 +398,7 @@ def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
     return simul_data
 
 def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False,  gamma:float=0.1,  x1:np.array=np.zeros(100)):
-    print('[INFO] Start running polynomial fit...')
+    print('\n[INFO] Start running polynomial fit...')
     print(f'[DEBUG] Dependence is set to {dependance} mean data {np.mean(data.values)} std data {np.std(data.values)}')
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
@@ -431,7 +431,7 @@ def create_polynomial_fit_ar_depence(x0:np.array, x1:np.array, gamma:float, data
     print('[INFO] Polynomial fit dependance done.')
     return simul_data
 
-def stationarity_test(serie, regression='c', only_adf=False, debug=False):
+def stationarity_test(serie, regression='c', debug=False):
     
     adf = None
     try:
@@ -451,39 +451,38 @@ def stationarity_test(serie, regression='c', only_adf=False, debug=False):
         print(f'[INFO] Polynomial Time Serie {ts} and its roots {ts.roots()}')
         adf = np.all([True if i.real > 1.0 else False  for i in  ts.roots() ])
         print(f'[INFO] ADF with roots testing stationarity is  {adf}')
-    if only_adf == True:
-        return adf
+
 
     # KPSS Test
     result = None
-    try:
+    if regression == 'c':
         result = kpss(serie, regression='c', lags='auto')
-    except:
-        result = kpss(serie, regression='ct', lags='auto')
+        print(f'[INFO] Result KPSS: The mean of the serie is {"NOT " if result[1] < 0.05 else ""}stationary')
+    else:
+        result = kpss(serie, regression=regression, lags='legacy')
+        print(f'[INFO] Result KPSS: The trend of the serie is {"NOT " if result[1] < 0.05 else ""}stationary')
     if debug == True:
         print(f'\n [DEBUG] KPSS Statistic:  {result[0]} ')
         print(f'[DEBUG] p-value: {result[1]} ')
         print('[DEBUG] Critial Values:')
         for key, value in result[3].items():
             print(f'   {key}, {value}')
-    print(f'[INFO] Result KPSS: The trend of the serie is {"NOT " if result[1] < 0.05 else ""}stationary')
     kps = False if result[1] < 0.05 else True
     return (adf , kps)
 
 def preprocess_ts(serie, col, threshold=0.05, debug=False):
 
-    print(f'\n[INFO] Preprocessing Time serie \'{col}\' with first  standardising')
+    print(f'\n[INFO] Preprocessing Time serie \'{col}\' with first standardising and checking for gaussian like p-value ')
 
     serie = serie.apply(lambda x : (x - x.mean())/ x.std(), axis=0)
     index = serie.index
     p_value = normaltest(serie)[1][0] 
-    print(f'[INFO] Time serie p_value  {p_value}')
-    stat_bool = stationarity_test(serie=serie[col], debug=debug)
-    if (stat_bool[0] == True) and (stat_bool[1] == True) :
-        print('[INFO] Time serie hass passed stationarity\n')
+    print(f'[INFO] Time serie p_value  {p_value} rounded to 3 decimals {np.round(p_value, 3)}')
+    if np.round(p_value, 3) < threshold == True :
+        print('[INFO] Time serie is gaussian like \n')
         return serie
     else:
-        print('[INFO] Time serie is still not stationair, tranforming the time serie to gaussian like approximation')
+        print('[INFO] Time serie is non-gaussian, tranforming the time serie to gaussian like approximation')
         pt = PowerTransformer(method='yeo-johnson', standardize=False)
         pt.fit(serie[col].values.reshape(-1, 1))
         trans_serie = pt.transform(serie[col].values.reshape(-1, 1))
@@ -495,54 +494,44 @@ def preprocess_ts(serie, col, threshold=0.05, debug=False):
             print(f'[INFO] Transformed time serie is stationair ADF {stat_bool[0]},  KPSS {stat_bool[1]}\n')
             return trans_df
 
-def postprocess_ar(ar):
-    # TODO CATCH ERRORS IN KPSS BY USING TRY /EXCEPT CONSTRUCTION, Fix this logic!!! Try also multiple time
-    print('\n[INFO] Postprocess Ar coefficients to examine stationarity')
-    # stat_bool = None
-    # try:
-    # stat_bool = stationarity_test(ar)
-    # if (stat_bool[0]== False) or (stat_bool[1] ==False):
-    #     print(f'[ERROR] Ar coefficient not stationair, applying first order differencing \n{ar} ADF {stat_bool[0]} KPSS {stat_bool[1]}\n')
-    #     ar_ = difference(ar)
-    #     print(f'[DEBUG] DIFF AR {ar_}' )
-    #     stats_bool = stationarity_test(ar_)
-    #     if (stats_bool[0] ==True) or (stats_bool[1] == True):
-    #         print(f'[PASS] Ar coefficient stationarity and trend stationarity test passed, postprocess done\n {ar_} ADF {stat_bool[0]} KPSS {stat_bool[1]}\n')
-    #         return ar_
-    #     print('[INFO] Postprocess done.')
-    #     return ar
-    # except:
-    stat_bool = stationarity_test(ar, only_adf=True)
-    if (stat_bool== False):
-        print(f'[INFO] Ar coefficient not stationair, applying first order differencing \t\n{ar}\n')
-        ar_ = difference(ar)
-        stats_bool = stationarity_test(ar_, only_adf=True)
-        if stats_bool==True :
-            print(f'[INFO] Ar coefficient stationarity test passed, postprocess done\t\n {ar_}\n')
-            return ar_
-        print('[INFO] Postprocess done.')
-        return ar
+def postprocess_ts(serie, regression, col, debug=False):
+    print(f'\n[INFO] Postprocess Polynome of \'{col}\' to examine stationarity')
+    stat_bool = stationarity_test(serie, regression=regression)
+    if (stat_bool[0]== False) or (stat_bool[1] ==False):
+        serie_ = difference(serie) 
+        stats_bool = stationarity_test(serie_, regression=regression)
+        if debug == True:
+            print(f'[ERROR] Polynome not stationair, applying first order differencing \n{serie} ADF {stat_bool[0]} KPSS {stat_bool[1]}')
+            print(f'[DEBUG] DIFF AR {serie_}' )
+            print(f'[DEBUG] ADF: {stats_bool[0]} KPSS: {stats_bool[1]}')
+        if (stats_bool[0] ==True) and (stats_bool[1] == True):
+            if debug == True:
+                print(f'[PASS] Polynome stationarity and trend stationarity test passed, postprocess done\n {serie_} ADF {stat_bool[0]} KPSS {stat_bool[1]}\n')
+            print('[INFO] Differencing succes, ADF and KPSS Stationarity passed.\n')
+            return stats_bool[0], serie_
+    print('[INFO] No differencing, Postprocess done.\n')
+    return stat_bool[0], serie
 
 def difference(dataset, interval=1):
     # dataset = [ val for _, val in enumerate(dataset)]
-    diff = [dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))]
-    return np.array(diff)
+    # diff = [dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))]
+    return np.array([dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))])
 
 
 if __name__ == "__main__":
-    
-    current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
+    pass
+    # current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
     # # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_Data')
 
     # # # DEBUG  CREATING POLYNOMIAL
-    target_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_3ts_1.csv'), engine='python', index_col=[0, 1])
-    target_sst = preprocess_ts(serie=target_sst, col='3ts')
+    # target_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_3ts_1.csv'), engine='python', index_col=[0, 1])
+    # target_sst = preprocess_ts(serie=target_sst, col='3ts')
 
-    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1_1.csv'), engine='python', index_col=[0, 1])
-    first_sst = preprocess_ts(serie=first_sst, col='prec1')
+    # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1_1.csv'), engine='python', index_col=[0, 1])
+    # first_sst = preprocess_ts(serie=first_sst, col='prec1')
 
-    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2_1.csv'), engine='python', index_col=[0, 1])
-    second_sst = preprocess_ts(serie=second_sst, col='prec2')
+    # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2_1.csv'), engine='python', index_col=[0, 1])
+    # second_sst = preprocess_ts(serie=second_sst, col='prec2')
 
  
 
@@ -563,14 +552,11 @@ if __name__ == "__main__":
     # const_p1, ar_p1 = evaluate_data_ar(data=first_sst['prec1'],col='prec1', display=False, debug=True)
     # const_p2, ar_p2 = evaluate_data_ar(data=second_sst['prec2'],col='prec2',  display=False, debug=True)
     # const_ts, ar_ts = evaluate_data_ar(data=target_sst['3ts'], col='3ts', display=False, debug=True)
-    rho_ts, sigma_ts = evaluate_data_yule_walker(target_sst, col='3ts', order=2, method='mle', debug=True)
-    rho_1, sigma_1 = evaluate_data_yule_walker(first_sst, col='prec1', order=2, method='mle', debug=True)
-    rho_2, sigma_2 = evaluate_data_yule_walker(second_sst, col='prec2', order=2, method='mle', debug=True)
 
+    # rho_ts, sigma_ts = evaluate_data_yule_walker(target_sst, col='3ts', order=2, method='mle', debug=True)
+    # rho_1, sigma_1 = evaluate_data_yule_walker(first_sst, col='prec1', order=2, method='mle', debug=True)
+    # rho_2, sigma_2 = evaluate_data_yule_walker(second_sst, col='prec2', order=2, method='mle', debug=True)
 
-    st_p1 = postprocess_ar(rho_1)
-    st_p2 = postprocess_ar(rho_2)
-    st_ts = postprocess_ar(rho_ts)
     
     # ar = [val for _,val in enumerate(ar_p2)]
   
@@ -583,13 +569,16 @@ if __name__ == "__main__":
     # plt.show()
    
 
-    # poly_p1= create_polynomial_fit_ar(ar=st_p1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, dependance=False)
-    # poly_ts = create_polynomial_fit_ar(ar=st_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, yule_walker=True, dependance=False )
-    # poly_dep_ = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
-    # # poly_dep_ = create_polynomial_fit_ar(ar=st_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, gamma=0.1, yule_walker=True, dependance=True, x1=poly_p1)
+    # poly_p1= create_polynomial_fit_ar(ar=rho_1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, dependance=False)
+    # _, poly_p1 = postprocess_ts(poly_p1, regression='ct', col='prec1')
+    # poly_ts = create_polynomial_fit_ar(ar=rho_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, yule_walker=True, dependance=False )
+    # _, poly_ts = postprocess_ts(poly_ts, regression='ct', col='3ts')
+    # # poly_dep_ = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
+    # poly_dep_ = create_polynomial_fit_ar(ar=rho_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, gamma=0.1, yule_walker=True, dependance=True, x1=poly_p1)
+    # _, poly_dep_ = postprocess_ts(poly_dep_, regression='ct', col='dep')
 
 
-    # display_poly_data_ar(simul_data=poly_ts, ar=st_ts,  signal=target_sst, dep=False)
+    # display_poly_data_ar(simul_data=poly_ts, ar=rho_ts,  signal=target_sst, dep=False)
     # display_poly_data_ar(simul_data=poly_dep_, ar=[rho_ts[0], rho_ts[1], 0.1], signal=target_sst, dep=True )
     # plt.show()
 

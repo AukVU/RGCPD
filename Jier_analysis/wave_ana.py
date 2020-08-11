@@ -40,7 +40,6 @@ current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
 # df = testing.makeTimeDataFrame(freq='MS')
 families = ['haar', 'db1', 'db2', 'db3', 'db4', 'db5', 'db6', 'db7']
 
-
 def energy(coeffs): 
     return np.sqrt(np.sum(np.array(coeffs) ** 2) / len(coeffs) )
 
@@ -113,27 +112,27 @@ def plot_choice_wavelet_signal(data, columns, savefig=False):
             plt.savefig('Wavelet/wave_choice'+ col +'_analysis .png', dpi=120)
     plt.show()  
 
-def wavelet_var(data, col, wavelet, levels):
-    assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
+def wavelet_var(data, col, wavelet, mode, levels):
+    assert isinstance(data[col], pd.Series) , f"Expect pandas Series, {type(data)} given"
     print(f'[INFO] Wavelet variance per scale analysis start of {col}..')
     ap = data[col]  
     result_var_level = np.zeros(levels)
     for i, _ in enumerate(range(levels)):
-        ap, _ = wv.dwt(ap, wavelet)
+        ap, _ = wv.dwt(ap, wavelet, mode=mode)
         result_var_level[i] =  np.dot(ap, ap)/len(ap)
     print('[INFO] Wavelet variant scale analysis done. ')
     return result_var_level
 
 def plot_wavelet_var(var_result, title, savefig=False):
-    plt.figure(16, 8, dpi=90)
+    plt.figure(figsize=(16,8), dpi=90)
     ci_low, ci_high  = stats.DescrStatsW(var_result).tconfint_mean()
     scales = np.arange(1, len(var_result)+1)
     scales = np.exp2(scales)
     plt.fill_between(scales, var_result - ci_low, var_result + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
     plt.plot(scales, var_result, color='k', alpha=0.6, label=r'Var result of $\tau$')
-    plt.xlabel(f'Scales $\tau$')
-    plt.ylabel(f'Wavelet variance $\nu^2$')
-    plt.title(f'Wavelet variance per level  up to {title} deep')
+    plt.xlabel(r'Scales $\tau$')
+    plt.ylabel(r'Wavelet variance $\nu^2$')
+    plt.title(f'Wavelet variance per level  up to {str(title)} deep')
     plt.yscale('log',basey=10) 
     plt.xscale('log',basex=2)
     plt.tight_layout()
@@ -246,13 +245,13 @@ def extract_mci_lags(to_clean_mci_df, lag=0):
     lag_precurs = [lags.values[:,lag][1] for _, lags in enumerate(to_clean_mci_df)]
     return lag_target, lag_precurs
 
-def plot_mci_pred_relation(cA, prec_lag, savefig=False):
+def plot_mci_pred_relation(cA, prec_lag, title='Relation MCI on scale wavelet on lag 0', savefig=False):
     # TODO RECOGNISABLE WAY TO SAVE DISTINCTS PLOTS
     x_as = np.arange(1, len(cA)+1)
     x_as = np.exp2(x_as)
-    plt.figure(figsize=(19,8), dpi=120)
+    plt.figure(figsize=(16,8), dpi=120)
     plt.plot(x_as, prec_lag, label='precrursor ')
-    plt.title('Relation MCI on scale wavelet on lag 0')
+    plt.title(title)
     plt.xlabel('Scales in daily means')
     plt.ylabel('MCI')
     plt.legend(loc=0)

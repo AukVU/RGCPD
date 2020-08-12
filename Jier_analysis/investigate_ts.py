@@ -61,24 +61,25 @@ def create_wavelet_details(poly, index_poly, wave, level, mode, debug=True):
 def wavelet_variance_levels(data, col, wavelet, mode, levels):
     return wa.wavelet_var(data, col, wavelet, mode, levels)
 
-def plot_wavelet_variance(var_result, title, savefig):
-    wa.plot_wavelet_var(var_result, title, savefig=savefig)
-
 def  get_mci_coeffs_lag(details_prec, details_target, index, rg_obj, debug=False):
     mci_obj = wa.create_mci_coeff(cA=details_prec, cA_t=details_target, rg_index=index, rg=rg_obj, debug=debug)
     _ , prec_lag = wa.extract_mci_lags(to_clean_mci_df=mci_obj, lag=0)
     return prec_lag
 
-def plot_mci_prediction(detail_prec, prec_lag, savefig=False):
-    wa.plot_mci_pred_relation(cA=detail_prec, prec_lag=prec_lag, savefig=savefig)
+def plot_wavelet_variance(var_result, title, savefig):
+    wa.plot_wavelet_var(var_result, title, savefig=savefig)
 
-def display_wavelet_decomposition(poly, index, wave):
-    wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), wave=wave)
+def plot_mci_prediction(detail_prec, prec_lag, title, savefig=False):
+    wa.plot_mci_pred_relation(cA=detail_prec, prec_lag=prec_lag, title=title, savefig=savefig)
+
+def display_wavelet_decomposition(poly, index, title, wave):
+    wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), name=title, wave=wave)
     plt.show()
 
 
 
 if __name__ == "__main__":
+    
     # rg_wind = wa.generate_rgcpd(prec_path='z500hpa_1979-2018_1_12_daily_2.5deg.nc')
     # rg_sm = wa.generate_rgcpd(prec_path='sm2_1979-2018_1_12_daily_1.0deg.nc')
 
@@ -110,24 +111,25 @@ if __name__ == "__main__":
     # verify_stationarity(rg_data=rg_data_, target=data )
 
 
-#    target = 
-    # p = mp.Pool(mp.cpu_count()-1)
-    # answer  = p.starmap_async(extract_ar_data,zip([rg_data_, rg_data_],[target_, precursor]))
-    # result_3ts, result_prec1 =  answer.get()
-    # p.close()
-    # p.join()
-    # const_ts, ar_ts = result_3ts
-    # const_p1, ar_p1 = result_prec1
+# #    target = 
+#     # p = mp.Pool(mp.cpu_count()-1)
+#     # answer  = p.starmap_async(extract_ar_data,zip([rg_data_, rg_data_],[target_, precursor]))
+#     # result_3ts, result_prec1 =  answer.get()
+#     # p.close()
+#     # p.join()
+#     # const_ts, ar_ts = result_3ts
+#     # const_p1, ar_p1 = result_prec1
     ar_p1, const_p1 = extract_ar_data(rg_data, precursor)
     ar_ts, const_ts = extract_ar_data(rg_data, target)
 
     poly_p1 = polynomial_fit(ar=ar_p1, rg_data=rg_data, col=precursor, sigma=np.std(rg_data[precursor].values), const=const_p1, dependance=False)
-    # poly_ts = polynomial_fit(ar=ar_ts, rg_data=rg_data_, col=target_, sigma=np.std(rg_data_[target_].values), const=const_ts,yule_walker=True, dependance=False)
-    # poly_dep = polynomial_fit(ar=ar_ts, rg_data=rg_data_, col=target_, sigma=np.std(rg_data_[target_].values), const=const_ts, yule_walker=True, gamma=gamma, dependance=True, x1=poly_p1)
-    result_var_target = wavelet_variance_levels(data=rg_data, col=target, wavelet=wave, mode=mode, levels=6)
-    # result_var_p1 = wavelet_variance_levels(data=rg_data[precursor], col=precursor, wavelet=wave, levels=3)
-    # sst_p1_cA = create_wavelet_details(poly_p1, index=rg_index, level=3, wave=wave, mode=mode , debug=True)
-    plot_wavelet_variance(var_result=result_var_target, title=6, savefig=False)
+    poly_ts = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.std(rg_data[target].values), const=const_ts, dependance=False)
+    poly_dep = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.std(rg_data[target].values), const=const_ts,  gamma=gamma, dependance=True, x1=poly_p1)
+    p1_cA = create_wavelet_details(poly=poly_p1, index_poly=rg_index, wave=wave, level=3, mode=mode)
+#     result_var_target = wavelet_variance_levels(data=rg_data, col=target, wavelet=wave, mode=mode, levels=6)
+#     # result_var_p1 = wavelet_variance_levels(data=rg_data[precursor], col=precursor, wavelet=wave, levels=3)
+#     # sst_p1_cA = create_wavelet_details(poly_p1, index=rg_index, level=3, wave=wave, mode=mode , debug=True)
+#     plot_wavelet_variance(var_result=result_var_target, title=6, savefig=False)
     # display_polynome(poly=poly_dep, ar_list=[ar_ts[:2][0], ar_ts[:2][1], gamma], rg_data=rg_data_, col=target_, title=f'AR fit dependance {gamma} gamma', save_fig=False, dependance=True)
     # display_polynome(poly=poly_ts, ar_list=ar_ts, rg_data=rg_data_, col=target_, title=f'AR fit on {target_} target', save_fig=False, dependance=False)
     # display_polynome(poly=poly_p1, ar_list=ar_p1, rg_data=rg_data_, col=precursor, title=f'AR fit on {precursor} precursor', save_fig=False, dependance=False)

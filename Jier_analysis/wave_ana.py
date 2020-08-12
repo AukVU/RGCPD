@@ -138,8 +138,8 @@ def plot_wavelet_var(var_result, title, savefig=False):
     plt.tight_layout()
     plt.legend(loc=0)
     if savefig == True:
-        plt.savefig('Wavelet/wave_var_scale'+ title +'_analysis .pdf', dpi=120)
-        plt.savefig('Wavelet/wave_var_scale'+ title +'_analysis .png', dpi=120)
+        plt.savefig('Wavelet/wave_var_scale'+ str(title) +'_analysis .pdf', dpi=120)
+        plt.savefig('Wavelet/wave_var_scale'+ str(title) +'_analysis .png', dpi=120)
 
     plt.show()
 
@@ -179,7 +179,7 @@ def setup_wavelets_rgdata(rg, wave='db4', modes=wv.Modes.periodic):
     mode=modes 
     return (rg_data, rg_index),  (wave, mode)
 
-def plot_discr_wave_decomp(data, wave, name='DWT decomposition', savefig=False):
+def plot_discr_wave_decomp(data, wave, name, savefig=False):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     lvl_decomp = wv.dwt_max_level(len(data), wave.dec_len)
     fig, ax = plt.subplots(lvl_decomp, 2, figsize=(19, 8))
@@ -245,7 +245,7 @@ def extract_mci_lags(to_clean_mci_df, lag=0):
     lag_precurs = [lags.values[:,lag][1] for _, lags in enumerate(to_clean_mci_df)]
     return lag_target, lag_precurs
 
-def plot_mci_pred_relation(cA, prec_lag, title='Relation MCI on scale wavelet on lag 0', savefig=False):
+def plot_mci_pred_relation(cA, prec_lag, title, savefig=False):
     # TODO RECOGNISABLE WAY TO SAVE DISTINCTS PLOTS
     x_as = np.arange(1, len(cA)+1)
     x_as = np.exp2(x_as)
@@ -256,7 +256,7 @@ def plot_mci_pred_relation(cA, prec_lag, title='Relation MCI on scale wavelet on
     plt.ylabel('MCI')
     plt.legend(loc=0)
     if savefig ==True:
-        plt.savefig('Wavelet/Mci/Mci_prec_lag0.pdf', dpi=120)
-        plt.savefig('Wavelet/Mci/Mci_prec_lag0.png', dpi=120)
+        plt.savefig('Wavelet/Mci/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.pdf', dpi=120)
+        plt.savefig('Wavelet/Mci/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.png', dpi=120)
     plt.show()
 

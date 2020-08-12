@@ -15,6 +15,7 @@ import  statsmodels.stats.api as stats
 from statsmodels.tsa.stattools import adfuller, kpss 
 from statsmodels.tsa.arima_process import  arma_generate_sample, ArmaProcess
 from statsmodels.regression.linear_model import yule_walker
+from statsmodels.tsa.tsatools import detrend
 from pprint import pprint as pp 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -22,7 +23,9 @@ np.random.seed(12345)
 plt.style.use('seaborn')
 from tqdm import tqdm
 from sklearn.preprocessing import PowerTransformer 
+from sklearn.linear_model import LinearRegression 
 from scipy.stats import normaltest
+from scipy import signal
 import multiprocessing as mp
 
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, InterpolationWarning
@@ -224,8 +227,8 @@ def display_info_ts(y:pd.Series, figsize=(16, 8), title="TS", lags=20, save_fig:
     fig.add_subplot(326).hist(serie, bins= 40, density=True)
     plt.tight_layout()
     if save_fig == True:
-        plt.savefig('Fitted/AR/times_serie_'+title+'_stats.pdf', dpi=120)
-        plt.savefig('Fitted/AR/time_serie_'+title+'stats.png', dpi=120)
+        plt.savefig('Fitted/AR/Plots/times_serie_'+title+'_stats.pdf', dpi=120)
+        plt.savefig('Fitted/AR/Plots/time_serie_'+title+'stats.png', dpi=120)
     plt.show()
 
 def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(16, 8), title="", lags=20, save_fig:bool=False, debug:bool=False):
@@ -249,8 +252,8 @@ def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(16, 8), t
     plt.legend(loc=0)
 
     if save_fig == True:
-        plt.savefig('Fitted/AR/time_serie__pierce_LJbox.pdf', dpi=120)
-        plt.savefig('Fitted/AR/time_serie__pierce_LJbox.png', dpi=120)
+        plt.savefig('Fitted/AR/Plots/time_serie__pierce_LJbox.pdf', dpi=120)
+        plt.savefig('Fitted/AR/Plots/time_serie__pierce_LJbox.png', dpi=120)
     plt.show()
    
 def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, signal:pd.Series, order:tuple, save_fig:bool=False):
@@ -280,8 +283,13 @@ def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, signal:pd.Seri
         plt.savefig('Fitted/ARMA/Synthetic_data_.png', dpi=120)
     plt.show()
 
-def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:str='Ar2 fit on prec', save_fig:bool=False, dep:bool=False):
+def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:str=' ', save_fig:bool=False, dep:bool=False):
+
     _dates = pd.DatetimeIndex(signal.index.levels[1], freq='infer')
+    __dates = None 
+    if len(_dates) > len(simul_data):
+        print(f'[INFO] Due to differencing  is polynomial ts shorter than its original ts')
+        __dates = pd.DatetimeIndex(signal.index.levels[1][1:], freq='infer')
     l = ''
     if dep == True:
         for i, idx in zip(range(len(ar)), ['-1', '-2', '-1']):
@@ -295,17 +303,21 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:s
     plt.figure(figsize=(16, 8), dpi=90)
 
     ci_low, ci_high  = stats.DescrStatsW(simul_data).tconfint_mean()
-    plt.fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
-    plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
+    if len(_dates) > len(simul_data):
+        plt.fill_between(__dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
+        plt.plot(__dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
+    else:
+        plt.fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
+        plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
 
     plt.plot(_dates, signal, '-k', label='Precursor data', alpha=0.5)
-    plt.title(title)
-    plt.xlabel('Dates ')
+    plt.title('Ar2 fit on prec' + title)
+    plt.xlabel('Dates')
     plt.ylabel('Variance in temperature Celsius')
     plt.legend()
     if save_fig == True:
-        plt.savefig('Fitted/AR/'+title+'.pdf', dpi=120)
-        plt.savefig('Fitted/AR/'+title+'.png', dpi=120)
+        plt.savefig('Fitted/AR/Plots/'+title+'.pdf', dpi=120)
+        plt.savefig('Fitted/AR/Plots/'+title+'.png', dpi=120)
 
     # plt.show()
 
@@ -342,19 +354,23 @@ def evaluate_data_ar(data, col,  ic='aic', method='mle', disp=0, title='Fitted  
         print('[DEBUG] Done fitting AR process')
 
     if display == True:
-        display_info_ts(ar_model.resid, title=title)
-        display_pierce_LJbox(ar_model.resid, dates=temp_dates, title=title, debug=False)
-        display_info_ts(data, title='Original Precursor')
-        display_pierce_LJbox(data, dates=temp_dates, title='Original Precursor', debug=False)
+        display_info_ts(ar_model.resid, title=title, save_fig=save_fig)
+        display_pierce_LJbox(ar_model.resid, dates=temp_dates, title=title, debug= False, save_fig=save_fig)
+        display_info_ts(data, title='Original Precursor', save_fig=save_fig)
+        display_pierce_LJbox(data, dates=temp_dates, title='Original Precursor', debug=False, save_fig=save_fig)
 
     return ar_model.params[0], ar_model.params[1:] 
 
-def evaluate_data_yule_walker(data, col, order=2, method='mle', debug=False):
+def evaluate_data_yule_walker(data, col, order=2, method='mle', debug=False, display=False, save_fig=False):
     print(f'\n[INFO] Start applying Yule-Walker algorithm for AR process serie {col}')
     rho, sigma = yule_walker(data[col], order=order, method=method)
     if debug == True:
         print(f'[DEBUG] rho : {rho}, sigma: {sigma}', sep='\n')
-    print('[INFO] Evaluation done.')
+    if display == True:
+        temp_dates = pd.DatetimeIndex(data.index.levels[1], freq='infer')
+        display_info_ts(data, title='Original Precursor', save_fig=save_fig)
+        display_pierce_LJbox(data, dates=temp_dates, title='Original Precursor', debug=False, save_fig=save_fig)
+        print('[INFO] Evaluation done.')
     return rho, sigma
 
 def evaluate_data_arma(signal, display:bool=False, title='Fitted ARMA precursor', aic_check:bool=False, debug:bool=False):
@@ -397,11 +413,10 @@ def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
     
     return simul_data
 
-def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False,  gamma:float=0.1,  x1:np.array=np.zeros(100)):
+def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False, theta:float=0.1, nu:float=0.1,  gamma:float=0.1,  x1:np.array=np.zeros(100)):
     print('\n[INFO] Start running polynomial fit...')
-    print(f'[DEBUG] Dependence is set to {dependance} mean data {np.mean(data.values)} std data {np.std(data.values)}')
     N =  len(data)
-    epsilon = np.random.normal(loc=0, scale=sigma, size=N)
+    epsilon = np.random.normal(loc=0, scale= sigma, size=N)
     simul_data = np.zeros(N)
     simul_data[0] = const + epsilon[0]
     ar_0, ar_1 = ar[0], ar[1]
@@ -412,10 +427,31 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, de
         simul_data[1] =  const + ar_0 * simul_data[0] + epsilon[1]
     for i in range(2, N):
         if dependance == True:
-            simul_data[i] = const + (ar_0 * simul_data[i -1]) + (ar_1 * simul_data[i - 2])+ epsilon[i] + (gamma * x1[i  -1])
+            simul_data[i] = const + ( ar_0 * simul_data[i -1]) + ( ar_1 * simul_data[i - 2])+ epsilon[i] + (gamma * x1[i  -1])
         else:    
             simul_data[i] = const + (ar_0 * simul_data[i -1]) + (ar_1 * simul_data[i - 2]) + epsilon[i]
     print('[INFO] Polynomial fit done.')
+    if yule_walker == True:
+        print('[INFO] Yule walker standardisation')
+        simul = np.array([(i - np.mean(simul_data))/(np.std(simul_data)) for i in simul_data])    
+        return simul 
+    else:
+        return simul_data
+
+def create_polynomial_fit_ar_turbulance(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False, theta:float=0.1, nu:float=0.1):
+    print('\n[INFO] Start running polynomial fit turbulance...')
+    N =  len(data)
+    epsilon = np.random.normal(loc=0, scale=sigma, size=N)
+    simul_data = np.zeros(N)
+    simul_data[0] = const + epsilon[0]
+    ar_0, ar_1 = ar[0], ar[1]
+
+    simul_data[1] =  const + (nu * ar_0 * simul_data[0] ) + epsilon[1]
+    for i in range(2, N):
+
+        simul_data[i] = const + (nu * ar_0 * simul_data[i -1]) + (theta * ar_1 * simul_data[i - 2])+ epsilon[i] 
+
+    print('[INFO] Polynomial turbulance fit done.')
     if yule_walker == True:
         print('[INFO] Yule walker standardisation')
         simul = np.array([(i - np.mean(simul_data))/(np.std(simul_data)) for i in simul_data])    
@@ -476,9 +512,9 @@ def preprocess_ts(serie, col, threshold=0.05, debug=False):
 
     serie = serie.apply(lambda x : (x - x.mean())/ x.std(), axis=0)
     index = serie.index
-    p_value = normaltest(serie)[1][0] 
-    print(f'[INFO] Time serie p_value  {p_value} rounded to 3 decimals {np.round(p_value, 3)}')
-    if np.round(p_value, 3) < threshold == True :
+    p_value = normaltest(serie)[1][0]
+    print(f'[INFO] Time serie p_value  {p_value}  ')
+    if p_value < threshold :
         print('[INFO] Time serie is gaussian like \n')
         return serie
     else:
@@ -498,40 +534,57 @@ def postprocess_ts(serie, regression, col, debug=False):
     print(f'\n[INFO] Postprocess Polynome of \'{col}\' to examine stationarity')
     stat_bool = stationarity_test(serie, regression=regression)
     if (stat_bool[0]== False) or (stat_bool[1] ==False):
-        serie_ = difference(serie) 
+        serie_ = detrend_poly(serie) 
+        print(f'[INFO] Detrend polynome of {col} to force trend stationarity')
         stats_bool = stationarity_test(serie_, regression=regression)
         if debug == True:
             print(f'[ERROR] Polynome not stationair, applying first order differencing \n{serie} ADF {stat_bool[0]} KPSS {stat_bool[1]}')
             print(f'[DEBUG] DIFF AR {serie_}' )
             print(f'[DEBUG] ADF: {stats_bool[0]} KPSS: {stats_bool[1]}')
+        
         if (stats_bool[0] ==True) and (stats_bool[1] == True):
             if debug == True:
                 print(f'[PASS] Polynome stationarity and trend stationarity test passed, postprocess done\n {serie_} ADF {stat_bool[0]} KPSS {stat_bool[1]}\n')
             print('[INFO] Differencing succes, ADF and KPSS Stationarity passed.\n')
             return stats_bool[0], serie_
+        print('[WARNING] Still not trend stationarity solved')
     print('[INFO] No differencing, Postprocess done.\n')
     return stat_bool[0], serie
 
 def difference(dataset, interval=1):
+    # TODO not a good idea to use this, different data than original
     # dataset = [ val for _, val in enumerate(dataset)]
     # diff = [dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))]
     return np.array([dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))])
 
+def linear_regression(dataset):
+    # TODO really need this one?
+    X = np.zeros(len(dataset))
+    X = np.reshape(X, (len(X), 1))
+    y= dataset
+    model = LinearRegression()
+    model.fit(X, y)
+    trend = model.predict(X)
+    return np.array([y[i] - trend[i] for i in range(len(dataset))])
+
+def detrend_poly(dataset):
+    return signal.detrend(dataset)
 
 if __name__ == "__main__":
-    pass
-    # current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
+
+    current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
     # # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_Data')
 
     # # # DEBUG  CREATING POLYNOMIAL
     # target_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_3ts_1.csv'), engine='python', index_col=[0, 1])
     # target_sst = preprocess_ts(serie=target_sst, col='3ts')
 
-    # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1_1.csv'), engine='python', index_col=[0, 1])
-    # first_sst = preprocess_ts(serie=first_sst, col='prec1')
 
-    # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2_1.csv'), engine='python', index_col=[0, 1])
-    # second_sst = preprocess_ts(serie=second_sst, col='prec2')
+    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1_1.csv'), engine='python', index_col=[0, 1])
+    first_sst = preprocess_ts(serie=first_sst, col='prec1')
+
+    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2_1.csv'), engine='python', index_col=[0, 1])
+    second_sst = preprocess_ts(serie=second_sst, col='prec2')
 
  
 
@@ -554,8 +607,8 @@ if __name__ == "__main__":
     # const_ts, ar_ts = evaluate_data_ar(data=target_sst['3ts'], col='3ts', display=False, debug=True)
 
     # rho_ts, sigma_ts = evaluate_data_yule_walker(target_sst, col='3ts', order=2, method='mle', debug=True)
-    # rho_1, sigma_1 = evaluate_data_yule_walker(first_sst, col='prec1', order=2, method='mle', debug=True)
-    # rho_2, sigma_2 = evaluate_data_yule_walker(second_sst, col='prec2', order=2, method='mle', debug=True)
+    rho_1, sigma_1 = evaluate_data_yule_walker(first_sst, col='prec1', order=2, method='mle', debug=True)
+    rho_2, sigma_2 = evaluate_data_yule_walker(second_sst, col='prec2', order=2, method='mle', debug=True)
 
     
     # ar = [val for _,val in enumerate(ar_p2)]
@@ -568,21 +621,23 @@ if __name__ == "__main__":
     # ax[1].plot(transformed_ar)
     # plt.show()
    
-
-    # poly_p1= create_polynomial_fit_ar(ar=rho_1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, dependance=False)
-    # _, poly_p1 = postprocess_ts(poly_p1, regression='ct', col='prec1')
+    poly_p1= create_polynomial_fit_ar(ar=rho_1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, dependance=False)
+    _, poly_p1 = postprocess_ts(poly_p1, regression='ct', col='prec1')
+    poly_p2= create_polynomial_fit_ar(ar=rho_2, sigma=second_sst.std(), data=second_sst, const=sigma_2, yule_walker=True, dependance=False)
+    _, poly_p2 = postprocess_ts(poly_p2, regression='ct', col='prec2')
     # poly_ts = create_polynomial_fit_ar(ar=rho_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, yule_walker=True, dependance=False )
     # _, poly_ts = postprocess_ts(poly_ts, regression='ct', col='3ts')
     # # poly_dep_ = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
     # poly_dep_ = create_polynomial_fit_ar(ar=rho_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, gamma=0.1, yule_walker=True, dependance=True, x1=poly_p1)
     # _, poly_dep_ = postprocess_ts(poly_dep_, regression='ct', col='dep')
 
-
+    display_poly_data_ar(simul_data=poly_p1,  ar=rho_1,  signal=first_sst, dep=False)
+    display_poly_data_ar(simul_data=poly_p2,  ar=rho_2,  signal=second_sst, dep=False)
     # display_poly_data_ar(simul_data=poly_ts, ar=rho_ts,  signal=target_sst, dep=False)
     # display_poly_data_ar(simul_data=poly_dep_, ar=[rho_ts[0], rho_ts[1], 0.1], signal=target_sst, dep=True )
-    # plt.show()
+    plt.show()
 
-    # TODO Fix these nans by calculation of AR processes if daily means become smaller
+  
     # ar_t = np.load(os.path.join(ar_data_path, 'ar_sst_3ts_c.npz'))
     # ar_p1 = np.load(os.path.join(ar_data_path, 'ar_sst_prec1_c.npz'))
     # ar_p2 = np.load(os.path.join(ar_data_path, 'ar_sst_prec2_c.npz'))

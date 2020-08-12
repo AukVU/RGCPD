@@ -132,16 +132,16 @@ def plot_wavelet_var(var_result, title, savefig=False):
     plt.plot(scales, var_result, color='k', alpha=0.6, label=r'Var result of $\tau$')
     plt.xlabel(r'Scales $\tau$')
     plt.ylabel(r'Wavelet variance $\nu^2$')
-    plt.title(f'Wavelet variance per level  up to {str(title)} deep')
+    plt.title(f'Wavelet variance per level  of {str(title)} ')
     plt.yscale('log',basey=10) 
     plt.xscale('log',basex=2)
     plt.tight_layout()
     plt.legend(loc=0)
     if savefig == True:
-        plt.savefig('Wavelet/wave_var_scale'+ str(title) +'_analysis .pdf', dpi=120)
-        plt.savefig('Wavelet/wave_var_scale'+ str(title) +'_analysis .png', dpi=120)
-
-    plt.show()
+        plt.savefig('Wavelet/variance/wave_var_scale'+ str(title) +'_analysis .pdf', dpi=120)
+        plt.savefig('Wavelet/variance/wave_var_scale'+ str(title) +'_analysis .png', dpi=120)
+    else:
+        plt.show()
 
 def generate_rgcpd(target=3, prec_path='sst_1979-2018_2.5deg_Pacific.nc'):
     path_data = os.path.join(main_dir, 'data')
@@ -197,7 +197,8 @@ def plot_discr_wave_decomp(data, wave, name, savefig=False):
     if savefig == True:
             plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .pdf', dpi=120)
             plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .png', dpi=120)
-    plt.show()
+    else:
+        plt.show()
 
 def create_low_freq_components(data, level=6, wave='db4', mode=wv.Modes.periodic, debug=False):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
@@ -251,6 +252,7 @@ def plot_mci_pred_relation(cA, prec_lag, title, savefig=False):
     x_as = np.exp2(x_as)
     plt.figure(figsize=(16,8), dpi=120)
     plt.plot(x_as, prec_lag, label='precrursor ')
+    plt.xticks(x_as)
     plt.title(title)
     plt.xlabel('Scales in daily means')
     plt.ylabel('MCI')
@@ -258,5 +260,6 @@ def plot_mci_pred_relation(cA, prec_lag, title, savefig=False):
     if savefig ==True:
         plt.savefig('Wavelet/Mci/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.pdf', dpi=120)
         plt.savefig('Wavelet/Mci/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.png', dpi=120)
-    plt.show()
+    else:
+        plt.show()
 

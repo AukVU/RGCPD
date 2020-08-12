@@ -19,7 +19,7 @@ from statsmodels.tsa.tsatools import detrend
 from pprint import pprint as pp 
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
-np.random.seed(12345)
+# np.random.seed(12345)
 plt.style.use('seaborn')
 from tqdm import tqdm
 from sklearn.preprocessing import PowerTransformer 
@@ -438,7 +438,7 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, de
     else:
         return simul_data
 
-def create_polynomial_fit_ar_turbulance(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False, theta:float=0.1, nu:float=0.1):
+def create_polynomial_fit_ar_turbulance(ar:list, sigma:float, data:pd.Series, const:int, yule_walker:bool=False, theta:float=0.1, nu:float=0.1):
     print('\n[INFO] Start running polynomial fit turbulance...')
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
@@ -495,7 +495,7 @@ def stationarity_test(serie, regression='c', debug=False):
         result = kpss(serie, regression='c', lags='auto')
         print(f'[INFO] Result KPSS: The mean of the serie is {"NOT " if result[1] < 0.05 else ""}stationary')
     else:
-        result = kpss(serie, regression=regression, lags='legacy')
+        result = kpss(serie, regression=regression, lags='auto')
         print(f'[INFO] Result KPSS: The trend of the serie is {"NOT " if result[1] < 0.05 else ""}stationary')
     if debug == True:
         print(f'\n [DEBUG] KPSS Statistic:  {result[0]} ')
@@ -551,28 +551,26 @@ def postprocess_ts(serie, regression, col, debug=False):
     print('[INFO] No differencing, Postprocess done.\n')
     return stat_bool[0], serie
 
-def difference(dataset, interval=1):
-    # TODO not a good idea to use this, different data than original
-    # dataset = [ val for _, val in enumerate(dataset)]
-    # diff = [dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))]
-    return np.array([dataset[i] - dataset[i - interval] for i in range(interval, len(dataset))])
 
-def linear_regression(dataset):
-    # TODO really need this one?
-    X = np.zeros(len(dataset))
-    X = np.reshape(X, (len(X), 1))
-    y= dataset
-    model = LinearRegression()
-    model.fit(X, y)
-    trend = model.predict(X)
-    return np.array([y[i] - trend[i] for i in range(len(dataset))])
-
-def detrend_poly(dataset):
-    return signal.detrend(dataset)
+def detrend_poly(dataset, method='scipy'):
+    if method == 'stats':
+        return detrend(dataset, order=1)
+    if method == 'lr':
+        def linear_regression(dataset):
+            # TODO really need this one?
+            X = np.zeros(len(dataset))
+            X = np.reshape(X, (len(X), 1))
+            y= dataset
+            model = LinearRegression()
+            model.fit(X, y)
+            trend = model.predict(X)
+            return np.array([y[i] - trend[i] for i in range(len(dataset))])
+    if method == 'scipy':
+        return signal.detrend(dataset)
 
 if __name__ == "__main__":
-
-    current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
+    pass 
+    # current_analysis_path = os.path.join(main_dir, 'Jier_analysis/Data/sst/')
     # # ar_data_path = os.path.join(main_dir, 'Jier_analysis/Fitted/AR/AR_Data')
 
     # # # DEBUG  CREATING POLYNOMIAL
@@ -580,11 +578,11 @@ if __name__ == "__main__":
     # target_sst = preprocess_ts(serie=target_sst, col='3ts')
 
 
-    first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1_1.csv'), engine='python', index_col=[0, 1])
-    first_sst = preprocess_ts(serie=first_sst, col='prec1')
+    # first_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec1_1.csv'), engine='python', index_col=[0, 1])
+    # first_sst = preprocess_ts(serie=first_sst, col='prec1')
 
-    second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2_1.csv'), engine='python', index_col=[0, 1])
-    second_sst = preprocess_ts(serie=second_sst, col='prec2')
+    # second_sst = pd.read_csv(os.path.join(current_analysis_path, 'sst_prec2_1.csv'), engine='python', index_col=[0, 1])
+    # second_sst = preprocess_ts(serie=second_sst, col='prec2')
 
  
 
@@ -607,8 +605,8 @@ if __name__ == "__main__":
     # const_ts, ar_ts = evaluate_data_ar(data=target_sst['3ts'], col='3ts', display=False, debug=True)
 
     # rho_ts, sigma_ts = evaluate_data_yule_walker(target_sst, col='3ts', order=2, method='mle', debug=True)
-    rho_1, sigma_1 = evaluate_data_yule_walker(first_sst, col='prec1', order=2, method='mle', debug=True)
-    rho_2, sigma_2 = evaluate_data_yule_walker(second_sst, col='prec2', order=2, method='mle', debug=True)
+    # rho_1, sigma_1 = evaluate_data_yule_walker(first_sst, col='prec1', order=2, method='mle', debug=True)
+    # rho_2, sigma_2 = evaluate_data_yule_walker(second_sst, col='prec2', order=2, method='mle', debug=True)
 
     
     # ar = [val for _,val in enumerate(ar_p2)]
@@ -621,21 +619,24 @@ if __name__ == "__main__":
     # ax[1].plot(transformed_ar)
     # plt.show()
    
-    poly_p1= create_polynomial_fit_ar(ar=rho_1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, dependance=False)
-    _, poly_p1 = postprocess_ts(poly_p1, regression='ct', col='prec1')
-    poly_p2= create_polynomial_fit_ar(ar=rho_2, sigma=second_sst.std(), data=second_sst, const=sigma_2, yule_walker=True, dependance=False)
-    _, poly_p2 = postprocess_ts(poly_p2, regression='ct', col='prec2')
+    # poly_p1= create_polynomial_fit_ar(ar=rho_1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, dependance=False)
+    # _, poly_p1 = postprocess_ts(poly_p1, regression='ct', col='prec1')
+    # poly_p1_d = create_polynomial_fit_ar_turbulance(ar=rho_1, sigma=first_sst.std(), data=first_sst, const=sigma_1, yule_walker=True, theta=1, nu=0.01)
+    # _, poly_p1_d = postprocess_ts(poly_p1_d, regression='ct', col='prec1')
+    # poly_p2= create_polynomial_fit_ar(ar=rho_2, sigma=second_sst.std(), data=second_sst, const=sigma_2, yule_walker=True, dependance=False)
+    # _, poly_p2 = postprocess_ts(poly_p2, regression='ct', col='prec2')
     # poly_ts = create_polynomial_fit_ar(ar=rho_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, yule_walker=True, dependance=False )
     # _, poly_ts = postprocess_ts(poly_ts, regression='ct', col='3ts')
     # # poly_dep_ = create_polynomial_fit_ar_depence(x0=poly_ts, x1=poly_p1, gamma=0.1, data=target_sst)
     # poly_dep_ = create_polynomial_fit_ar(ar=rho_ts, sigma=target_sst.std(), data=target_sst, const=sigma_ts, gamma=0.1, yule_walker=True, dependance=True, x1=poly_p1)
     # _, poly_dep_ = postprocess_ts(poly_dep_, regression='ct', col='dep')
 
-    display_poly_data_ar(simul_data=poly_p1,  ar=rho_1,  signal=first_sst, dep=False)
-    display_poly_data_ar(simul_data=poly_p2,  ar=rho_2,  signal=second_sst, dep=False)
+    # display_poly_data_ar(simul_data=poly_p1,  ar=rho_1,  signal=first_sst, dep=False)
+    # display_poly_data_ar(simul_data=poly_p1_d,  ar=rho_1,  signal=first_sst, dep=False)
+    # display_poly_data_ar(simul_data=poly_p2,  ar=rho_2,  signal=second_sst, dep=False)
     # display_poly_data_ar(simul_data=poly_ts, ar=rho_ts,  signal=target_sst, dep=False)
     # display_poly_data_ar(simul_data=poly_dep_, ar=[rho_ts[0], rho_ts[1], 0.1], signal=target_sst, dep=True )
-    plt.show()
+    # plt.show()
 
   
     # ar_t = np.load(os.path.join(ar_data_path, 'ar_sst_3ts_c.npz'))

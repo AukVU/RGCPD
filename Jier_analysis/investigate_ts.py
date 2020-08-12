@@ -20,9 +20,7 @@ from RGCPD import BivariateMI
 import wave_ana as wa 
 import multiprocessing as mp 
 
-
-# TODO Set up experiment!!!
-
+# TODO CREATE SENSITIVITY
 
 def generate_rgcpd_default(doc=""):
     if doc == " ":
@@ -47,9 +45,14 @@ def extract_ar_data(rg_data, col):
     ar, const = sd.evaluate_data_yule_walker(data=rg_data, col = col)
     return ar, const
 
-def polynomial_fit(ar, rg_data, col, sigma, const, dependance, x1=np.zeros((100)), gamma=0.1):
+def polynomial_fit(ar, rg_data, col, sigma, const, dependance, x1=np.empty((1)), gamma=0.1):
     poly  = sd.create_polynomial_fit_ar(ar, sigma=sigma, data=rg_data[col], const=const, dependance=dependance, yule_walker=True, gamma=gamma, x1=x1)
     _ , poly = sd.postprocess_ts(serie=poly, regression='ct', col=col, debug=False)
+    return poly
+
+def polynomial_fit_turbulance(ar, rg_data, col, sigma, const, theta, nu):
+    poly  = sd.create_polynomial_fit_ar_turbulance(ar=ar, sigma=sigma, data=rg_data, const=const, yule_walker=True, theta=theta, nu=nu)
+    _, poly = sd.postprocess_ts(serie=poly, regression='ct', col=col, debug=False)
     return poly
 
 def display_polynome(poly, ar_list, rg_data, col, title,  save_fig, dependance):
@@ -79,7 +82,7 @@ def display_wavelet_decomposition(poly, index, title, wave):
 
 
 if __name__ == "__main__":
-    
+    pass
     # rg_wind = wa.generate_rgcpd(prec_path='z500hpa_1979-2018_1_12_daily_2.5deg.nc')
     # rg_sm = wa.generate_rgcpd(prec_path='sm2_1979-2018_1_12_daily_1.0deg.nc')
 
@@ -92,40 +95,40 @@ if __name__ == "__main__":
     # wa.plot_mci_pred_relation(cA=sst_p1_cA, prec_lag=sst_prec_lag, savefig=False)
     # wa.plot_mci_pred_relation(cA=sm_p1_cA, prec_lag=sm_prec_lag, savefig=False)
 
-    if(len(sys.argv) <= 2):
-        print("Parameter error, this is how you should call this")
-        print("python " + sys.argv[0] + "<prec_aggr><gamma><target><precursor><data><precursor_path>")
-        sys.exit(1)
-    else:   
-        prec_aggr = int(sys.argv[1])
-        gamma = float(sys.argv[2])
-        target = sys.argv[3]
-        precursor = sys.argv[4]
-        data = sys.argv[5]
-        prec_path = ' ' if len(sys.argv) < 7 else sys.argv[6]
+#     if(len(sys.argv) <= 2):
+#         print("Parameter error, this is how you should call this")
+#         print("python " + sys.argv[0] + "<prec_aggr><gamma><target><precursor><data><precursor_path>")
+#         sys.exit(1)
+#     else:   
+#         prec_aggr = int(sys.argv[1])
+#         gamma = float(sys.argv[2])
+#         target = sys.argv[3]
+#         precursor = sys.argv[4]
+#         data = sys.argv[5]
+#         prec_path = ' ' if len(sys.argv) < 7 else sys.argv[6]
 
 
-    rg = generate_rgcpd_default(doc=prec_path)
-    rg_obj_aggr =  generate_rgcpd_object_prec_aggr(rg=rg, precur_aggr=prec_aggr)
-    rg_data, rg_index , wave, mode = generate_rgcpd_data(rg_obj_aggr=rg_obj_aggr)
-    # verify_stationarity(rg_data=rg_data_, target=data )
+#     rg = generate_rgcpd_default(doc=prec_path)
+#     rg_obj_aggr =  generate_rgcpd_object_prec_aggr(rg=rg, precur_aggr=prec_aggr)
+#     rg_data, rg_index , wave, mode = generate_rgcpd_data(rg_obj_aggr=rg_obj_aggr)
+#     # verify_stationarity(rg_data=rg_data_, target=data )
 
 
-# #    target = 
-#     # p = mp.Pool(mp.cpu_count()-1)
-#     # answer  = p.starmap_async(extract_ar_data,zip([rg_data_, rg_data_],[target_, precursor]))
-#     # result_3ts, result_prec1 =  answer.get()
-#     # p.close()
-#     # p.join()
-#     # const_ts, ar_ts = result_3ts
-#     # const_p1, ar_p1 = result_prec1
-    ar_p1, const_p1 = extract_ar_data(rg_data, precursor)
-    ar_ts, const_ts = extract_ar_data(rg_data, target)
+# # #    target = 
+# #     # p = mp.Pool(mp.cpu_count()-1)
+# #     # answer  = p.starmap_async(extract_ar_data,zip([rg_data_, rg_data_],[target_, precursor]))
+# #     # result_3ts, result_prec1 =  answer.get()
+# #     # p.close()
+# #     # p.join()
+# #     # const_ts, ar_ts = result_3ts
+# #     # const_p1, ar_p1 = result_prec1
+#     ar_p1, const_p1 = extract_ar_data(rg_data, precursor)
+#     ar_ts, const_ts = extract_ar_data(rg_data, target)
 
-    poly_p1 = polynomial_fit(ar=ar_p1, rg_data=rg_data, col=precursor, sigma=np.std(rg_data[precursor].values), const=const_p1, dependance=False)
-    poly_ts = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.std(rg_data[target].values), const=const_ts, dependance=False)
-    poly_dep = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.std(rg_data[target].values), const=const_ts,  gamma=gamma, dependance=True, x1=poly_p1)
-    p1_cA = create_wavelet_details(poly=poly_p1, index_poly=rg_index, wave=wave, level=3, mode=mode)
+#     poly_p1 = polynomial_fit(ar=ar_p1, rg_data=rg_data, col=precursor, sigma=np.std(rg_data[precursor].values), const=const_p1, dependance=False)
+#     poly_ts = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.std(rg_data[target].values), const=const_ts, dependance=False)
+#     poly_dep = polynomial_fit(ar=ar_ts, rg_data=rg_data, col=target, sigma=np.std(rg_data[target].values), const=const_ts,  gamma=gamma, dependance=True, x1=poly_p1)
+#     p1_cA = create_wavelet_details(poly=poly_p1, index_poly=rg_index, wave=wave, level=3, mode=mode)
 #     result_var_target = wavelet_variance_levels(data=rg_data, col=target, wavelet=wave, mode=mode, levels=6)
 #     # result_var_p1 = wavelet_variance_levels(data=rg_data[precursor], col=precursor, wavelet=wave, levels=3)
 #     # sst_p1_cA = create_wavelet_details(poly_p1, index=rg_index, level=3, wave=wave, mode=mode , debug=True)

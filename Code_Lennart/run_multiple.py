@@ -102,7 +102,7 @@ def filter_matrices(matrices, locs, locs_intersect=None):
 
 
 
-def run_multiple(settings, years=None, modes=None, signals=None, noises=None, iterations=10):
+def run_multiple(settings, years=None, modes=None, signals=None, noises=None, spatials=None, iterations=10, model='multiple'):
     # bivariate_list = [corr_map, entropy_map, granger_map, gpdc_map, cmiknn_map, granger_map]
     bivariate_list = [corr_map, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time] #, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time
     bivariate_kwrgs_list = [(0,0,0), (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)] #, (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)
@@ -113,7 +113,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
     signal_list = list(np.array(signals).flat)
     if signals == None:
-        signal_list = np.arange(0.1, 1, 0.1)
+        signal_list = np.arange(0, 0.21, 0.01)
         table_list = signal_list
         test = 'sign' 
     print(f"\nTested signal strengths: {signal_list}")
@@ -139,10 +139,18 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
 
     noises_list = list(np.array(noises).flat)
     if noises == None:
-        noises_list = np.arange(15,16,1)
+        noises_list = np.arange(0,30.5,1)
         table_list = noises_list
         test = 'nois'
     print(f"\nTested number of noise levels: {noises_list}")
+
+    spatial_list = list(np.array(spatials).flat)
+    if spatials == None:
+        spatial_list = list(np.arange(200,4100,100)) #152
+        # spatial_list = np.array([1] + spatial_list)
+        table_list = spatial_list
+        test = 'spat'
+    print(f"\nTested number of spatial covariance levels: {spatial_list}")
 
 
     
@@ -161,191 +169,200 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, it
     for signal_i, signal in enumerate(signal_list):
         for year_i, time in enumerate(length_list):
             for mode_i, N in enumerate(modes_list):
-                for noise_i, noise in enumerate(noises_list):
-                    for iteration in range(iterations):
-                        settings['N'] = N
-                        settings['ny'] = N * 30
-                        print(f'Iteration {iteration + 1}/{iterations}')
-                        print('')
-                        print(f"Modes: {N}")
-                        print(f"Years = {year_list[year_i]}")
-                        print(f"Signal = {signal}")
-                        print(f"Noise = {noise}")
-                        settings['noise_level'] = noise #0.5
-                        settings['signal'] = signal
-                        settings['T'] = time
-                        cts.create_time_series(settings, links_coeffs, verbose=False,
-                                                                plot_modes=False,
-                                                                plot_timeseries=False,
-                                                                draw_network=False,
-                                                                cluster=True)
+                for spatial_i, spatial in enumerate(spatial_list):
+                    for noise_i, noise in enumerate(noises_list):
+                        for iteration in range(iterations):
+                            settings['N'] = N
+                            settings['ny'] = N * 30
+                            print(f'Iteration {iteration + 1}/{iterations}')
+                            print('')
+                            print(f"Modes: {N}")
+                            print(f"Years = {year_list[year_i]}")
+                            print(f"Signal = {signal}")
+                            print(f"Noise = {noise}")
+                            print(f"Spatial covariance = {spatial}")
+                            print(f"Model = {model}")
+                            settings['model'] = model
+                            settings['noise_level'] = noise #0.5
+                            settings['spatial_covariance'] = spatial
+                            settings['signal'] = signal
+                            settings['T'] = time
+                            cts.create_time_series(settings, links_coeffs, verbose=False,
+                                                                    plot_modes=False,
+                                                                    plot_timeseries=False,
+                                                                    draw_network=False,
+                                                                    cluster=True)
 
-                        print("Finished generating!")
-                        local_base_path = user_dir
-                        local_script_dir = os.path.join(local_base_path, "ERA5" )
-                        
-                        output = settings['filename']
+                            print("Finished generating!")
+                            local_base_path = user_dir
+                            local_script_dir = os.path.join(local_base_path, "ERA5" )
+                            
+                            output = settings['filename']
 
-                        # bivariate = corr_map
-                        for biv_i, bivariate in enumerate(bivariate_list):
-                            print(bivariate.__name__)
-                            list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
-                                                (1, local_base_path + f'/{output}/NC/{output}_target.nc'),
-                                                ('test_precur', local_base_path + f'/{output}/NC/{output}.nc')
-                            ]
+                            # bivariate = corr_map
+                            for biv_i, bivariate in enumerate(bivariate_list):
+                                print(bivariate.__name__)
+                                list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
+                                                    (1, local_base_path + f'/{output}/NC/{output}_target.nc'),
+                                                    ('test_precur', local_base_path + f'/{output}/NC/{output}.nc')
+                                ]
 
-                            kwrgs_bivariate = {}
-                            if bivariate == parcorr_map_time:
-                                lag = bivariate_kwrgs_list[biv_i][0]
-                                target = bivariate_kwrgs_list[biv_i][1]
-                                precur = bivariate_kwrgs_list[biv_i][2]
-                                kwrgs_bivariate = {'lag':lag, 'target':target, 'precur':precur}
+                                kwrgs_bivariate = {}
+                                if bivariate == parcorr_map_time:
+                                    lag = bivariate_kwrgs_list[biv_i][0]
+                                    target = bivariate_kwrgs_list[biv_i][1]
+                                    precur = bivariate_kwrgs_list[biv_i][2]
+                                    kwrgs_bivariate = {'lag':lag, 'target':target, 'precur':precur}
 
-                            print(kwrgs_bivariate)
+                                print(kwrgs_bivariate)
 
-                            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=300, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
+                                list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':False}, distance_eps=200, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
-                            start_end_TVdate = None
-                            start_end_date = None
+                                start_end_TVdate = ('01-15', '12-31')
+                                start_end_date = ('01-01', '12-31')
+                                # start_end_TVdate = None
+                                # start_end_date = None
 
-                            RGCPD_path = local_base_path + f'/{output}/output_RGCPD/{bivariate.__name__}'
-                            shutil.rmtree(RGCPD_path, ignore_errors=True)
-                            os.makedirs(RGCPD_path)
-                            print(RGCPD_path)
-                            rg = RGCPD(list_of_name_path=list_of_name_path, 
-                                    #    list_for_EOFS=list_for_EOFS,
-                                    list_for_MI=list_for_MI,
-                                    start_end_TVdate=start_end_TVdate,
-                                    start_end_date=start_end_date,
-                                    tfreq=10, lags_i=np.array([1]),
-                                    verbosity=0,
-                                    path_outmain=RGCPD_path)
+                                RGCPD_path = local_base_path + f'/{output}/output_RGCPD/{bivariate.__name__}'
+                                shutil.rmtree(RGCPD_path, ignore_errors=True)
+                                os.makedirs(RGCPD_path)
+                                print(RGCPD_path)
+                                rg = RGCPD(list_of_name_path=list_of_name_path, 
+                                        #    list_for_EOFS=list_for_EOFS,
+                                        list_for_MI=list_for_MI,
+                                        start_end_TVdate=start_end_TVdate,
+                                        start_end_date=start_end_date,
+                                        tfreq=10, lags_i=np.array([1]),
+                                        verbosity=0,
+                                        path_outmain=RGCPD_path)
 
-                            selbox = None
+                                selbox = None
 
-                            anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False, 'st2':False}]
+                                anomaly = [True, {'sm1':False, 'sm2':False, 'sm3':False, 'st2':False}]
 
-                            rg.pp_precursors(selbox=selbox, anomaly=False, detrend=False)
+                                rg.pp_precursors(selbox=selbox, anomaly=False, detrend=False)
 
-                            rg.pp_TV()
+                                rg.pp_TV()
 
-                            #kwrgs_events={'event_percentile':66}
-                            kwrgs_events=None
-                            rg.traintest(method='random5', kwrgs_events=kwrgs_events)
+                                #kwrgs_events={'event_percentile':66}
+                                kwrgs_events=None
+                                rg.traintest(method='random5', kwrgs_events=kwrgs_events)
 
-                            rg.calc_corr_maps()
+                                rg.calc_corr_maps()
 
-                            rg.plot_maps_corr(save=True)
+                                # rg.plot_maps_corr(save=True)
 
-                            rg.cluster_list_MI()
+                                rg.cluster_list_MI()
 
-                            # rg.quick_view_labels()
+                                # rg.quick_view_labels()
 
-                            try:
-                                locs = rename_labels(rg)
+                                try:
+                                    locs = rename_labels(rg)
 
-                                rg.get_ts_prec(precur_aggr=None)
-                            except:
-                                # iteration -= 1
-                                print("PASSED BECAUSE NO AREAS FOUND")
-                                continue
-
-
-                            rg.PCMCI_df_data(pc_alpha=0.01, 
-                                            tau_max=2,
-                                            max_combinations=2)
-
-                            rg.PCMCI_get_links(alpha_level=0.01)
-
-                            # rg.PCMCI_plot_graph(s=1)
-
-                            # rg.quick_view_labels()
-
-                            # rg.plot_maps_sum()
-
-                            # p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
-                            # area_lengths = [len(i) for i in p_matrices]
-                            # common_length = max(set(area_lengths), key = area_lengths.count)
-                            # most_common_p_matrix = np.where(np.array(area_lengths) == common_length)
-                            # p_matrices = p_matrices[most_common_p_matrix]
-                            # p_matrix = np.mean(p_matrices, axis=0)
-                            # # p_matrix = p_matrix.mean(0)
-                            # val_matrix = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])[most_common_p_matrix]
-                            # val_matrix = np.mean(val_matrix, axis=0)
-
-                            # parents = rg.parents_dict[0][0]
-                            # parents = [i[0] for i in parents if i[1] == -1]
+                                    rg.get_ts_prec(precur_aggr=None)
+                                except:
+                                    # iteration -= 1
+                                    print("PASSED BECAUSE NO AREAS FOUND")
+                                    continue
 
 
+                                rg.PCMCI_df_data(pc_alpha=0.01, 
+                                                tau_max=2,
+                                                max_combinations=2)
+
+                                rg.PCMCI_get_links(alpha_level=0.01)
+
+                                # rg.PCMCI_plot_graph(s=1)
+
+                                # rg.quick_view_labels()
+
+                                # rg.plot_maps_sum()
+
+                                # p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
+                                # area_lengths = [len(i) for i in p_matrices]
+                                # common_length = max(set(area_lengths), key = area_lengths.count)
+                                # most_common_p_matrix = np.where(np.array(area_lengths) == common_length)
+                                # p_matrices = p_matrices[most_common_p_matrix]
+                                # p_matrix = np.mean(p_matrices, axis=0)
+                                # # p_matrix = p_matrix.mean(0)
+                                # val_matrix = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])[most_common_p_matrix]
+                                # val_matrix = np.mean(val_matrix, axis=0)
+
+                                # parents = rg.parents_dict[0][0]
+                                # parents = [i[0] for i in parents if i[1] == -1]
 
 
-                            pcmci_matrix_path = local_base_path + f'/{output}' + f'/matrices/{bivariate.__name__}'
-                            # print(f"Matrix {bivariate.__name__} path: {pcmci_matrix_path}")
-                            if bivariate.__name__ == 'parcorr_map_time':
-                                pcmci_matrix_path = pcmci_matrix_path + f'-{lag}-{target}-{precur}'
-                            # settings = {'N': len(rg.pcmci_results_dict[0])}
-                            locs = list(np.array(locs)[0])#[most_common_p_matrix])
-                            p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
-                            area_lengths = [len(i) for i in p_matrices]
-                            common_length = max(set(area_lengths), key = area_lengths.count)
-                            p_matrices, locs_filtered = filter_matrices(p_matrices, locs)
-                            val_matrices = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])
-                            val_matrices, locs = filter_matrices(val_matrices, locs, locs_intersect=locs_filtered)
-
-                            p_matrix = np.mean(p_matrices, axis=0)
-                            val_matrix = np.mean(val_matrices, axis=0)
 
 
-                            # locs = list(set(flatten(locs)))
-                            # locs = [0] + locs_filtered
-                            print(f'\n\nFound regions {locs}\n')
-                            # print(f'Found parents for split 0: {list(np.array(locs)[parents])}\n')
-                            # print(common_length)
-                            if len(locs) > common_length:
-                                # iteration -= 1
-                                print("PASSED BECAUSE OF UNEQUAL FOUND AREAS")
-                                continue
-                            cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
-                            np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)
+                                pcmci_matrix_path = local_base_path + f'/{output}' + f'/matrices/{bivariate.__name__}'
+                                # print(f"Matrix {bivariate.__name__} path: {pcmci_matrix_path}")
+                                if bivariate.__name__ == 'parcorr_map_time':
+                                    pcmci_matrix_path = pcmci_matrix_path + f'-{lag}-{target}-{precur}'
+                                # settings = {'N': len(rg.pcmci_results_dict[0])}
+                                locs = list(np.array(locs)[0])#[most_common_p_matrix])
+                                p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
+                                area_lengths = [len(i) for i in p_matrices]
+                                common_length = max(set(area_lengths), key = area_lengths.count)
+                                p_matrices, locs_filtered = filter_matrices(p_matrices, locs)
+                                val_matrices = np.array([rg.pcmci_results_dict[i]['val_matrix'] for i in rg.pcmci_results_dict])
+                                val_matrices, locs = filter_matrices(val_matrices, locs, locs_intersect=locs_filtered)
 
-                        score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs)
-                        # print(score)
+                                p_matrix = np.mean(p_matrices, axis=0)
+                                val_matrix = np.mean(val_matrices, axis=0)
 
-                        if signals == None:
-                            table_i = signal_i
-                        elif modes == None:
-                            table_i = mode_i
-                        elif years == None:
-                            table_i = year_i
-                        elif noises == None:
-                            table_i = noise_i
-                        print(f'Table_i: {table_i}')
-                        # path = local_base_path + f'/{output}/scores'
-                        # if os.path.isdir(path) != True : os.makedirs(path)
-                        test_list = [bivariate.__name__ for bivariate in bivariate_list]
-                        for i, key in enumerate(score.columns):
-                            key = key.split(' ', 1)[0]
-                            if key[:7] == 'parcorr':
-                                key2, lag, target, precur = key.split('-')
-                                target = (target == 'True')
-                                precur = (precur == 'True')
-                                key = key2
-                            if key == 'pcmci_test':
-                                # pcmci_df = pcmci_df.append({N: score.values[0][i]}, ignore_index=True)
-                                pcmci_df[iteration][table_i] = score.values[0][i]
-                                print("PCMCI score:")
-                                print(score.values[0][i])
-                            elif key in test_list:
-                                test_list_index = test_list.index(key)
+
+                                # locs = list(set(flatten(locs)))
+                                # locs = [0] + locs_filtered
+                                print(f'\n\nFound regions {locs}\n')
+                                # print(f'Found parents for split 0: {list(np.array(locs)[parents])}\n')
+                                # print(common_length)
+                                if len(locs) > common_length:
+                                    # iteration -= 1
+                                    print("PASSED BECAUSE OF UNEQUAL FOUND AREAS")
+                                    continue
+                                cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
+                                np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)
+
+                            score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs)
+                            # print(score)
+
+                            if signals == None:
+                                table_i = signal_i
+                            elif modes == None:
+                                table_i = mode_i
+                            elif years == None:
+                                table_i = year_i
+                            elif noises == None:
+                                table_i = noise_i
+                            elif spatials == None:
+                                table_i = spatial_i
+                            print(f'Table_i: {table_i}')
+                            # path = local_base_path + f'/{output}/scores'
+                            # if os.path.isdir(path) != True : os.makedirs(path)
+                            test_list = [bivariate.__name__ for bivariate in bivariate_list]
+                            for i, key in enumerate(score.columns):
+                                key = key.split(' ', 1)[0]
                                 if key[:7] == 'parcorr':
-                                    test_list_index = bivariate_kwrgs_list.index((int(lag),target,precur))
-                                # bivariate_df = bivariate_df.append({N: score.values[0][i]}, ignore_index=True)
-                                bivariate_df[test_list_index][iteration][table_i] = score.values[0][i]
-                                if key[:7] == 'parcorr':
-                                    print(f'Score {key}, lag {lag}, target {target}, precur {precur}:')
-                                else:
-                                    print(f'Score {key}:')
-                                print(score.values[0][i])
+                                    key2, lag, target, precur = key.split('-')
+                                    target = (target == 'True')
+                                    precur = (precur == 'True')
+                                    key = key2
+                                if key == 'pcmci_test':
+                                    # pcmci_df = pcmci_df.append({N: score.values[0][i]}, ignore_index=True)
+                                    pcmci_df[iteration][table_i] = score.values[0][i]
+                                    print("PCMCI score:")
+                                    print(score.values[0][i])
+                                elif key in test_list:
+                                    test_list_index = test_list.index(key)
+                                    if key[:7] == 'parcorr':
+                                        test_list_index = bivariate_kwrgs_list.index((int(lag),target,precur))
+                                    # bivariate_df = bivariate_df.append({N: score.values[0][i]}, ignore_index=True)
+                                    bivariate_df[test_list_index][iteration][table_i] = score.values[0][i]
+                                    if key[:7] == 'parcorr':
+                                        print(f'Score {key}, lag {lag}, target {target}, precur {precur}:')
+                                    else:
+                                        print(f'Score {key}:')
+                                    print(score.values[0][i])
     path = local_base_path + f'/scores/{output}'
     if os.path.isdir(path) != True : os.makedirs(path)
     for biv_i, df in enumerate(bivariate_df):
@@ -409,7 +426,7 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-run_multiple(settings, years=[9], modes=[7], signals=[0.15], noises=None, iterations=1)
+run_multiple(settings, years=[8], modes=[7], signals=[0.09], noises=None, spatials=[1000], iterations=100, model='one')
 
 
 

@@ -38,6 +38,8 @@ def to_test(old_test):
         test = 'Years'
     elif old_test == 'DBSC':
         test = 'DBSCAN distance_eps'
+    elif old_test == 'spat':
+        test = 'Spatial covariance'
     else:
         test = old_test
     return test
@@ -78,7 +80,7 @@ def plot_scores(settings, path=None):
             df['Mode'][:] = repeats
             sns.lineplot(x='Mode', y='Score', ci=95, data=df, label=method)
             axes = plt.gca()
-    axes.set_ylim([0.2,1.03])
+    axes.set_ylim([0,1.03])
     # axes.set_xlim([197,603])
     axes.set_xticks(repeats)
     axes.set_xlabel(to_test(test), fontsize=24)
@@ -132,8 +134,9 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-test = 'TIME'
+test = 'NEW_MODEL/NOISE_S0.05'
 
 user_dir = settings['user_dir']
 path = user_dir + f'/Results_Lennart/scores/' + test
+# path = user_dir + f'/Code_Lennart/results/scores/multiple_test/test'
 plot_scores(settings, path=path)

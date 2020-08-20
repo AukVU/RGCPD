@@ -71,7 +71,7 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
     real = all_files[0]
     real_links = np.load(general_path + '/AAA_real/ZZZ_real_links.npy')
     N = len(real_links)
-    real_links = [0] + [(0.1 * i / (N - 2)) for i, l in enumerate(real_links[1:])]
+    # real_links = [0] + [(0.1 * i / (N - 2)) for i, l in enumerate(real_links[1:])]
 
     results = {}
     for test in tests:

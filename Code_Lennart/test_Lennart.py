@@ -130,8 +130,8 @@ bivariate = corr_map
 kwrgs_bivariate = {}
 if bivariate == parcorr_map_time:
     lag = 1
-    target = True
-    precur = False
+    target = False
+    precur = True
     kwrgs_bivariate = {'lag':lag, 'target':target, 'precur':precur}
 
 if output == 'era5':
@@ -160,12 +160,13 @@ else:
     ]
 
     # list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True})]
-    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.1, 'FDR_control':False}, distance_eps=200, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
+    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':False}, distance_eps=200, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
-# start_end_TVdate = ('06-24', '08-22')
+start_end_TVdate = ('06-24', '08-22')
 # start_end_TVdate = None
 
-start_end_TVdate = ('06-15', '08-31')
+# start_end_TVdate = ('3-13', '2-25')
+# start_end_TVdate = ('3-13', '12-31')
 start_end_date = ('1-1', '12-31')
 # start_end_date = None
 
@@ -264,15 +265,15 @@ rg.PCMCI_df_data(pc_alpha=None,
 
 rg.PCMCI_get_links(alpha_level=0.1)
 
-# kwrgs = {'link_colorbar_label':'cross-MCI',
-#                      'node_colorbar_label':'auto-MCI',
-#                      'curved_radius':.4,
-#                      'arrowhead_size':4000,
-#                      'arrow_linewidth':50,
-#                      'label_fontsize':14,
-#                      'node_label_size':1}
-# rg.PCMCI_plot_graph(s=1, variable='1ts', kwrgs=kwrgs)
-# rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
+kwrgs = {'link_colorbar_label':'cross-MCI',
+                     'node_colorbar_label':'auto-MCI',
+                     'curved_radius':.4,
+                     'arrowhead_size':4000,
+                     'arrow_linewidth':50,
+                     'label_fontsize':14,
+                     'node_label_size':1}
+rg.PCMCI_plot_graph(s=1, variable='1ts', kwrgs=kwrgs)
+rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
 
 
 

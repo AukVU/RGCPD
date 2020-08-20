@@ -13,6 +13,9 @@ if cluster_func not in sys.path:
     sys.path.append(RGCPD_func)
     sys.path.append(cluster_func)
 
+df_ana_dir2 = os.path.join(curr_dir, 'df_analysis/') # add df_ana path
+sys.path.append(df_ana_dir2)
+
 import creating_time_series as cts
 import causal_score
 
@@ -162,7 +165,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
             print(kwrgs_bivariate)
 
-            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.1, 'FDR_control':False}, distance_eps=cluster_eps, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)
+            list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.1, 'FDR_control':False}, distance_eps=cluster_eps, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
             start_end_TVdate = None
             start_end_date = None

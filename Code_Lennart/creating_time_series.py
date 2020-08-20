@@ -222,41 +222,37 @@ def create_causal_map_all_links(N, settings, verbose=False):
     while result == None:
         links_coeffs = {}
         autocorrelation = 0.1 * np.random.random() + 0.8
-        # autocorrelation = settings['signal'] - 2
         for mode in range(0, N):
-            # possible_links = list(range(N))
-            # del possible_links[mode]
-            links_coeffs[mode] = [((mode, 10), autocorrelation)]
+            links_coeffs[mode] = [((mode, 1), autocorrelation)]
             autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
-            # autocorrelation = settings['signal'] - 1
-            # start = 1
-            # if mode == 0:
         strengths = [(settings['signal'] - ((settings['signal'] / 2) * m / (N-2))) for m in range(N-1)]
-        # print(f'Strengths = {strengths}')
         mode = 0
         for link in range(N-1):
-            # choice = np.random.choice(possible_links)
-            # possible_links.remove(choice)
-            # strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
             strength = max(0, strengths[link]) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
             if verbose:
                 print(f"Link {link + 1} with strength {strength}")
-            links_coeffs[mode] += [((link + 1, 10), strength)]
-            # elif mode == (N - 1):
-            #     # print('passed')
-            #     pass
-            # else:
-            #     if N > 5:
-            #         if mode == (N - 3):
-            #             # print('passed')
-            #             pass
-            #     for link in range(np.random.randint(start,3)):
-            #         choice = np.random.choice(possible_links)
-            #         possible_links.remove(choice)
-            #         strength = (settings['signal'] - 0.1) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=-3,high=0) + 
-            #         links_coeffs[mode] += [((choice, 10), strength)]
-            # autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
-        # links_coeffs[N-1] += [((0, 10), 0.1)]
+            links_coeffs[mode] += [((link + 1, 1), strength)]
+        try:
+            check_stability(links_coeffs)
+            result = "Generated"
+        except:
+            # print("New try making causal map")
+            pass
+    return links_coeffs
+
+def create_causal_map_one(N, settings, verbose=False):
+    result = None
+    while result == None:
+        links_coeffs = {}
+        autocorrelation = 0.1 * np.random.random() + 0.8
+        for mode in range(0, N):
+            links_coeffs[mode] = [((mode, 1), autocorrelation)]
+            autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
+        mode = 0
+        strength = settings['signal'] * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
+        if verbose:
+            print(f"Link {1} with strength {strength}")
+        links_coeffs[0] += [((1, 1), strength)]
         try:
             check_stability(links_coeffs)
             result = "Generated"
@@ -466,7 +462,12 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
     if settings['random_causal_map']:
         # links_coeffs = create_causal_map(N, settings, verbose)
-        links_coeffs = create_causal_map_all_links(N, settings, verbose)
+        if settings['model'] == 'one':
+            links_coeffs = create_causal_map_one(2, settings, verbose)
+            settings['N'] = N = 2
+            settings['ny'] = ny = settings['nx'] * 2
+        else:
+            links_coeffs = create_causal_map_all_links(N, settings, verbose)
     elif links_coeffs == None:
         print('Using default causal map of Xavier')
         links_coeffs = get_links_coeffs('Xavier')
@@ -559,7 +560,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
         cond_ind_test = ParCorr()
         pcmci = PCMCI(dataframe=dataframe, cond_ind_test=cond_ind_test)
-        pcmci_output = pcmci.run_pcmci(tau_max=11, pc_alpha=0.01)
+        pcmci_output = pcmci.run_pcmci(tau_max=2, pc_alpha=0.01)
         if verbose:
             pcmci.print_significant_links(p_matrix=pcmci_output['p_matrix'],
                                                 val_matrix=pcmci_output['val_matrix'],
@@ -570,8 +571,8 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         # print(f"PCMCI path: {pcmci_matrix_path}")
         if os.path.isdir(pcmci_matrix_path) != True : os.makedirs(pcmci_matrix_path)
         np.save(pcmci_matrix_path + '/ZZZ_correlated', list(range(settings['N'])))
-        p_matrix = pcmci_output['p_matrix'][:, :, [0,10,11]]
-        val_matrix = pcmci_output['val_matrix'][:, :, [0,10,11]]
+        p_matrix = pcmci_output['p_matrix'][:, :, [0,1,2]]
+        val_matrix = pcmci_output['val_matrix'][:, :, [0,1,2]]
         save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix)
 
         parents = pcmci.all_parents

@@ -25,7 +25,8 @@ class BivariateMI:
 
     def __init__(self, name, func=None, kwrgs_func={}, lags=np.array([1]),
                  distance_eps=400, min_area_in_degrees2=3, group_split='together',
-                 calc_ts='region mean', verbosity=1):
+                 calc_ts='region mean', selbox: tuple=None,
+                 use_sign_pattern: bool=False, use_coef_wghts: bool=False, verbosity=1):
         '''
 
         Parameters
@@ -59,6 +60,15 @@ class BivariateMI:
             timeseries is calculated for each label. If 'pattern cov', the
             spatial covariance of the whole pattern is calculated.
             The default is 'region_mean'.
+        selbox : tuple, optional
+            has format of (lon_min, lon_max, lat_min, lat_max)
+        use_sign_pattern : bool, optional
+            When calculating spatial covariance, do not use original pattern
+            but focus on the sign of each region. Used for quantifying Rossby
+            waves.
+        use_coef_wghts : bool, optional
+            When True, using (corr) coefficient values as weights when calculating
+            spatial mean. (will always be area weighted).
         verbosity : int, optional
             Not used atm. The default is 1.
 
@@ -81,6 +91,9 @@ class BivariateMI:
 
         #get_prec_ts & spatial_mean_regions
         self.calc_ts = calc_ts
+        self.selbox = selbox
+        self.use_sign_pattern = use_sign_pattern
+        self.use_coef_wghts = use_coef_wghts
         # cluster_DBSCAN_regions
         self.distance_eps = distance_eps
         self.min_area_in_degrees2 = min_area_in_degrees2
@@ -184,7 +197,8 @@ class BivariateMI:
             dates_RV = RV_ts.index
             n = dates_RV.size ; r = int(100*n/RV.dates_RV.size )
             print(f"\rProgress traintest set {progress}%, trainsize=({n}dp, {r}%)", end="")
-
+            # if s == 6:
+                # break
             ma_data = corr_single_split(RV_ts, precur_train, **self.kwrgs_func)
             np_data[s] = ma_data.data
             np_mask[s] = ma_data.mask
@@ -237,6 +251,8 @@ def corr_new(field, ts):
 
     for i in nonans_gc:
         corr_vals[i], pvals[i] = scipy.stats.pearsonr(ts,field[:,i])
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def loop_get_spatcov(precur, precur_aggr, kwrgs_load):
@@ -247,6 +263,7 @@ def loop_get_spatcov(precur, precur_aggr, kwrgs_load):
     df_splits = precur.df_splits
     splits = df_splits.index.levels[0]
     lags            = precur.corr_xr.lag.values
+    use_sign_pattern = precur.use_sign_pattern
 
 
     if precur_aggr is None:
@@ -266,7 +283,7 @@ def loop_get_spatcov(precur, precur_aggr, kwrgs_load):
                 kwrgs[key] = value[0] # plugging in default value
             else:
                 kwrgs[key] = value
-        kwrgs['tfreq'] = precur_aggr
+        kwrgs['tfreq'] = precur_aggr ; kwrgs['selbox'] = precur.selbox
         precur_arr = functions_pp.import_ds_timemeanbins(filepath, **kwrgs)
 
     full_timeserie = precur_arr
@@ -282,6 +299,8 @@ def loop_get_spatcov(precur, precur_aggr, kwrgs_load):
             corr_vals = corr_xr.sel(split=s).isel(lag=il)
             mask = prec_labels.sel(split=s).isel(lag=il)
             pattern = corr_vals.where(~np.isnan(mask))
+            if use_sign_pattern == True:
+                pattern = np.sign(pattern)
             if np.isnan(pattern.values).all():
                 # no regions of this variable and split
                 nants = np.zeros( (dates.size, 1) )

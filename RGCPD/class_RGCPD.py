@@ -24,7 +24,9 @@ from class_fc import apply_shift_lag
 
 from typing import List, Tuple, Union
 
-
+def get_timestr(formatstr='%Y-%m-%d_%Hhr_%Mmin'):
+    import datetime
+    return datetime.datetime.today().strftime(formatstr)
 
 try:
     import wrapper_PCMCI as wPCMCI
@@ -144,7 +146,7 @@ class RGCPD:
                                   os.path.join(path_test, 'sst_1979-2018_2.5deg_Pacific.nc'))]
 
         if start_end_TVdate is None:
-            start_end_TVdate = ('06-15', '08-20')
+            start_end_TVdate = ('06-01', '08-31')
 
 
 
@@ -168,33 +170,38 @@ class RGCPD:
         self.lags_i             = lags_i
         self.lags               = np.array([l*self.tfreq for l in self.lags_i], dtype=int)
         self.path_outmain       = path_outmain
-        self.append_pathsub    = append_pathsub
+        self.append_pathsub     = append_pathsub
         self.figext             = '.pdf'
         self.orig_stdout        = sys.stdout
         return
 
     def pp_precursors(self, loadleap=False, seldates=None, selbox=None,
-                            format_lon='only_east',
+                            format_lon='only_east', auto_detect_mask=False,
                             detrend=True, anomaly=True):
         '''
         in format 'only_east':
         selbox assumes [lowest_east_lon, highest_east_lon, south_lat, north_lat]
         '''
+        # loadleap=False;seldates=None;selbox=None;format_lon='only_east',
+        # detrend=True; anomaly=True; auto_detect_mask=False
         loadleap = loadleap
         seldates = seldates
         selbox = selbox
         format_lon = format_lon
         detrend = detrend
         anomaly = anomaly
+        auto_detect_mask = auto_detect_mask
 
 
-        self.kwrgs_load = dict(loadleap=loadleap, seldates=seldates, selbox=selbox,
-                               format_lon=format_lon)
+        self.kwrgs_load = dict(loadleap=loadleap, seldates=seldates,
+                               selbox=selbox, format_lon=format_lon)
         self.kwrgs_pp = self.kwrgs_load.copy()
-        self.kwrgs_pp.update(dict(detrend=detrend, anomaly=anomaly))
+        self.kwrgs_pp.update(dict(detrend=detrend, anomaly=anomaly,
+                                  auto_detect_mask=auto_detect_mask))
 
         self.kwrgs_load.update(dict(start_end_date=self.start_end_date,
                                     start_end_year=self.start_end_year,
+                                    closed_on_date=self.start_end_TVdate[-1],
                                     tfreq=self.tfreq))
 
         self.list_precur_pp = functions_pp.perform_post_processing(self.list_of_name_path,
@@ -206,18 +213,22 @@ class RGCPD:
         self.df_clust, self.ds = f.nc_xr_ts_to_df(self.list_of_name_path[0][1],
                                                   name_ds=name_ds)
 
-    def apply_df_ana_plot(self, df=None, name_ds='ts', func=None, kwrgs_func={}):
+    def apply_df_ana_plot(self, df=None, name_ds='ts', func=None, kwrgs_func={},
+                          colwrap=2):
         if df is None:
             self.get_clust(name_ds=name_ds)
             df = self.df_clust
         if func is None:
             func = df_ana.plot_ac ; kwrgs_func = {'AUC_cutoff':(14,30),'s':60}
         return df_ana.loop_df(df, function=func, sharex=False,
-                             colwrap=2, hspace=.5, kwrgs=kwrgs_func)
+                             colwrap=colwrap, hspace=.5, kwrgs=kwrgs_func)
 
-    def plot_df_clust(self):
+    def plot_df_clust(self, save=False):
         self.get_clust()
         plot_maps.plot_labels(self.ds['xrclustered'])
+        if save and hasattr(self, 'path_sub1'):
+            fig_path = os.path.join(self.path_outsub1, 'RV_clusters')
+            plt.savefig(fig_path+self.figext, bbox_inches='tight')
 
     def pp_TV(self, name_ds='ts', loadleap=False, detrend=False, anomaly=False):
         self.name_TVds = name_ds
@@ -227,21 +238,23 @@ class RGCPD:
         self.fulltso, self.hash = f.load_TV(self.list_of_name_path,
                                             loadleap=loadleap,
                                             name_ds=self.name_TVds)
-        self.fullts, self.TV_ts, inf = f.process_TV(self.fulltso,
-                                                    tfreq=self.tfreq,
-                                                    start_end_TVdate=self.start_end_TVdate,
-                                                    start_end_date=self.start_end_date,
-                                                    start_end_year=self.start_end_year,
-                                                    RV_detrend=self.RV_detrend,
-                                                    RV_anomaly=self.RV_anomaly)
-
+        out = f.process_TV(self.fulltso,
+                            tfreq=self.tfreq,
+                            start_end_TVdate=self.start_end_TVdate,
+                            start_end_date=self.start_end_date,
+                            start_end_year=self.start_end_year,
+                            RV_detrend=self.RV_detrend,
+                            RV_anomaly=self.RV_anomaly)
+        self.fullts, self.TV_ts, inf, start_end_TVdate = out
 
         self.input_freq = inf
         self.dates_or  = pd.to_datetime(self.fulltso.time.values)
         self.dates_all = pd.to_datetime(self.fullts.time.values)
         self.dates_TV = pd.to_datetime(self.TV_ts.time.values)
         # Store added information in RV class to the exp dictionary
-        if self.start_end_date is None:
+        # if self.start_end_date is None and self.input_freq == 'annual':
+        #     self.start_end_date = self.start_end_TVdate
+        if self.start_end_date is None and self.input_freq != 'annual':
             self.start_end_date = ('{}-{}'.format(self.dates_or.month[0],
                                                  self.dates_or[0].day),
                                 '{}-{}'.format(self.dates_or.month[-1],
@@ -266,7 +279,7 @@ class RGCPD:
         # Test if you're not have a lag that will precede the start date of the year
         # =============================================================================
         # first date of year to be analyzed:
-        if self.input_freq == 'daily':
+        if self.input_freq == 'daily' or self.input_freq == 'annual':
             f = 'D'
         elif self.input_freq != 'monthly':
             f = 'M'
@@ -376,42 +389,53 @@ class RGCPD:
             # need to redefined on new tfreq using the same arguments
             print(f'redefine target variable on {self.precur_aggr} day means')
             f = functions_pp
-            self.fullts, self.TV_ts, inf = f.process_TV(self.fulltso,
-                                                    tfreq=self.precur_aggr,
-                                                    start_end_TVdate=self.start_end_TVdate,
-                                                    start_end_date=self.start_end_date,
-                                                    start_end_year=self.start_end_year,
-                                                    RV_detrend=self.RV_detrend,
-                                                    RV_anomaly=self.RV_anomaly)
+            self.fullts, self.TV_ts = f.process_TV(self.fulltso,
+                                                tfreq=self.precur_aggr,
+                                                start_end_TVdate=self.start_end_TVdate,
+                                                start_end_date=self.start_end_date,
+                                                start_end_year=self.start_end_year,
+                                                RV_detrend=self.RV_detrend,
+                                                RV_anomaly=self.RV_anomaly)[:2]
             TV, df_splits = RV_and_traintest(self.fullts,
                                              self.TV_ts, **self.kwrgs_TV)
         else:
             # use original TV timeseries
             TV = self.TV ; df_splits = self.df_splits
-
+        self.df_data = pd.DataFrame(TV.fullts.values, columns=[TV.name],
+                                    index=TV.dates_all)
+        self.df_data = pd.concat([self.df_data]*self.df_splits.index.levels[0].size,
+                                 keys=self.df_splits.index.levels[0])
         if self.list_for_MI is not None:
-            print('\nGetting MI timeseries')
+            print('\nGetting MI timeseries') ; c = 0
             for i, precur in enumerate(self.list_for_MI):
-                precur.get_prec_ts(precur_aggr=precur_aggr,
+                if hasattr(precur, 'prec_labels'):
+                    precur.get_prec_ts(precur_aggr=precur_aggr,
                                    kwrgs_load=self.kwrgs_load)
-            self.df_data = find_precursors.df_data_prec_regs(self.list_for_MI,
-                                                             TV,
-                                                             df_splits)
+                else:
+                    print(f'{precur.name} not clustered yet')
+                    c += i
+            if c == len(self.list_for_MI):
+                print('No MI timeseries extracted')
+            else:
+                df_data_MI = find_precursors.df_data_prec_regs(self.list_for_MI,
+                                                                 TV,
+                                                                 df_splits)
+                self.df_data = self.df_data.merge(df_data_MI, left_index=True,
+                                                  right_index=True)
 
         # Append (or only load in) external timeseries
         if self.list_import_ts is not None:
             print('\nGetting external timeseries')
             f = find_precursors
             self.df_data_ext = f.import_precur_ts(self.list_import_ts,
-                                                  df_splits,
+                                                  df_splits.copy(),
                                                   self.start_end_date,
                                                   self.start_end_year,
                                                   cols=keys_ext,
-                                                  precur_aggr=self.precur_aggr)
-            if hasattr(self, 'df_data'):
-                self.df_data = self.df_data.merge(self.df_data_ext, left_index=True, right_index=True)
-            else:
-                self.df_data = self.df_data_ext.copy()
+                                                  precur_aggr=self.precur_aggr,
+                                                  start_end_TVdate=self.start_end_TVdate)
+            self.df_data = self.df_data.merge(self.df_data_ext, left_index=True, right_index=True)
+
 
         # Append (or only load) EOF timeseries
         if self.list_for_EOFS is not None:
@@ -419,12 +443,9 @@ class RGCPD:
             for i, e_class in enumerate(self.list_for_EOFS):
                 e_class.get_ts(tfreq_ts=self.precur_aggr, df_splits=df_splits)
                 keys = np.array(e_class.df.dtypes.index[e_class.df.dtypes != bool], dtype='object')
-                if hasattr(self, 'df_data'):
-                    self.df_data = self.df_data.merge(e_class.df[keys],
+                self.df_data = self.df_data.merge(e_class.df[keys],
                                                       left_index=True,
                                                       right_index=True)
-                else:
-                    self.df_data = e_class.df[keys]
 
         # Append Traintest and RV_mask as last columns
         self.df_data = self.df_data.merge(df_splits, left_index=True, right_index=True)
@@ -441,6 +462,7 @@ class RGCPD:
                       tau_min=0, tau_max=1, pc_alpha=None,
                       max_conds_dim=None, max_combinations=2,
                       max_conds_py=None, max_conds_px=None,
+                      replace_RV_mask: np.ndarray=None,
                       verbosity=4):
 
         if max_conds_dim is None:
@@ -465,10 +487,18 @@ class RGCPD:
 
         if os.path.isdir(self.path_outsub2) == False : os.makedirs(self.path_outsub2)
 
-
         if keys is None:
             keys = self.df_data.columns
-        self.pcmci_dict = wPCMCI.init_pcmci(self.df_data[keys])
+
+        df_data = self.df_data.copy()
+        if type(replace_RV_mask) is np.ndarray:
+            print('replacing RV_mask')
+            new = pd.DataFrame(data=(np.array([replace_RV_mask]*10)).flatten(),
+                               index=df_data.index, columns=['RV_mask'])
+            df_data['RV_mask'] = new
+            df_data['RV_mask'].loc[0].astype(int).plot()
+
+        self.pcmci_dict = wPCMCI.init_pcmci(df_data[keys])
 
         out = wPCMCI.loop_train_test(self.pcmci_dict, self.path_outsub2,
                                                           **self.kwrgs_pcmci)
@@ -485,7 +515,7 @@ class RGCPD:
         self.parents_dict = wPCMCI.get_links_pcmci(self.pcmci_dict,
                                                    self.pcmci_results_dict,
                                                    alpha_level)
-        self.df_links = wPCMCI.get_df_links(self.parents_dict)
+        self.df_links = wPCMCI.get_df_links(self.parents_dict, variable=var)
         lags = np.arange(self.kwrgs_pcmci['tau_min'], self.kwrgs_pcmci['tau_max']+1)
         self.df_MCIc, self.df_MCIa = wPCMCI.get_df_MCI(self.pcmci_dict,
                                                  self.pcmci_results_dict,
@@ -495,7 +525,8 @@ class RGCPD:
                                                       self.list_for_MI)
 
     def PCMCI_plot_graph(self, variable: str=None, s: int=None, kwrgs: dict=None,
-                         figshape: tuple=(10,10), min_link_robustness: int=1):
+                         figshape: tuple=(10,10), min_link_robustness: int=1,
+                         append_figpath: str=None):
 
         out = wPCMCI.get_traintest_links(self.pcmci_dict,
                                          self.parents_dict,
@@ -521,8 +552,11 @@ class RGCPD:
                       fig_ax=(fig, ax),
                       **kwrgs)
         f_name = f'CEN_{variable}_s{s}'
-        fig_path = os.path.join(self.path_outsub1, f_name)+self.figext
-        plt.savefig(fig_path, bbox_inches='tight')
+        if append_figpath is not None:
+            fig_path = os.path.join(self.path_outsub1, f_name+append_figpath)
+        else:
+            fig_path = os.path.join(self.path_outsub1, f_name)
+        fig.savefig(fig_path+self.figext, bbox_inches='tight')
         plt.show()
 
     def PCMCI_get_ParCorr_from_txt(self, variable=None, pc_alpha='auto'):
@@ -572,20 +606,43 @@ class RGCPD:
                                path+'.h5')
         self.path_df_data = path+'.h5'
 
-    def store_df(self):
-        if len(self.list_for_MI) != 0:
-            varstr = '_' + '_'.join([p.name for p in self.list_for_MI])
+    def store_df(self, append_str: str=None):
+        if self.list_for_MI is not None:
+            varstr = '_'.join([p.name for p in self.list_for_MI])
         else:
             varstr = ''
         if hasattr(self, 'df_data_ext'):
             varstr = '_'.join([n[0] for n in self.list_import_ts]) + varstr
-        filename = os.path.join(self.path_outsub1, f'df_data_{varstr}_'
-                                f'dt{self.precur_aggr}_{self.hash}.h5')
-        functions_pp.store_hdf_df({'df_data':self.df_data}, filename)
-        print('Data stored in \n{}'.format(filename))
+        filename = os.path.join(self.path_outsub1,
+                                f'{get_timestr()}_df_data_{varstr}_'
+                                f'dt{self.precur_aggr}_tf{self.tfreq}_{self.hash}')
+        if append_str is not None:
+            filename += '_'+append_str
+        functions_pp.store_hdf_df({'df_data':self.df_data}, filename+'.h5')
+        print('Data stored in \n{}'.format(filename+'.h5'))
         self.path_df_data = filename
 
-    def quick_view_labels(self, var=None, map_proj=None, median=True):
+    def quick_view_labels(self, var=None, map_proj=None, median=True,
+                          save=False):
+        '''
+
+
+        Parameters
+        ----------
+        var : TYPE, optional
+            DESCRIPTION. The default is None.
+        map_proj : TYPE, optional
+            DESCRIPTION. The default is None.
+        median : TYPE, optional
+            DESCRIPTION. The default is True.
+        save : TYPE, optional
+            DESCRIPTION. The default is False.
+
+        Returns
+        -------
+        None.
+
+        '''
 
         if type(var) is str:
             var = [var]
@@ -630,15 +687,23 @@ class RGCPD:
                 plot_maps.plot_corr_maps(prec_labels,
                                  contour_mask,
                                  map_proj, **kwrgs)
+                if save == True:
+                    f_name = 'cluster_labels_{}'.format(precur_name)
+                    fig_path = os.path.join(self.path_outsub1, f_name)+self.figext
+                    plt.savefig(fig_path, bbox_inches='tight')
             else:
                 print(f'no {precur.name} regions that pass distance_eps and min_area_in_degrees2 citeria')
+
 
     def plot_maps_corr(self, var=None, mean=True, mask_xr=None, map_proj=None,
                        row_dim='split', col_dim='lag', clim='relaxed',
                        hspace=-0.6, wspace=.02, size=2.5, cbar_vert=-0.01, units='units',
                        cmap=None, clevels=None, cticks_center=None, drawbox=None,
                        title=None, subtitles=None, zoomregion=None, lat_labels=True,
-                       aspect=None, n_xticks=5, n_yticks=3, save=False):
+                       aspect=None, n_xticks=5, n_yticks=3,
+                       x_ticks: np.ndarray=None, y_ticks: np.ndarray=None,
+                       save=False,
+                       append_str: str=None):
 
         if type(var) is str:
             var = [var]
@@ -665,15 +730,19 @@ class RGCPD:
                                     title=None, subtitles=subtitles,
                                     zoomregion=zoomregion,
                                     lat_labels=lat_labels, aspect=aspect,
-                                    n_xticks=n_xticks, n_yticks=n_yticks)
-            if save is True:
-                f_name = 'corr_map_{}'.format(precur_name)
+                                    n_xticks=n_xticks, n_yticks=n_yticks,
+                                    x_ticks=x_ticks, y_ticks=y_ticks)
+            if save == True:
+                if append_str is not None:
+                    f_name = 'corr_map_{}'.format(precur_name)+'_'+append_str
+                else:
+                    f_name = 'corr_map_{}'.format(precur_name)
 
                 fig_path = os.path.join(self.path_outsub1, f_name)+self.figext
                 plt.savefig(fig_path, bbox_inches='tight')
 
-    def plot_maps_sum(self, var='all', map_proj=None, figpath=None,
-                      paramsstr=None, cols: List=['corr', 'C.D.'], kwrgs_plot={}):
+    def plot_maps_sum(self, var='all', figpath=None, paramsstr=None,
+                      cols: List=['corr', 'C.D.'], kwrgs_plot={}):
 
 #         if map_proj is None:
 #             central_lon_plots = 200
@@ -683,16 +752,18 @@ class RGCPD:
             figpath = self.path_outsub1
         if paramsstr is None:
             paramsstr = self.params_str
+        if cols != ['corr', 'C.D.']:
+            paramsstr = cols[0] +'_'+paramsstr
         if var == 'all':
             dict_ds = self.dict_ds
         else:
             dict_ds = {f'{var}':self.dict_ds[var]} # plot single var
-        plot_maps.plot_labels_vars_splits(dict_ds, self.df_links, map_proj,
+        plot_maps.plot_labels_vars_splits(dict_ds, self.df_links,
                                           figpath, paramsstr, self.TV.name,
                                           cols=cols, kwrgs_plot=kwrgs_plot)
 
 
-        plot_maps.plot_corr_vars_splits(dict_ds, self.df_links, map_proj,
+        plot_maps.plot_corr_vars_splits(dict_ds, self.df_links,
                                           figpath, paramsstr, self.TV.name,
                                           cols=cols, kwrgs_plot=kwrgs_plot)
 
@@ -709,19 +780,14 @@ class RGCPD:
             traintest_yrs.append(test_yrs)
         return traintest_yrs
 
-    def reduce_df_data_ridge(self, keys: Union[list, np.ndarray],
-                             target: str=None,
+    def fit_df_data_ridge(self, keys: Union[list, np.ndarray]=None,
+                             target: Union[str,pd.DataFrame]=None,
                              tau_min: int=1,
                              tau_max: int=3,
                              newname:str = None, transformer=None,
                              kwrgs_model: dict={'scoring':'neg_mean_squared_error'}):
         '''
-        Perform cross-validated Ridge regression to reduce a set of predictors
-        to a single timeseries in a linear additive way.
-
-        This is to avoid problems with multicolinearity issue in Tigramite.
-        Standardize is required to ensure fair 'punishment' of too high
-        coefficients when tuning the regulization.
+        Perform cross-validated Ridge regression to predict the target.
 
         Parameters
         ----------
@@ -745,34 +811,46 @@ class RGCPD:
 
         '''
         # self.df_data_all = self.df_data.copy()
-        lags = range(0, tau_max+1)
+        lags = range(tau_min, tau_max+1)
         if keys is None:
             keys = self.df_data.columns[self.df_data.dtypes != bool]
-        splits = self.df_splits.index.levels[0]
+        splits = self.df_data.index.levels[0]
         # data_new_s   = np.zeros( (splits.size) , dtype=object)
 
-        if target is None:
-            target_ts = self.TV.RV_ts
+        RV_mask = self.df_data.loc[0]['RV_mask'] # not changing
+        if target is None: # not changing
+            target_ts = self.df_data.loc[0].iloc[:,[0]][RV_mask]
 
-        preds = np.zeros( (splits.size), dtype=object)
-        wghts = np.zeros( (splits.size) , dtype=object)
-        for isp, s in enumerate(splits):
-            fit_masks = self.df_splits.loc[s][['RV_mask', 'TrainIsTrue']]
-            TrainIsTrue = self.df_splits.loc[s]['TrainIsTrue']
-            if transformer is None:
-                transformer = func_models.standardize_on_train
 
-            df_s = self.df_data.loc[s]
-            ks = [k for k in keys if k in df_s.columns] # keys split
-            df_trans = df_s[ks].apply(transformer,
-                                   args=[TrainIsTrue],
-                                   result_type='broadcast')
+        models_lags = dict()
 
-            if target is not None:
-                RV_mask = self.df_splits.loc[s]['RV_mask']
-                target_ts = self.df_data.loc[0][target][RV_mask]
+        for il, lag in enumerate(lags):
+            preds = np.zeros( (splits.size), dtype=object)
+            wghts = np.zeros( (splits.size) , dtype=object)
+            models_splits_lags = dict()
+            for isp, s in enumerate(splits):
+                fit_masks = self.df_data.loc[s][['RV_mask', 'TrainIsTrue']]
+                TrainIsTrue = self.df_data.loc[s]['TrainIsTrue']
 
-            for il, lag in enumerate(lags):
+                df_s = self.df_data.loc[s]
+                ks = [k for k in keys if k in df_s.columns] # keys split
+
+                if transformer is not None:
+                    df_trans = df_s[ks].apply(transformer,
+                                            args=[TrainIsTrue],
+                                            result_type='broadcast')
+                else:
+                    df_trans = df_s[ks] # no transformation
+
+                if type(target) is str:
+                    target_ts = self.df_data.loc[s][target][RV_mask]
+                elif type(target) is pd.DataFrame:
+                    target_ts = target
+
+                # make prediction for each lag
+                # if len(lags) > 1:
+
+
                 df_train = df_trans.merge(apply_shift_lag(fit_masks, lag),
                                           left_index=True,
                                           right_index=True)
@@ -781,8 +859,17 @@ class RGCPD:
 
                 pred, model = sm.ridgeCV({'ts':target_ts},
                                                df_train, ks, kwrgs_model)
+
+                # if len(lags) > 1:
+                models_splits_lags[f'split_{s}'] = model
+
+
                 if il == 0:
-                    prediction = pred.rename(columns={0:lag})
+                    # add truth
+                    prediction = target_ts.copy()
+                    prediction = prediction.merge(pred.rename(columns={0:lag}),
+                                                  left_index=True,
+                                                  right_index=True)
                     coeff = pd.DataFrame(model.coef_, index=model.X_pred.columns,
                                          columns=[lag])
                 else:
@@ -794,19 +881,28 @@ class RGCPD:
                                                      columns=[lag]),
                                          left_index=True,
                                          right_index=True)
-            preds[isp] = prediction
-            wghts[isp] = coeff
+                preds[isp] = prediction
+                wghts[isp] = coeff
+            # if len(lags) > 1:
+            models_lags[f'lag_{lag}'] = models_splits_lags
+
+            # else:
+            #     models[f'split_{s}'] = model
+
+
 
         predict = pd.concat(list(preds), keys=splits)
         weights = pd.concat(list(wghts), keys=splits)
         weights_norm = weights.mean(axis=0, level=1)
-        weights_norm.div(weights_norm.max(axis=0)).T.plot()
-        return predict, weights
+        weights_norm.div(weights_norm.max(axis=0)).T.plot(kind='box')
+        return predict, weights, models_lags
 
 
 
 def RV_and_traintest(fullts, TV_ts, method=str, kwrgs_events=None, precursor_ts=None,
                      seed=int, verbosity=1): #, method=str, kwrgs_events=None, precursor_ts=None, seed=int, verbosity=1
+
+
 
     # Define traintest:
     df_fullts = pd.DataFrame(fullts.values,

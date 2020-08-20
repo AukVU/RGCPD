@@ -17,7 +17,7 @@ local_script_dir = os.path.join(local_base_path, "Scripts/RGCPD/RGCPD" )
 # cluster_base_path = "/p/projects/climber3/atm_data/"
 cluster_base_path = "/scistor/ivm/data_catalogue/reanalysis/ERA5/"
 
-cluster_script_dir = "/scistor/ivm/svg460/surfdrive/Scripts/RGCPD/ECMWF_retrieval"
+cluster_script_dir = "/scistor/ivm/svg460/Scripts/RGCPD/RGCPD"
 
 
 
@@ -34,10 +34,10 @@ except:
 # =============================================================================
 
 
-dataset   = 'ERA5' # choose 'ERA5' or 'ERAint' or era20c
+dataset   = 'era5' # choose 'era5' or 'ERAint' or era20c
 exp_folder = ''
-path_raw = os.path.join(base_path,f'{dataset}/{exp_folder}')
-
+path_raw = os.path.join(base_path,f'Data_{dataset}/{exp_folder}')
+                        
 if os.path.isdir(path_raw) == False : os.makedirs(path_raw)
 
 
@@ -54,18 +54,18 @@ ex = dict(
      'months'       :       list(range(1,12+1)), #downoad months
      # for monthly means of daily means, choose 'moda' or 'mnth'
      # for daily means choose 'oper' or 'enda' (for accumulations)
-     'stream'       :       'oper',
+     'stream'       :       'oper', 
      'time'         :       pd.date_range(start='00:00', end='23:00',
                                 freq=(pd.Timedelta(6, unit='h'))),
-     'area'         :       [75, -140, 10, -60], # [North, West, South, East]. Default: global
-     'CDO_command'  :       'daymean',
+     'area'         :       'global', # [North, West, South, East]. Default: global
+     'CDO_command'  :       'daymean',     
      'base_path'    :       base_path,
      'path_raw'     :       path_raw}
      )
 
 if ex['dataset'] == 'ERAint' or ex['dataset'] == 'era20c':
     import download_ERA_interim_API as ECMWF
-elif ex['dataset'] == 'ERA5':
+elif ex['dataset'] == 'era5':
     import download_ERA5_API as ECMWF
 
 
@@ -79,11 +79,11 @@ elif ex['dataset'] == 'ERA5':
 
 # See https://confluence.ecmwf.int/display/CKB/How+to+download+ERA5
 
-ex['vars']     =    [
-                    ['sm3'],              # ['name_var1','name_var2', ...]
-                    ['volumetric_soil_water_layer_3'],    # ECMWF param ids
+ex['vars']     =   [
+                    ['sst'],              # ['name_var1','name_var2', ...]
+                    ['sea_surface_temperature'],    # ECMWF param ids
                     ['sfc'],             # Levtypes ('sfc' or 'pl')
-                    [[0]],                  # Vertical levels
+                    [['0']],                  # Vertical levels
                     ]
 
 for idx in range(len(ex['vars'][0]))[:]:

@@ -14,6 +14,7 @@ import xarray as xr
 from netCDF4 import num2date
 import itertools
 # from dateutil.relativedelta import relativedelta as date_dt
+from collections import Counter
 flatten = lambda l: list(set([item for sublist in l for item in sublist]))
 flatten = lambda l: list(itertools.chain.from_iterable(l))
 from typing import Union
@@ -35,7 +36,8 @@ def get_oneyr(pddatetime, *args):
 
 def import_ds_lazy(filename, loadleap=False,
                    seldates: Union[tuple, pd.core.indexes.datetimes.DatetimeIndex]=None,
-                   selbox: Union[list, tuple]=None, format_lon='only_east', var=None,
+                   start_end_year: tuple=None, selbox: Union[list, tuple]=None,
+                   format_lon='only_east', var=None, auto_detect_mask: bool=False,
                    verbosity=0):
 
     '''
@@ -48,6 +50,8 @@ def import_ds_lazy(filename, loadleap=False,
 
     if len(ds.dims.keys()) > 1: # more then 1-d
         multi_dims = True
+    else:
+        multi_dims = False
 
     variables = list(ds.variables.keys())
     strvars = [' {} '.format(var) for var in variables]
@@ -66,10 +70,16 @@ def import_ds_lazy(filename, loadleap=False,
         # load whole dataset
         ds = ds
 
+
+
+
     if multi_dims:
         if 'latitude' and 'longitude' not in ds.dims:
             ds = ds.rename({'lat':'latitude',
                             'lon':'longitude'})
+
+        if auto_detect_mask:
+            ds = detect_mask(ds)
 
         if format_lon is not None:
             if test_periodic(ds)==False and 0 not in ds.longitude:
@@ -79,10 +89,12 @@ def import_ds_lazy(filename, loadleap=False,
 
         # ensure longitude in increasing order
         if np.where(ds.longitude == ds.longitude.min()) > np.where(ds.longitude == ds.longitude.max()):
+            print('sorting longitude')
             ds = ds.sortby('longitude')
 
         # ensure latitude is in increasing order
         if np.where(ds.latitude == ds.latitude.min()) > np.where(ds.latitude == ds.latitude.max()):
+            print('sorting latitude')
             ds = ds.sortby('latitude')
 
         if selbox is not None:
@@ -91,61 +103,85 @@ def import_ds_lazy(filename, loadleap=False,
 
     # get dates
     if 'time' in ds.squeeze().dims:
-        numtime = ds['time']
-        dates = num2date(numtime, units=numtime.units, calendar=numtime.attrs['calendar'])
+        ds = ds_num2date(ds, loadleap=loadleap)
 
-        if (dates[1] - dates[0]).days == 1:
-            input_freq = 'daily'
-        elif (dates[1] - dates[0]).days == 30 or (dates[1] - dates[0]).days == 31:
-            input_freq = 'monthly'
-
-        if numtime.attrs['calendar'] != 'gregorian':
-            dates = [d.strftime('%Y-%m-%d') for d in dates]
-
-        if input_freq == 'monthly':
-            dates = [d.replace(day=1,hour=0) for d in pd.to_datetime(dates)]
-        else:
-            dates = pd.to_datetime(dates)
-            stepsyr = dates.where(dates.year == dates.year[0]).dropna(how='all')
-            test_if_fullyr = np.logical_and(dates[stepsyr.size-1].month == 12,
-                                       dates[stepsyr.size-1].day == 31)
-            assert test_if_fullyr, ('full is needed as raw data since rolling'
-                               ' mean is applied across timesteps')
-
-        dates = pd.to_datetime(dates)
-        # set hour to 00
-        if dates.hour[0] != 0:
-            dates -= pd.Timedelta(dates.hour[0], unit='h')
-
-        ds['time'] = dates
-
-        if seldates is None:
-            pass
-        elif type(seldates) is tuple:
+        if type(seldates) is tuple or start_end_year is not None and seldates is None:
             pddates = get_subdates(dates=pd.to_datetime(ds.time.values),
                          start_end_date=seldates,
-                         start_end_year=None, lpyr=loadleap
-                         )
+                         start_end_year=start_end_year, lpyr=loadleap)
             ds = ds.sel(time=pddates)
-        else:
+        elif type(seldates) is pd.DatetimeIndex:
+            # seldates are pd.DatetimeIndex
             ds = ds.sel(time=seldates)
 
-        if loadleap==False:
-            # mask away leapdays
-            dates_noleap = remove_leapdays(pd.to_datetime(ds.time.values))
-            ds = ds.sel(time=dates_noleap)
+
     if type(ds) == type(xr.DataArray(data=[0])):
         ds.attrs['is_DataArray'] = 1
     else:
         ds.attrs['is_DataArray'] = 0
     return ds
 
+def detect_mask(ds):
+    '''
+    Auto detect mask based on finding 20 percent of exactly equal values in
+    first timestep
+    '''
+    if 'time' in ds.dims:
+        field = ds[0]
+    else:
+        field = ds
+    fieldsize = field.size
+    if np.unique(field).size < .8 * fieldsize:
+        # more then 20% has exactly the same value
+        val = [k for k,v in Counter(list(field.values.flatten())).items() if v>.2*fieldsize]
+        mask = field.values == val
+        if 'time' in ds.dims:
+            ds = ds.where(np.repeat(mask[np.newaxis,:,:],ds.time.size,0)==False)
+        else:
+            ds = ds.where(mask)
+    return ds
 
 def remove_leapdays(datetime):
     mask_lpyrfeb = np.logical_and((datetime.month == 2), (datetime.day == 29))
 
     dates_noleap = datetime[mask_lpyrfeb==False]
     return dates_noleap
+
+def ds_num2date(ds, loadleap=False):
+    numtime = ds['time']
+    dates = num2date(numtime, units=numtime.units, calendar=numtime.attrs['calendar'])
+
+    timestep_days = (dates[1] - dates[0]).days
+    if timestep_days == 1:
+        input_freq = 'daily'
+    elif timestep_days == 30 or timestep_days == 31:
+        input_freq = 'monthly'
+    elif timestep_days == 365 or timestep_days == 366:
+        input_freq = 'annual'
+
+    if numtime.attrs['calendar'] != 'gregorian':
+        dates = [d.strftime('%Y-%m-%d') for d in dates]
+
+    if input_freq == 'monthly' or input_freq == 'annual':
+        dates = [d.replace(day=1,hour=0) for d in pd.to_datetime(dates)]
+    else:
+        dates = pd.to_datetime(dates)
+        stepsyr = dates.where(dates.year == dates.year[0]).dropna(how='all')
+        test_if_fullyr = np.logical_and(dates[stepsyr.size-1].month == 12,
+                                   dates[stepsyr.size-1].day == 31)
+        assert test_if_fullyr, ('full is needed as raw data since rolling'
+                           ' mean is applied across timesteps')
+    dates = pd.to_datetime(dates)
+    # set hour to 00
+    if dates.hour[0] != 0:
+        dates -= pd.Timedelta(dates.hour[0], unit='h')
+    ds['time'] = dates
+
+    if loadleap==False:
+        # mask away leapdays
+        dates_noleap = remove_leapdays(pd.to_datetime(ds.time.values))
+        ds = ds.sel(time=dates_noleap)
+    return ds
 
 def get_selbox(ds, selbox, verbosity=0):
     '''
@@ -185,18 +221,21 @@ def get_selbox(ds, selbox, verbosity=0):
 
 def detrend_anom_ncdf3D(infile, outfile, loadleap=False,
                         seldates=None, selbox=None, format_lon='east_west',
-                        detrend=True, anomaly=True, apply_fft=True,
-                        n_harmonics=6, encoding=None):
+                        auto_detect_mask=False, detrend=True, anomaly=True,
+                        apply_fft=True, n_harmonics=6, encoding=None):
     '''
     Function for preprocessing
     - Calculate anomalies (by removing seasonal cycle based on first
       three harmonics)
     - linear long-term detrend
     '''
-
+    # loadleap=False; seldates=None; selbox=None; format_lon='east_west';
+    # auto_detect_mask=False; detrend=True; anomaly=True;
+    # apply_fft=True; n_harmonics=6; encoding=None
     #%%
     ds = import_ds_lazy(infile, loadleap=loadleap,
-                        seldates=seldates, selbox=selbox, format_lon=format_lon)
+                        seldates=seldates, selbox=selbox, format_lon=format_lon,
+                        auto_detect_mask=auto_detect_mask)
 
     # check if 3D data (lat, lat, lev) or 2D
     check_dim_level = any([level in ds.dims for level in ['lev', 'level']])
@@ -374,15 +413,14 @@ def deseasonalizefft_detrend_2D(ds, detrend: bool=True, anomaly: bool=True,
     return ds
 
 def detrend_lin_longterm(ds):
-    no_nans = np.nan_to_num(ds)
-    detrended = sp.signal.detrend(no_nans, axis=0, type='linear')
-    nan_true = np.isnan(ds)
-    detrended[nan_true.values] = np.nan
-    trend = ds - detrended
-    constant = np.repeat(np.mean(ds, 0).expand_dims('time'), ds.time.size, 0 )
-    detrended += constant
+    offset_clim = np.mean(ds, 0)
+    dates = pd.to_datetime(ds.time.values)
+    detrended = sp.signal.detrend(np.nan_to_num(ds), axis=0, type='linear')
+    detrended[np.repeat(np.isnan(offset_clim).expand_dims('t').values,
+                        dates.size, 0 )] = np.nan # restore NaNs
+    detrended += np.repeat(offset_clim.expand_dims('time'), dates.size, 0 )
     detrended = detrended.assign_coords(
-                coords={'time':pd.to_datetime(ds.time.values)})
+                coords={'time':dates})
     # plot single gridpoint for visual check
     la = int(ds.shape[1]/2)
     lo = int(ds.shape[2]/2)
@@ -394,11 +432,12 @@ def detrend_lin_longterm(ds):
         ax[i].set_title(f'latlon coord {lat} {lon}')
         ax[i].plot(ds.values[:,lalo[0],lalo[1]])
         ax[i].plot(detrended[:,lalo[0],lalo[1]])
-        trend1d = trend[:,lalo[0],lalo[1]]
+        trend1d = ds[:,lalo[0],lalo[1]] - detrended[:,lalo[0],lalo[1]]
         linregab = np.polyfit(np.arange(trend1d.size), trend1d, 1)
-        ax[i].plot(trend1d)
+        linregab = np.insert(linregab, 2, float(trend1d[-1] - trend1d[0]))
+        ax[i].plot(trend1d+offset_clim[lalo[0],lalo[1]])
         ax[i].text(.05, .05,
-        'y = {:.2g}x + {:.2g}'.format(*linregab),
+        'y = {:.2g}x + {:.2g}, max diff: {:.2g}'.format(*linregab),
         transform=ax[i].transAxes)
     plt.subplots_adjust(hspace=.3)
     ax[-1].text(.5,1.2, 'Visual analysis: trends of nearby gridcells should be similar',
@@ -447,22 +486,31 @@ def detrend_xarray_ds_2D(ds, detrend, anomaly, apply_fft=True, n_harmonics=6):
             print('\nHandling time series longer then 120 day or monthly data, no smoothening applied')
             data_smooth = ds.values
 
+    if anomaly:
+        if (stepsyr.day== 1).all() == True or int(ds.time.size / 365) >= 120:
+            print('\nHandling time series longer then 120 day or monthly data, no smoothening applied')
+            data_smooth = ds.values
+
         elif (stepsyr.day== 1).all() == False and int(ds.time.size / 365) < 120:
             window_s = max(min(25,int(stepsyr.size / 12)), 1)
             # print('Performing {} day rolling mean'
             #       ' to get better interannual statistics'.format(window_s))
-
+            from time import time
+            start = time()
+            print('applying rolling mean, beware: memory intensive')
             data_smooth =  rolling_mean_np(ds.values, window_s, win_type='boxcar')
+            # data_smooth_xr = ds.rolling(time=window_s, min_periods=1,
+            #                             center=True).mean(skipna=False)
+            passed = time() - start / 60
 
         output_clim3d = np.zeros((stepsyr.size, ds.latitude.size, ds.longitude.size),
-                                dtype='float32')
-
-
+                                   dtype='float32')
 
         for i in range(stepsyr.size):
 
             sliceyr = np.arange(i, ds.time.size, stepsyr.size)
             arr_oneday_smooth = data_smooth[sliceyr]
+
 
 
             if i==0: print('using absolute anomalies w.r.t. climatology of '
@@ -478,32 +526,34 @@ def detrend_xarray_ds_2D(ds, detrend, anomaly, apply_fft=True, n_harmonics=6):
             # beware, mean by default 0, add constant = False
             list_of_harm= [1/h for h in range(1,n_harmonics+1)]
             clim_rec = reconstruct_fft_2D(xr.DataArray(data=output_clim3d,
-                                                    coords=ds.sel(time=stepsyr).coords,
-                                                    dims=ds.dims),
-                                        list_of_harm=list_of_harm,
-                                        add_constant=False)
+                                                       coords=ds.sel(time=stepsyr).coords,
+                                                       dims=ds.dims),
+                                          list_of_harm=list_of_harm,
+                                          add_constant=False)
             # Adding mean of origninal ds
             clim_rec += ds.values.mean(0)
             output = ds - np.tile(clim_rec, (int(dates.size/stepsyr.size), 1, 1))
-        else:
+        elif apply_fft==False:
             output = ds - np.tile(output_clim3d, (int(dates.size/stepsyr.size), 1, 1))
     else:
         output = ds
 
 
+    # =============================================================================
+    # test gridcells:
+    # =============================================================================
+    # # try to find location above EU
+    # ts = ds.sel(longitude=30, method='nearest').sel(latitude=40, method='nearest')
+    # la1 = np.argwhere(ts.latitude.values ==ds.latitude.values)[0][0]
+    # lo1 = np.argwhere(ts.longitude.values ==ds.longitude.values)[0][0]
     if anomaly:
-        # =============================================================================
-        # test gridcells:
-        # =============================================================================
-        # try to find location above EU
-        ts = ds.sel(longitude=-100, method='nearest').sel(latitude=30, method='nearest')
-        la1 = np.argwhere(ts.latitude.values ==ds.latitude.values)[0][0]
-        lo1 = np.argwhere(ts.longitude.values ==ds.longitude.values)[0][0]
+        la1 = int(ds.shape[1]/2)
+        lo1 = int(ds.shape[2]/2)
         la2 = int(ds.shape[1]/3)
         lo2 = int(ds.shape[2]/3)
 
         tuples = [(la1, lo1), (la1+1, lo1),
-                (la2, lo2), (la2+1, lo2)]
+                  (la2, lo2), (la2+1, lo2)]
         if apply_fft:
             fig, ax = plt.subplots(4,2, figsize=(16,8))
         else:
@@ -512,7 +562,7 @@ def detrend_xarray_ds_2D(ds, detrend, anomaly, apply_fft=True, n_harmonics=6):
         for i, lalo in enumerate(tuples):
             lat = int(ds.latitude[lalo[0]])
             lon = int(ds.longitude[lalo[1]])
-            print(f"Visual test latlon {lat} {lon}", end="")
+            print(f"\rVisual test latlon {lat} {lon}", end="")
             ts = ds[:,lalo[0],lalo[1]]
             rawdayofyear = ts.groupby('time.dayofyear').mean('time').sel(dayofyear=np.arange(365)+1)
 
@@ -521,12 +571,12 @@ def detrend_xarray_ds_2D(ds, detrend, anomaly, apply_fft=True, n_harmonics=6):
                 singleyeardates = get_oneyr(dates, yr)
                 ax[i].plot(ts.sel(time=singleyeardates), alpha=.1, color='purple')
             ax[i].plot(output_clim3d[:,lalo[0],lalo[1]], color='green', linewidth=2,
-                label=f'clim {window_s}-day rm')
+                 label=f'clim {window_s}-day rm')
             ax[i].plot(rawdayofyear, color='black', alpha=.6,
-                    label='clim mean dayofyear')
-            if apply_fft and anomaly:
+                       label='clim mean dayofyear')
+            if apply_fft:
                 ax[i].plot(clim_rec[:,lalo[0],lalo[1]][:365], 'r-',
-                        label=f'fft {n_harmonics}h on clim {window_s}-day rm')
+                           label=f'fft {n_harmonics}h on clim {window_s}-day rm')
                 diff = clim_rec[:,lalo[0],lalo[1]][:365] - output_clim3d[:,lalo[0],lalo[1]]
                 diff = diff / ts.std(dim='time').values
                 ax[i+len(tuples)].plot(diff)
@@ -537,16 +587,21 @@ def detrend_xarray_ds_2D(ds, detrend, anomaly, apply_fft=True, n_harmonics=6):
                 ha='center', va='bottom')
         plt.subplots_adjust(hspace=.4)
         fig, ax = plt.subplots(1, figsize=(5,3))
-        output[:,lalo[0],lalo[1]].groupby('time.month').mean(dim='time').plot(ax=ax)
+        std_all = output[:,lalo[0],lalo[1]].std(dim='time')
+        monthlymean = output[:,lalo[0],lalo[1]].groupby('time.month').mean(dim='time')
+        (monthlymean/std_all).plot(ax=ax)
+        ax.set_ylabel('standardized anomaly [-]')
         ax.set_title(f'climatological monthly means anomalies latlon coord {lat} {lon}')
         fig, ax = plt.subplots(1, figsize=(5,3))
         summer = output.sel(time=get_subdates(dates, start_end_date=('06-01', '08-31')))
         summer.name = f'std {summer.name}'
         (summer.mean(dim='time') / summer.std(dim='time')).plot(ax=ax)
         ax.set_title('summer composite mean [in std]')
+    print('\n')
 
 
     if detrend:
+        print('Detrending ...')
         output = detrend_lin_longterm(output)
 
     #%%
@@ -584,7 +639,7 @@ def test_periodic(ds):
     return (360 / dlon == ds.longitude.size).values
 
 def test_periodic_lat(ds):
-    dlat = ds.latitude[1] - ds.latitude[0]
+    dlat = abs(ds.latitude[1] - ds.latitude[0])
     return ((180/dlat)+1 == ds.latitude.size).values
 
 def _check_format(ds):
@@ -625,6 +680,12 @@ def get_subdates(dates, start_end_date, start_end_year=None, lpyr=False):
         startyr = start_end_year[0]
         endyr   = start_end_year[1]
 
+    if start_end_date is None:
+        start_end_date = (('{:02d}-{:02d}'.format(dates[0].month,
+                                                    dates[0].day)),
+                         ('{:02d}-{:02d}'.format(dates[-1].month,
+                                                    dates[-1].day)))
+
     sstartdate = pd.to_datetime(str(startyr) + '-' + start_end_date[0])
     senddate_   = pd.to_datetime(str(startyr) + '-' + start_end_date[1])
 
@@ -636,7 +697,7 @@ def get_subdates(dates, start_end_date, start_end_year=None, lpyr=False):
 
     # dont get following
 #    firstyr = oneyr(oneyr_dates)
-    firstyr = oneyr(dates)
+    firstyr = get_oneyr(dates, startyr)
     #find closest senddate
     closest_enddate_idx = np.argmin(abs(firstyr - senddate_))
     senddate = firstyr[closest_enddate_idx]
@@ -649,15 +710,17 @@ def get_subdates(dates, start_end_date, start_end_year=None, lpyr=False):
                              np.timedelta64(1, 'D')
     else:
         sstartdate = senddate - pd.Timedelta(int(tfreq * daily_yr_fit), 'd')
-
+        while sstartdate < pd.to_datetime(str(startyr) + '-' + start_end_date[0]):
+            daily_yr_fit -=1
+            sstartdate = senddate - pd.Timedelta(int(tfreq * daily_yr_fit), 'd')
 
 
     start_yr = pd.date_range(start=sstartdate, end=senddate,
                                 freq=(dates[1] - dates[0]))
     if lpyr==True and calendar.isleap(startyr):
         start_yr -= pd.Timedelta( '1 days')
-    else:
-        pass
+    elif lpyr==False and calendar.isleap(startyr):
+        start_yr = remove_leapdays(start_yr)
     breakyr = endyr
     datesstr = [str(date).split('.', 1)[0] for date in start_yr.values]
     nyears = (endyr - startyr)+1

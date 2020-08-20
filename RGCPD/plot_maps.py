@@ -40,9 +40,11 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
                    size=2.5, cbar_vert=-0.01, units='units', cmap=None,
                    clevels=None, cticks_center=None, title=None,
                    drawbox=None, subtitles=None, zoomregion=None,
-                   lat_labels=True, aspect=None, n_xticks=5, n_yticks=3):
+                   lat_labels=True, aspect=None, n_xticks=5, n_yticks=3,
+                   x_ticks: np.ndarray=None, y_ticks: np.ndarray=None,
+                   add_cfeature: str=None):
     '''
-    zoombox = tuple(east_lon, west_lon, south_lat, north_lat)
+    zoomregion = tuple(east_lon, west_lon, south_lat, north_lat)
     '''
     #%%
     # default parameters
@@ -50,6 +52,7 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
     # size=2.5; cbar_vert=-0.01; units='units'; cmap=None; hspace=-0.6;
     # clevels=None; cticks_center=None; map_proj=None ; wspace=.0
     # drawbox=None; subtitles=None; title=None; lat_labels=True; zoomregion=None
+    # aspect=None; n_xticks=5; n_yticks=3
 
     if map_proj is None:
         cen_lon = int(corr_xr.longitude.mean().values)
@@ -94,11 +97,17 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
     # Coordinate labels
     # =============================================================================
     import cartopy.mpl.ticker as cticker
-    longitude_labels = np.linspace(np.min(lon), np.max(lon), n_xticks, dtype=int)
-    longitude_labels = np.array(sorted(list(set(np.round(longitude_labels, -1)))))
-    latitude_labels = np.linspace(lat.min(), lat.max(), n_yticks, dtype=int)
-    latitude_labels = sorted(list(set(np.round(latitude_labels, -1))))
-    g.set_ticks(max_xticks=5, max_yticks=5, fontsize='large')
+    if x_ticks is None: # auto ticks
+        longitude_labels = np.linspace(np.min(lon), np.max(lon), n_xticks, dtype=int)
+        longitude_labels = np.array(sorted(list(set(np.round(longitude_labels, -1)))))
+    else:
+        longitude_labels = x_ticks
+    if y_ticks is None:  # auto ticks
+        latitude_labels = np.linspace(lat.min(), lat.max(), n_yticks, dtype=int)
+        latitude_labels = sorted(list(set(np.round(latitude_labels, -1))))
+    else:
+        latitude_labels = y_ticks
+    g.set_ticks(fontsize='large')
     g.set_xlabels(label=[str(el) for el in longitude_labels])
 
 
@@ -141,8 +150,8 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
 
     for col, c_label in enumerate(cols):
         xrdatavar = plot_xr.sel(col=c_label)
-
-        if abs(lon[-1] - 360) <= (lon[1] - lon[0]):
+        dlon = abs(lon[1] - lon[0])
+        if abs(lon[-1] - 360) <= dlon and lon[0] < dlon:
             xrdatavar = extend_longitude(xrdatavar)
 
 
@@ -152,7 +161,7 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
 
             if mask_xr is not None:
                 xrmaskvar = plot_mask.sel(col=c_label)
-                if abs(lon[-1] - 360) <= (lon[1] - lon[0]):
+                if abs(lon[-1] - 360) <= (lon[1] - lon[0]) and lon[0]==0:
                     xrmaskvar = extend_longitude(xrmaskvar)
                 plotmask = xrmaskvar.sel(row=r_label)
 
@@ -207,8 +216,15 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
                     ring = drawbox[1]
 
                 if drawbox[0] == g.axes.size or drawbox[0] == 'all':
-                    g.axes[row,col].add_geometries(ring, ccrs.PlateCarree(), facecolor='none', edgecolor='green',
-                                  linewidth=2, linestyle='dashed')
+                    g.axes[row,col].add_geometries(ring, ccrs.PlateCarree(),
+                                                   facecolor='none', edgecolor='green',
+                                                   linewidth=2, linestyle='dashed')
+                elif type(drawbox[0]) is tuple:
+                    row_box, col_box = drawbox[0]
+                    if row == row_box and col == col_box:
+                        g.axes[row,col].add_geometries(ring, ccrs.PlateCarree(),
+                                                       facecolor='none', edgecolor='green',
+                                                       linewidth=2, linestyle='dashed')
 
             # =============================================================================
             # Subtitles
@@ -218,14 +234,12 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
                              'fontweight'   : 'bold'})
                 g.axes[row,col].set_title(subtitles[row,col], fontdict=fontdict, loc='center')
             # =============================================================================
-            # set coordinate ticks
+            # Format coordinate ticks
             # =============================================================================
-#            rcParams['axes.titlesize'] = 'xx-large'
-
             if map_proj.proj4_params['proj'] in ['merc', 'eqc', 'cea']:
                 ax = g.axes[row,col]
-                ax.set_xticks(longitude_labels[:-1], crs=ccrs.PlateCarree())
-                ax.set_xticklabels(longitude_labels[:-1], fontsize=12)
+                ax.set_xticks(longitude_labels[:], crs=ccrs.PlateCarree())
+                ax.set_xticklabels(longitude_labels[:], fontsize=12)
                 lon_formatter = cticker.LongitudeFormatter()
                 ax.xaxis.set_major_formatter(lon_formatter)
 
@@ -250,18 +264,19 @@ def plot_corr_maps(corr_xr, mask_xr=None, map_proj=None, row_dim='split',
             if corr_xr.name is not None:
                 if corr_xr.name[:3] == 'sst':
                     g.axes[row,col].add_feature(cfeature.LAND, facecolor='grey', alpha=0.3)
-    #            if row == rows.size-1:
-    #                last_ax = g.axes[row,col]
-    # lay out settings
+            if add_cfeature is not None:
+                g.axes[row,col].add_feature(cfeature.__dict__[add_cfeature],
+                                            facecolor='grey', alpha=0.2)
 
 
+
+    # =============================================================================
+    # lay out settings FacetGrid and colorbar
+    # =============================================================================
 
     # height colorbor 1/10th of height of subfigure
     height = g.axes[-1,0].get_position().height / 10
     bottom_ysub = (figheight/40)/(rows.size*2) + cbar_vert
-
-    #    bottom_ysub = last_ax.get_position(original=False).bounds[1] # bottom
-
     cbar_ax = g.fig.add_axes([0.25, bottom_ysub,
                               0.5, height]) #[left, bottom, width, height]
 
@@ -305,6 +320,9 @@ def causal_reg_to_xarray(df_links, list_MI):
     Returns Dataset of merged variables, this aligns there coordinates (easy for plots)
     Returns list_ds to keep the original dimensions
     '''
+
+    # ensure list_MI only contains the processed MI
+    list_MI = [p for p in list_MI if (hasattr(p, 'prec_labels'))]
     splits = df_links.index.levels[0]
 
     df_c = df_links.sum(axis=1) >= 1
@@ -401,9 +419,9 @@ def causal_reg_to_xarray(df_links, list_MI):
     #%%
     return dict_ds
 
-def plot_labels_vars_splits(dict_ds, df_links, map_proj, figpath, paramsstr, RV_name,
+def plot_labels_vars_splits(dict_ds, df_links, figpath, paramsstr, RV_name,
                             filetype='.pdf', mean_splits=True,
-                        cols: List=['corr', 'C.D.'], kwrgs_plot={}):
+                            cols: List=['corr', 'C.D.'], kwrgs_plot={}):
 
     #%%
     # =============================================================================
@@ -424,12 +442,12 @@ def plot_labels_vars_splits(dict_ds, df_links, map_proj, figpath, paramsstr, RV_
                 f_name = '{}_{}_vs_{}_labels'.format(paramsstr, RV_name, var) + filetype
 
             filepath = os.path.join(figpath, f_name)
-            plot_labels_RGCPD(ds, var, lag, map_proj, filepath,
+            plot_labels_RGCPD(ds, var, lag, filepath,
                               mean_splits, cols, kwrgs_plot)
     #%%
     return
 
-def plot_labels_RGCPD(ds, var, lag, map_proj, filepath,
+def plot_labels_RGCPD(ds, var, lag, filepath,
                       mean_splits=True, cols: List=['corr', 'C.D.'],
                       kwrgs_plot={}):
     #%%
@@ -498,7 +516,7 @@ def plot_labels_RGCPD(ds, var, lag, map_proj, filepath,
     if np.isnan(prec_labels.values).all() == False:
 
         plot_corr_maps(prec_labels,
-                 map_proj, **kwrgs_labels)
+                       **kwrgs_labels)
         plt.savefig(filepath, bbox_inches='tight')
         plt.show() ; plt.close()
 
@@ -525,7 +543,7 @@ def plot_labels_RGCPD(ds, var, lag, map_proj, filepath,
             # robust.lag.values = subtitles_r[0]
             robust = robust.where(robust.values != 0.)
             plot_corr_maps(robust-1E-9,
-                 map_proj, **kwrgs_labels)
+                           **kwrgs_labels)
             f_name = f'robustness_{var}_lag{lag}.' + filepath.split('.')[-1]
             fig_path = '/'.join(filepath.split('/')[:-1])
             plt.savefig(os.path.join(fig_path, f_name), bbox_inches='tight')
@@ -538,7 +556,7 @@ def plot_labels_RGCPD(ds, var, lag, map_proj, filepath,
     #%%
     return
 
-def plot_corr_vars_splits(dict_ds, df_sum, map_proj, figpath, paramsstr, RV_name,
+def plot_corr_vars_splits(dict_ds, df_sum, figpath, paramsstr, RV_name,
                           filetype='.pdf', mean_splits=True,
                           cols: List=['corr', 'C.D.'], kwrgs_plot={}):
     #%%
@@ -572,7 +590,7 @@ def plot_corr_vars_splits(dict_ds, df_sum, map_proj, figpath, paramsstr, RV_name
             else:
                 f_name = '{}_{}_vs_{}_tigr_corr'.format(paramsstr, RV_name, var) + filetype
             filepath = os.path.join(figpath, f_name)
-            plot_corr_regions(ds, var, lag, map_proj, filepath,
+            plot_corr_regions(ds, var, lag, filepath,
                               mean_splits, cols, kwrgs_plot)
     #%%
     return
@@ -614,7 +632,7 @@ def plot_labels(prec_labels, cbar_vert=None, col_dim='lag', row_dim='split',
                    hspace=hspace, wspace=wspace, zoomregion=zoomregion,
                    **kwrgs_labels)
 
-def plot_corr_regions(ds, var, lag, map_proj, filepath,
+def plot_corr_regions(ds, var, lag, filepath,
                       mean_splits=True, cols: List=['corr','C.D.'],
                       kwrgs_plot={}):
     #%%
@@ -677,7 +695,7 @@ def plot_corr_regions(ds, var, lag, map_proj, filepath,
         kwrgs = {'cbar_vert':cbar_vert, 'subtitles':subtitles,
                  'units':'Corr Coefficient'}
         kwrgs.update(kwrgs_plot) # add and overwrite manual kwrgs
-        plot_corr_maps(corr_xr, mask_xr, map_proj, **kwrgs)
+        plot_corr_maps(corr_xr, mask_xr, **kwrgs)
 
         plt.savefig(filepath, bbox_inches='tight')
         plt.show() ; plt.close()

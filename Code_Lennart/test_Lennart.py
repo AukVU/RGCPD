@@ -129,7 +129,7 @@ bivariate = corr_map
 
 kwrgs_bivariate = {}
 if bivariate == parcorr_map_time:
-    lag = 1
+    lag = 5
     target = False
     precur = True
     kwrgs_bivariate = {'lag':lag, 'target':target, 'precur':precur}
@@ -162,11 +162,11 @@ else:
     # list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True})]
     list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':False}, distance_eps=200, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
-start_end_TVdate = ('06-24', '08-22')
+# start_end_TVdate = ('06-24', '08-22')
 # start_end_TVdate = None
 
 # start_end_TVdate = ('3-13', '2-25')
-# start_end_TVdate = ('3-13', '12-31')
+start_end_TVdate = ('7-1', '12-31')
 start_end_date = ('1-1', '12-31')
 # start_end_date = None
 

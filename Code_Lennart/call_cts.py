@@ -34,17 +34,17 @@ settings['save_matrices'] = True
 
 
 settings['N'] = 5
-settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 3287 #1826 #5114
+settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30,  3287 #1826 #5114 731
 settings['plot_points'] = settings['T']
 
-settings['signal'] = 0.1 #0.5
-settings['noise_level'] = 10
+settings['signal'] = 0#0.5
+settings['noise_level'] = 5
 settings['spatial_covariance'] = 2000
 
 
 links_coeffs = 'model3'
 
-settings['model'] = 'multiple'
+settings['model'] = 'one'
 
 print('Start generating')
 cts.create_time_series(settings, links_coeffs,  verbose=True,

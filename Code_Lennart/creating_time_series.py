@@ -33,6 +33,10 @@ import shutil
 
 from c_dim_methods import get_varimax_loadings_standard as varimax
 
+from datetime import date
+import datetime
+import dateutil
+
 
 def get_links_coeffs(links_coeffs):
     links_coeffs = links_coeffs.capitalize()
@@ -556,7 +560,25 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
     if settings['do_pcmci']:
         data = savar.data_field @ savar.modes_weights.reshape(N, -1).transpose()
         # data, _ = pp.var_process(links_coeffs, T=1000)
-        dataframe = pp.DataFrame(data)
+        start_date = date(1979, 1, 1)
+        end_date = start_date + datetime.timedelta(days=settings['T'])
+        years = dateutil.relativedelta.relativedelta(end_date,start_date).years
+        days = (end_date - start_date).days
+        mask = list(range(settings['T']))
+        test_years = [1979 + i for i in range(years)]
+        end_day = 0
+        for year in test_years:
+            start_day = date(year, 7, 1)
+            start_day = (start_day - start_date).days
+            mask[end_day:start_day] = [0] * (start_day - end_day)
+            end_day = date(year + 1, 1, 1)
+            end_day = (end_day - start_date).days
+            mask[start_day:end_day] = [1] * (end_day - start_day)
+        mask = list(map(bool,mask))
+
+
+        data_mask = np.repeat(mask, N).reshape(-1,N)
+        dataframe = pp.DataFrame(data, mask=data_mask)
 
         cond_ind_test = ParCorr()
         pcmci = PCMCI(dataframe=dataframe, cond_ind_test=cond_ind_test)
@@ -564,7 +586,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         if verbose:
             pcmci.print_significant_links(p_matrix=pcmci_output['p_matrix'],
                                                 val_matrix=pcmci_output['val_matrix'],
-                                                alpha_level=0.01)
+                                                alpha_level=0.1)
 
 
         pcmci_matrix_path = general_path + '/matrices/pcmci_test'

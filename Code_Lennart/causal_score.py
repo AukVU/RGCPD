@@ -48,7 +48,7 @@ def calculate_val_score(found, real, mask, correlated, measure='', target_only=T
         accuracy = (found_masked == real_masked).mean()
     return accuracy
 
-def calculate_causal_score(settings, val=False, verbose=False, locs=None, target_only=True):
+def calculate_causal_score(settings, val=False, verbose=False, locs=None, target_only=True, no_ac=True):
     general_path = settings['user_dir'] + '/' + settings['extra_dir'] + '/results/' + settings['filename']
     general_path = general_path + '/matrices'
 
@@ -70,6 +70,8 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
     
     real = all_files[0]
     real_links = np.load(general_path + '/AAA_real/ZZZ_real_links.npy')
+    if no_ac:
+        real_links = real_links[1:]    
     N = len(real_links)
     # real_links = [0] + [(0.1 * i / (N - 2)) for i, l in enumerate(real_links[1:])]
 
@@ -83,20 +85,32 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
         if test == 'real':
             test2 = 'AAA_real'
         correlated = np.load(general_path + '/' + test2 + '/ZZZ_correlated.npy')
+        if no_ac:
+            correlated = [c - 1 for c in correlated[1:]]
         found_links = np.ones(len(real_links))
         found_links[correlated] = 0
         scores = np.multiply(real_links, found_links)
         for score in scores:
             results[f'{test} p_value'].append(score)
             # results[f'{test} value'].append(score)
+        if no_ac:
+            correlated = [0] + correlated
         for j, mode in enumerate(correlated):
-            p_score, real_mask = calculate_p_value_score(all_files[i][j], real[mode], correlated, measure=settings['measure'], alpha=settings['alpha'], target_only=target_only)
+            found = all_files[i][j]
+            if no_ac:
+                if found[-5] == '0':
+                    # print('Skipped because autocorrelatie')
+                    continue
+                # print('Not skipped')
+            p_score, real_mask = calculate_p_value_score(found, real[mode], correlated, measure=settings['measure'], alpha=settings['alpha'], target_only=target_only)
             results[f'{test} p_value'][mode] = p_score
             # val_score = calculate_val_score(all_files[i][number_of_modes + j], real[number_of_modes + j], real_mask, correlated, measure=settings['val_measure'], target_only=target_only)
             # results[f'{test} value'][mode] = val_score
         
     
     results = pd.DataFrame(data=results)
+    if no_ac:
+        results.index += 1
     results.loc['mean'] = results.mean()
     if not val:
         results = results.filter(like='p_value')
@@ -116,18 +130,18 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
 
 
 
-# settings = {}
-# settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
-# settings['extra_dir'] = 'Code_Lennart'
-# settings['filename'] = 'test_met_savar11'
-# settings['N'] = 5
+settings = {}
+settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
+settings['extra_dir'] = 'Code_Lennart'
+settings['filename'] = 'test_met_savar11'
+settings['N'] = 5
 
-# settings['alpha'] = 0.01
-# settings['measure'] = 'average'
-# settings['val_measure'] = 'average'
+settings['alpha'] = 0.01
+settings['measure'] = 'average'
+settings['val_measure'] = 'average'
 
-# score = calculate_causal_score(settings, val=False, verbose=True, target_only=True)
-# print(score)
+score = calculate_causal_score(settings, val=False, verbose=True, target_only=True, locs=[0,1,3], no_ac=True)
+print(score)
 
 
 

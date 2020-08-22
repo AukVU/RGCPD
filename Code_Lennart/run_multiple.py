@@ -130,7 +130,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
 
     year_list = list(np.array(years).flat)
     if years == None:
-        year_list = np.arange(5, 15, 1)
+        year_list = np.arange(1, 15, 1)
         table_list = year_list
         test = 'time'
     day1 = date(1979, 1, 1) #YYYY-MM-DD
@@ -426,7 +426,7 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-run_multiple(settings, years=[8], modes=[7], signals=[0.09], noises=None, spatials=[1000], iterations=100, model='one')
+run_multiple(settings, years=None, modes=[7], signals=[0.09], noises=[10], spatials=[1000], iterations=100, model='one')
 
 
 

@@ -15,7 +15,7 @@ import pandas as pd
 from statsmodels.sandbox.stats import multicomp
 import functions_pp
 import find_precursors
-#import plot_maps
+from typing import Union
 flatten = lambda l: list(itertools.chain.from_iterable(l))
 
 # from pyinform import transfer_entropy
@@ -37,7 +37,8 @@ class BivariateMI_PCMCI:
 
     def __init__(self, name, func=None, kwrgs_func={}, kwrgs_bivariate={}, lags=np.array([1]), 
                  distance_eps=400, min_area_in_degrees2=3, group_split='together', 
-                 calc_ts='region mean', verbosity=1):
+                 calc_ts='region mean', selbox: tuple=None,
+                 use_sign_pattern: bool=False, use_coef_wghts: bool=False, verbosity=1):
         '''
 
         Parameters
@@ -71,6 +72,15 @@ class BivariateMI_PCMCI:
             timeseries is calculated for each label. If 'pattern cov', the 
             spatial covariance of the whole pattern is calculated. 
             The default is 'region_mean'.
+        selbox : tuple, optional
+            has format of (lon_min, lon_max, lat_min, lat_max)
+        use_sign_pattern : bool, optional
+            When calculating spatial covariance, do not use original pattern
+            but focus on the sign of each region. Used for quantifying Rossby
+            waves.
+        use_coef_wghts : bool, optional
+            When True, using (corr) coefficient values as weights when calculating
+            spatial mean. (will always be area weighted).
         verbosity : int, optional
             Not used atm. The default is 1.
 
@@ -95,9 +105,11 @@ class BivariateMI_PCMCI:
         else:
             self.kwrgs_bivariate = kwrgs_bivariate
 
-
         #get_prec_ts & spatial_mean_regions
         self.calc_ts = calc_ts
+        self.selbox = selbox
+        self.use_sign_pattern = use_sign_pattern
+        self.use_coef_wghts = use_coef_wghts
         # cluster_DBSCAN_regions
         self.distance_eps = distance_eps
         self.min_area_in_degrees2 = min_area_in_degrees2
@@ -148,7 +160,7 @@ class BivariateMI_PCMCI:
         print('\n{} - calculating correlation maps'.format(precur_arr.name))
         np_data = np.zeros_like(xrcorr.values)
         np_mask = np.zeros_like(xrcorr.values)
-        def single_split(RV_ts, precur_train, alpha, FDR_control): #, lags, alpha, FDR_control
+        def corr_single_split(RV_ts, precur_train, alpha, FDR_control): #, lags, alpha, FDR_control
 
             lat = precur_train.latitude.values
             lon = precur_train.longitude.values
@@ -166,16 +178,7 @@ class BivariateMI_PCMCI:
 
 
                 # correlation map and pvalue at each grid-point:
-                # corr_val, pval = corr_new(prec_lag, RV_ts.values.squeeze())
-                # corr_val, pval = entropy_new(prec_lag, RV_ts.values.squeeze())
                 corr_val, pval = self.bivariate_func(prec_lag, RV_ts.values.squeeze(), **self.kwrgs_bivariate)
-                # plt.imshow(corr_val.reshape(lat.size, lon.size))
-                # plt.show()
-                # f_name = 'corr_map_{}_test'.format(self.bivariate_func.__name__)
-                # path_out = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD/Code_Lennart/results/multiple_test/output_RGCPD"
-
-                # fig_path = os.path.join(path_out, f_name)+'.pdf'
-                # plt.savefig(fig_path, bbox_inches='tight')
                 mask = np.ones(corr_val.size, dtype=bool)
                 if FDR_control == True:
                     # test for Field significance and mask unsignificant values
@@ -184,8 +187,10 @@ class BivariateMI_PCMCI:
                     ad_p = adjusted_pvalues[1]
 
                     mask[ad_p <= alpha] = False
+
                 else:
                     mask[pval <= alpha] = False
+
 
                 Corr_Coeff[:,i] = corr_val[:]
                 Corr_Coeff[:,i].mask = mask
@@ -196,7 +201,7 @@ class BivariateMI_PCMCI:
 
         RV_mask = df_splits.loc[0]['RV_mask']
         for s in xrcorr.split.values:
-            progress = 100 * (s+1) / n_spl
+            progress = int(100 * (s+1) / n_spl)
             # =============================================================================
             # Split train test methods ['random'k'fold', 'leave_'k'_out', ', 'no_train_test_split']
             # =============================================================================
@@ -208,8 +213,9 @@ class BivariateMI_PCMCI:
             dates_RV = RV_ts.index
             n = dates_RV.size ; r = int(100*n/RV.dates_RV.size )
             print(f"\rProgress traintest set {progress}%, trainsize=({n}dp, {r}%)", end="")
-
-            ma_data = single_split(RV_ts, precur_train, **self.kwrgs_func)
+            # if s == 6:
+                # break
+            ma_data = corr_single_split(RV_ts, precur_train, **self.kwrgs_func)
             np_data[s] = ma_data.data
             np_mask[s] = ma_data.mask
         print("\n")
@@ -228,24 +234,23 @@ class BivariateMI_PCMCI:
         
         n_tot_regs = 0
         splits = self.corr_xr.split
-        if np.isnan(self.prec_labels.values).all():
-            self.ts_corr = np.array(splits.size*[[]])
+        if hasattr(self, 'prec_labels') == False:
+            print(f'{self.name} is not clustered yet')
         else:
-            if self.calc_ts == 'region mean':
-                self.ts_corr = find_precursors.spatial_mean_regions(self, 
-                                              precur_aggr=precur_aggr, 
-                                              kwrgs_load=kwrgs_load)
-            elif self.calc_ts == 'pattern cov':
-                self.ts_corr = loop_get_spatcov(self, 
+            if np.isnan(self.prec_labels.values).all():
+                self.ts_corr = np.array(splits.size*[[]])
+            else:
+                if self.calc_ts == 'region mean':
+                    self.ts_corr = find_precursors.spatial_mean_regions(self, 
                                                 precur_aggr=precur_aggr, 
                                                 kwrgs_load=kwrgs_load)
-            # self.outdic_precur[var] = precur
-            n_tot_regs += max([self.ts_corr[s].shape[1] for s in range(splits.size)])
+                elif self.calc_ts == 'pattern cov':
+                    self.ts_corr = loop_get_spatcov(self, 
+                                                    precur_aggr=precur_aggr, 
+                                                    kwrgs_load=kwrgs_load)
+                # self.outdic_precur[var] = precur
+                n_tot_regs += max([self.ts_corr[s].shape[1] for s in range(splits.size)])
         return
-
-
-    def pcmci_map(self, precur_arr, df_splits, RV):
-        print('Hello')
 
 def corr_map(field, ts):
     """
@@ -255,23 +260,15 @@ def corr_map(field, ts):
     """
     x = np.ma.zeros(field.shape[1])
     corr_vals = np.array(x)
-    pvals = np.array(x)
-
-    
+    pvals = np.array(x)   
     fieldnans = np.array([np.isnan(field[:,i]).any() for i in range(x.size)])
 
-    # plt.imshow(fieldnans.reshape(lat.size, lon.size))
-    # plt.show()
-    # f_name = 'field_corr_map_test'
-    # path_out = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD/Code_Lennart/results/multiple_test/output_RGCPD"
-
-    # fig_path = os.path.join(path_out, f_name)+'.pdf'
-    # plt.savefig(fig_path, bbox_inches='tight')
-    
     nonans_gc = np.arange(0, fieldnans.size)[fieldnans==False]
     
     for i in nonans_gc:
         corr_vals[i], pvals[i] = scipy.stats.pearsonr(ts,field[:,i])
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def granger_map(field, ts):
@@ -288,6 +285,8 @@ def granger_map(field, ts):
         corr_vals[i], pvals[i], _, _ = granger[10][0]['ssr_ftest']
         # corr_vals[i], pvals[i], _ = granger[1][0]['ssr_chi2test']
         # print(' hoi')
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 
@@ -316,6 +315,8 @@ def parcorr_map_spatial(field, ts):
         a, b = cond_ind_test.run_test_raw(ts, np.expand_dims(field[:,i], axis=1), data)
         corr_vals[i] = a
         pvals[i] = b
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def parcorr_map_time(field, ts, lag=1, target=False, precur=True):
@@ -343,6 +344,8 @@ def parcorr_map_time(field, ts, lag=1, target=False, precur=True):
         a, b = cond_ind_test.run_test_raw(ts, field_i, z)
         corr_vals[i] = a
         pvals[i] = b
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def gpdc_map(field, ts):
@@ -358,6 +361,8 @@ def gpdc_map(field, ts):
         a, b = cond_ind_test.run_test_raw(ts, np.expand_dims(field[:,i], axis=1))
         corr_vals[i] = a
         pvals[i] = b
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def cmiknn_map(field, ts):
@@ -373,6 +378,8 @@ def cmiknn_map(field, ts):
         a, b = cond_ind_test.run_test_raw(ts, np.expand_dims(field[:,i], axis=1))
         corr_vals[i] = a
         pvals[i] = b
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def rcot_map(field, ts):
@@ -388,6 +395,8 @@ def rcot_map(field, ts):
         a, b = cond_ind_test.run_test_raw(ts, np.expand_dims(field[:,i], axis=1))
         corr_vals[i] = a
         pvals[i] = b
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def entropy_map(field, ts):
@@ -415,7 +424,8 @@ def entropy_map(field, ts):
     mean = corr_vals.mean()
     corr_vals -= mean
     pvals = 1 - pvals
-
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def entropy_map_pearson(field, ts):
@@ -443,7 +453,8 @@ def entropy_map_pearson(field, ts):
     mean = corr_vals.mean()
     corr_vals -= mean
     pvals = 1 - pvals
-
+    # restore original nans
+    corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 def transfer_entropy(J, I):
@@ -456,38 +467,6 @@ def transfer_entropy(J, I):
     b = conditional_entropy(I1, IJ)
 
     return (a - b)
-    # return (conditional_entropy(I,I) - conditional_entropy(I, IJ))
-    # n_labels = len(I)
-    # n_bins = 10
-
-    # I_hist = np.histogram(I, bins=n_bins, density=False)
-    # probsI = I_hist[0] / n_labels
-
-    # J_hist = np.histogram(J, bins=n_bins, density=False)
-    # probsJ = J_hist[0] / n_labels
-    
-    # data = np.random.randn(n_labels, 3)
-    # data[:,0] = I1
-    # data[:,1] = I
-    # data[:,2] = J
-    # jointProbs, [bx, by, bz] = np.histogramdd((I1,I,J), bins=n_bins)
-    # jointProbs /= jointProbs.sum()
-    
-    # kdeI1 = stats.gaussian_kde(I1)
-    # kdeI = stats.gaussian_kde(I)
-    # kdeJ = stats.gaussian_kde(J)
-    # x = np.linspace(-5,20,100)
-    # plt.plot(x, kdeI1(x), label="KDE I1")
-    # plt.plot(x, kdeI(x), label="KDE I")
-    # plt.plot(x, kdeJ(x), label="KDE J")
-    # plt.legend()
-    # output='very_small'
-    # local_base_path = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD"
-    # local_base_path = local_base_path + f'/Code_Lennart/results/{output}/kde.pdf'
-    # plt.savefig(local_base_path, format='pdf')
-    # plt.show()
-    # print("hoi")
-    # sys.exit()
 
 
 def conditional_entropy(J, I):
@@ -523,6 +502,7 @@ def loop_get_spatcov(precur, precur_aggr, kwrgs_load):
     df_splits = precur.df_splits
     splits = df_splits.index.levels[0]
     lags            = precur.corr_xr.lag.values
+    use_sign_pattern = precur.use_sign_pattern
     
     
     if precur_aggr is None:
@@ -542,7 +522,7 @@ def loop_get_spatcov(precur, precur_aggr, kwrgs_load):
                 kwrgs[key] = value[0] # plugging in default value
             else:
                 kwrgs[key] = value
-        kwrgs['tfreq'] = precur_aggr
+        kwrgs['tfreq'] = precur_aggr ; kwrgs['selbox'] = precur.selbox
         precur_arr = functions_pp.import_ds_timemeanbins(filepath, **kwrgs)
 
     full_timeserie = precur_arr        
@@ -558,6 +538,8 @@ def loop_get_spatcov(precur, precur_aggr, kwrgs_load):
             corr_vals = corr_xr.sel(split=s).isel(lag=il)
             mask = prec_labels.sel(split=s).isel(lag=il)
             pattern = corr_vals.where(~np.isnan(mask))
+            if use_sign_pattern == True:
+                pattern = np.sign(pattern)
             if np.isnan(pattern.values).all():
                 # no regions of this variable and split
                 nants = np.zeros( (dates.size, 1) )

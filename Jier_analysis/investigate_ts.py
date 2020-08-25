@@ -61,6 +61,12 @@ def display_polynome(poly, ar_list, rg_data, col, title,  save_fig, dependance):
 def create_wavelet_details(poly, index_poly, wave, level, mode, debug=True):
     return wa.create_low_freq_components(pd.Series(poly, index=index_poly), level=level, wave=wave, mode=mode , debug=debug)
 
+def create_wavelet_signals(poly, index_poly, wave, level, mode):
+    return wa.create_signal_recontstruction(data=pd.Series(poly, index=index_poly), wave=wave, level=level, mode=mode)
+
+def create_modwt_signals(poly, index_poly, wave, level, mode):
+    return wa.create_modwt_decomposition(data=pd.Series(poly, index=index_poly), wave=wave, level=level, mode=mode)
+
 def wavelet_variance_levels(data, col, wavelet, mode, levels):
     return wa.wavelet_var(data, col, wavelet, mode, levels)
 

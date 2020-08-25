@@ -23,7 +23,7 @@ import  statsmodels.stats.api as stats
 from RGCPD import RGCPD
 from RGCPD import BivariateMI
 import core_pp
-import plot_signal_decomp
+from plot_signal_decomp import *
 import plot_coeffs
 from visualize_cwt import *
 register_matplotlib_converters()
@@ -112,16 +112,31 @@ def plot_choice_wavelet_signal(data, columns, savefig=False):
             plt.savefig('Wavelet/wave_choice'+ col +'_analysis .png', dpi=120)
     plt.show()  
 
-def wavelet_var(data, col, wavelet, mode, levels):
+def wavelet_var(data, col, wavelet, mode, levels, method='wavedec'):
     assert isinstance(data[col], pd.Series) , f"Expect pandas Series, {type(data)} given"
     print(f'[INFO] Wavelet variance per scale analysis start of {col}..')
     ap = data[col]  
     result_var_level = np.zeros(levels)
-    for i, _ in enumerate(range(levels)):
-        ap, _ = wv.dwt(ap, wavelet, mode=mode)
-        result_var_level[i] =  np.dot(ap, ap)/len(ap)
-    print('[INFO] Wavelet variant scale analysis done. ')
-    return result_var_level
+    if method == 'dwt':
+        for i in range(levels)):
+            ap, det = wv.dwt(ap, wavelet, mode=mode)
+            result_var_level[i] =  np.dot(det[1:-1], det[1:-1])/len(det[1:-1])
+        print('[INFO] Wavelet variant scale analysis done using DWT recursion ')
+        return result_var_level
+    if method == 'wavedec':
+        coeffs = wv.wavedec(ap, wavelet, mode=mode, level=level)
+        for i in range(levels):
+            result_var_level[i] = np.var(coeffs[i][1:-1], ddof=1)
+        print('[INFO] Wavelet variant scale analysis done using WAVEDEC  ')
+        return result_var_level
+
+    if method == 'modwt':
+        data = get_pad_data(data=data)
+        coeffs = wv.swt(data, wavelet, trim_approx=True, norm=True)
+        for i in range(levels):
+            result_var_level = np.var(coeffs[i], ddof=1)
+        print('[INFO] Wavelet variant scale analysis done using MODWT')
+        return result_var_level
 
 def plot_wavelet_var(var_result, title, savefig=False):
     plt.figure(figsize=(16,8), dpi=90)
@@ -204,17 +219,60 @@ def create_low_freq_components(data, level=6, wave='db4', mode=wv.Modes.periodic
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     s = data
     cA = []
+    cD = []
     lvl_decomp = wv.dwt_max_level(len(data), wave.dec_len)
     lvl_decomp = level if lvl_decomp > level else lvl_decomp
     for i in range(lvl_decomp): # Using recursion to overwrite signal to go level deepeer
-        s, _ =  wv.dwt(s, wave , mode=mode)
+        s, det =  wv.dwt(s, wave , mode=mode)
         cA.append(s)
+        cD.append(det)
     
     if debug == True:
         print('[DEBUG] Inspecting approximations length of low freq')
-        for i, c in enumerate(cA):
+        for i, c in enumerate(cD):
             print('Level: ', i,'Size: ', len(c))
-    return cA
+        for i, x in enumerate(cA):
+            print('Level: ', i, 'Size: ', len(c))
+    return cA, cD
+
+def create_signal_recontstruction(data, wave, level, mode=wv.Modes.periodic):
+    w = wave
+    assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
+    assert isinstance(w, wv.Wavelet)
+    a = data
+    ca = []
+    cd = []
+    level_ = wv.dwt_max_level(len(data), w.dec_len)
+    if level > level_:
+        level = level_
+        print("Appropriate level is changed to ", level)
+    else:
+        level_ = None 
+    for i in range(level):
+        (a, d) = wv.dwt(a, w, mode)
+        ca.append(a)
+        cd.append(d)
+
+    rec_a = []
+    rec_d = []
+
+    for i, coeff in enumerate(ca):
+        coeff_list = [coeff, None] + [None] * i
+        rec_a.append(wv.waverec(coeff_list, w))
+
+    for i, coeff in enumerate(cd):
+        coeff_list = [None, coeff] + [None] * i
+        rec_d.append(wv.waverec(coeff_list, w)) 
+
+    return rec_a, rec_d
+
+def create_modwt_decomposition(data, wave, level):
+    w = wave
+    assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
+    assert isinstance(w, wv.Wavelet)
+    a = get_pad_data(data=data)
+    coeffs =  wv.swt(a, w, level=level, trim_approx=True, norm=True) #[(cAn, (cDn, ...,cDn-1, cD1)]
+    return coeffs[0], coeffs[1:]
 
 def create_mci_coeff(cA, cA_t, rg_index, rg, debug=False):
 

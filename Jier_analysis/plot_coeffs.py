@@ -14,7 +14,7 @@ def plot_coeffs(data, w, mode, title, level, use_dwt=True):
         level_ = wv.swt_max_level(len(data))
     if level > level_:
         level = level_
-        print("Appropriate level is changed to ", level)
+        print(f"Appropriate level is changed to  {level}")
     else:
         level_ = None 
     if use_dwt:

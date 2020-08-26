@@ -153,9 +153,13 @@ def shift_coeffs(coeffs, size, filter_length):
     smooth = (2**J_0 - 1)*(L - 2)/(2*(L -1 ))
     power = [- 2** j/ 2 for j in range(1, len(coeffs[1:]) + 1) ]
     print(power, T.shape, N, coeffs[0].shape, sep='\n')
-    details = [ [np.dot(np.linalg.matrix_power(T, -1 * int(power[j]) ), w_j) for j, w_j in enumerate(coeffs[1:])] for _ in range(len(coeffs[1:]))]
-    # print('Finish details')
-    approx = [np.dot(np.linalg.matrix_power(T, -1 * int(smooth) ), vj) for vj in coeffs[0]]
+    T_ = [np.linalg.matrix_power(T, -1 * int(power[j]) ) for j,_ in enumerate(coeffs[1:])]
+    print('[INFO] Passed Transform')
+    details = [ [np.dot(T_[j], w_j) for j, w_j in enumerate(coeffs[1:])] for _ in range(len(coeffs[1:]))]
+    print('[INFO] Finish details')
+    T_a = np.linalg.matrix_power(T, -1 * int(smooth) )
+    approx = [np.dot(T_a, vj) for vj in coeffs[0]]
+    print('[INFO] Finish approx')
     print(approx, coeffs[0], sep='\n')
     new_coeffs = approx.append(details)
     return new_coeffs

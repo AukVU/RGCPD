@@ -4,7 +4,8 @@ import pywt as wv
 
 def plot_coeffs(data, w, mode, title, level, use_dwt=True):
     """Show dwt or swt coefficients for given data and wavelet."""
-    w = wv.Wavelet(w)
+    # w = wv.Wavelet(w)
+    assert isinstance(w, wv.Wavelet)
     a = data
     ca = []
     cd = []

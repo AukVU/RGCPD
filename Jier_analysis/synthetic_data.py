@@ -311,7 +311,7 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:s
         plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
 
     plt.plot(_dates, signal, '-k', label='Precursor data', alpha=0.5)
-    plt.title('Ar2 fit on prec' + title)
+    plt.title('Ar2 fit on ' + title)
     plt.xlabel('Dates')
     plt.ylabel('Variance in temperature Celsius')
     plt.legend()

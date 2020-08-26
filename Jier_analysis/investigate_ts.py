@@ -64,11 +64,11 @@ def create_wavelet_details(poly, index_poly, wave, level, mode, debug=True):
 def create_wavelet_signals(poly, index_poly, wave, level, mode):
     return wa.create_signal_recontstruction(data=pd.Series(poly, index=index_poly), wave=wave, level=level, mode=mode)
 
-def create_modwt_signals(poly, index_poly, wave, level, mode):
-    return wa.create_modwt_decomposition(data=pd.Series(poly, index=index_poly), wave=wave, level=level, mode=mode)
+def create_modwt_signals(poly, index_poly, wave, level):
+    return wa.create_modwt_decomposition(data=pd.Series(poly, index=index_poly), wave=wave, level=level)
 
-def wavelet_variance_levels(data, col, wavelet, mode, levels):
-    return wa.wavelet_var(data, col, wavelet, mode, levels)
+def wavelet_variance_levels(data, wavelet, mode, levels):
+    return wa.wavelet_var(data, wavelet, mode, levels)
 
 def  get_mci_coeffs_lag(details_prec, details_target, index, rg_obj, debug=False):
     mci_obj = wa.create_mci_coeff(cA=details_prec, cA_t=details_target, rg_index=index, rg=rg_obj, debug=debug)

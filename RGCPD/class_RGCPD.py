@@ -417,7 +417,8 @@ class RGCPD:
             if c == len(self.list_for_MI):
                 print('No precursors clustered')
             else:
-                check_ts = np.unique([MI.ts_corr.size for MI in self.list_for_MI])
+                # check_ts = np.unique([MI.ts_corr.size for MI in self.list_for_MI])
+                check_ts = np.unique([[ts.size for ts in MI.ts_corr] for MI in self.list_for_MI])
                 any_MI_ts = np.equal(check_ts, np.array([0]))[0] == False
                 if any_MI_ts:
                     df_data_MI = find_precursors.df_data_prec_regs(self.list_for_MI,

@@ -114,6 +114,8 @@ settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
 
+test_splits = 5
+
 # output = 'era5'
 output =  'test_met_savar11'
 bivariate = corr_map
@@ -151,7 +153,7 @@ if output == 'era5':
     ]
 
     # list_for_EOFS = [EOF(name='st2', neofs=1, selbox=[-180, 360, -15, 30])]
-    list_for_MI   = [BivariateMI_PCMCI(name='st2', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=300, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
+    list_for_MI   = [BivariateMI_PCMCI(name='st2', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True}, distance_eps=100, min_area_in_degrees2=1, kwrgs_bivariate=kwrgs_bivariate)]
 
 else:
     list_of_name_path = [#('test_target', local_base_path + '/Code_Lennart/NC/test.npy'),
@@ -160,7 +162,7 @@ else:
     ]
 
     # list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':True})]
-    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':False}, distance_eps=200, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
+    list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':False}, distance_eps=300, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
 # start_end_TVdate = ('06-24', '08-22')
 # start_end_TVdate = None
@@ -195,7 +197,7 @@ rg.pp_TV()
 
 #kwrgs_events={'event_percentile':66}
 kwrgs_events=None
-rg.traintest(method='random5', kwrgs_events=kwrgs_events)
+rg.traintest(method=f'random{test_splits}', kwrgs_events=kwrgs_events)
 
 rg.calc_corr_maps()
 
@@ -277,6 +279,12 @@ rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
 
 
 
+timeseries_RGCPD = rg.df_data.copy() 
+timeseries_RGCPD = timeseries_RGCPD.loc[0]
+timeseries_RGCPD = timeseries_RGCPD.values[:,:2]# time x number of timeseries
+
+
+
 # rg.quick_view_labels()
 
 rg.plot_maps_sum(cols=['corr'])
@@ -290,7 +298,10 @@ pcmci_matrix_path = local_base_path + f'/{output}' + f'/matrices/{bivariate.__na
 if bivariate.__name__ == 'parcorr_map_time':
     pcmci_matrix_path = pcmci_matrix_path + f'-{lag}-{target}-{precur}'
 # settings = {'N': len(rg.pcmci_results_dict[0])}
-locs = list(np.array(locs)[0])#[most_common_p_matrix])
+if len(locs) == 0:
+    locs = [[] for _ in range(test_splits)]
+else:
+    locs = list(np.array(locs)[0])#[most_common_p_matrix])  #[0]
 p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
 area_lengths = [len(i) for i in p_matrices]
 common_length = max(set(area_lengths), key = area_lengths.count)

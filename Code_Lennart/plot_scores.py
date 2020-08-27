@@ -134,7 +134,8 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-test = 'NEW_MODEL/NOISE_S0.05'
+# test = 'NEW_MODEL/NOISE_S0.05'
+test = 'AAA_NO_LAG_AUTOCOR/SIGNAL_ONE'
 
 user_dir = settings['user_dir']
 path = user_dir + f'/Results_Lennart/scores/' + test

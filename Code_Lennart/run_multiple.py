@@ -1,4 +1,7 @@
-import os, inspect, sys
+import os, inspect, sys, scipy
+
+import argparse
+parser = argparse.ArgumentParser()
 
 if sys.platform == 'linux':
     import matplotlib as mpl
@@ -102,7 +105,7 @@ def filter_matrices(matrices, locs, locs_intersect=None):
 
 
 
-def run_multiple(settings, years=None, modes=None, signals=None, noises=None, spatials=None, iterations=10, model='multiple'):
+def run_multiple(settings, years=None, modes=None, signals=None, noises=None, spatials=None, iterations=10, model='multiple', debug=False):
     # bivariate_list = [corr_map, entropy_map, granger_map, gpdc_map, cmiknn_map, granger_map]
     bivariate_list = [corr_map, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time] #, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time, parcorr_map_time
     bivariate_kwrgs_list = [(0,0,0), (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)] #, (5,False,True), (2,False,True), (1,False,True), (5,True,False), (2,True,False), (1,True,False)
@@ -110,6 +113,9 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
     # bivariate_kwrgs_list = [(0,0,0)]
     table_list = None
     test = None
+
+
+    test_splits = 5
 
     signal_list = list(np.array(signals).flat)
     if signals == None:
@@ -130,7 +136,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
 
     year_list = list(np.array(years).flat)
     if years == None:
-        year_list = np.arange(1, 15, 1)
+        year_list = np.arange(5, 15, 1)
         table_list = year_list
         test = 'time'
     day1 = date(1979, 1, 1) #YYYY-MM-DD
@@ -140,6 +146,8 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
     noises_list = list(np.array(noises).flat)
     if noises == None:
         noises_list = np.arange(0,30.5,1)
+        if debug:
+            noises_list = np.arange(10,21,10)
         table_list = noises_list
         test = 'nois'
     print(f"\nTested number of noise levels: {noises_list}")
@@ -151,6 +159,9 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
         table_list = spatial_list
         test = 'spat'
     print(f"\nTested number of spatial covariance levels: {spatial_list}")
+
+    corr_ts_list = np.zeros((iterations, len(table_list)))
+    corr_pc_list = np.zeros((iterations, len(table_list)))
 
 
     
@@ -171,9 +182,24 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
             for mode_i, N in enumerate(modes_list):
                 for spatial_i, spatial in enumerate(spatial_list):
                     for noise_i, noise in enumerate(noises_list):
+                        if signals == None:
+                            table_i = signal_i
+                        elif modes == None:
+                            table_i = mode_i
+                        elif years == None:
+                            table_i = year_i
+                        elif noises == None:
+                            table_i = noise_i
+                        elif spatials == None:
+                            table_i = spatial_i
+                        
                         for iteration in range(iterations):
                             settings['N'] = N
                             settings['ny'] = N * 30
+                            autocor = 0.9
+                            settings['autocor'] = autocor
+                            timefreq = 1
+                            settings['timefreq'] = timefreq
                             print(f'Iteration {iteration + 1}/{iterations}')
                             print('')
                             print(f"Modes: {N}")
@@ -182,16 +208,19 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
                             print(f"Noise = {noise}")
                             print(f"Spatial covariance = {spatial}")
                             print(f"Model = {model}")
+                            print(f'Autocorrelatie = {autocor}')
+                            print(f'{timefreq} day mean is used')
                             settings['model'] = model
                             settings['noise_level'] = noise #0.5
                             settings['spatial_covariance'] = spatial
                             settings['signal'] = signal
                             settings['T'] = time
-                            cts.create_time_series(settings, links_coeffs, verbose=False,
+                            real_data = cts.create_time_series(settings, links_coeffs, verbose=False,
                                                                     plot_modes=False,
                                                                     plot_timeseries=False,
                                                                     draw_network=False,
                                                                     cluster=True)
+                            real_data = real_data[:,:2]
 
                             print("Finished generating!")
                             local_base_path = user_dir
@@ -218,8 +247,8 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
 
                                 list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.05, 'FDR_control':False}, distance_eps=200, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
-                                start_end_TVdate = ('01-15', '12-31')
-                                start_end_date = ('01-01', '12-31')
+                                start_end_TVdate = ('7-1', '12-31')
+                                start_end_date = ('1-1', '12-31')
                                 # start_end_TVdate = None
                                 # start_end_date = None
 
@@ -232,7 +261,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
                                         list_for_MI=list_for_MI,
                                         start_end_TVdate=start_end_TVdate,
                                         start_end_date=start_end_date,
-                                        tfreq=10, lags_i=np.array([1]),
+                                        tfreq=settings['timefreq'], lags_i=np.array([1]),
                                         verbosity=0,
                                         path_outmain=RGCPD_path)
 
@@ -246,7 +275,7 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
 
                                 #kwrgs_events={'event_percentile':66}
                                 kwrgs_events=None
-                                rg.traintest(method='random5', kwrgs_events=kwrgs_events)
+                                rg.traintest(method=f'random{test_splits}', kwrgs_events=kwrgs_events)
 
                                 rg.calc_corr_maps()
 
@@ -291,6 +320,16 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
                                 # parents = rg.parents_dict[0][0]
                                 # parents = [i[0] for i in parents if i[1] == -1]
 
+                                if bivariate == corr_map:
+                                    timeseries_RGCPD = rg.df_data.copy() 
+                                    timeseries_RGCPD = timeseries_RGCPD.loc[0]
+                                    timeseries_RGCPD = timeseries_RGCPD.values[:,:2]# time x number of timeseries
+                                    corr_ts, _ = scipy.stats.pearsonr(real_data[:,0],timeseries_RGCPD[:,0])
+                                    corr_pc, _ = scipy.stats.pearsonr(real_data[:,1],timeseries_RGCPD[:,1])
+                                    print(f'\n\nCorr ts: {corr_ts},   corr precur: {corr_pc}')
+                                    corr_ts_list[iteration][table_i] = corr_ts
+                                    corr_pc_list[iteration][table_i] = corr_pc
+
 
 
 
@@ -299,7 +338,10 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
                                 if bivariate.__name__ == 'parcorr_map_time':
                                     pcmci_matrix_path = pcmci_matrix_path + f'-{lag}-{target}-{precur}'
                                 # settings = {'N': len(rg.pcmci_results_dict[0])}
-                                locs = list(np.array(locs)[0])#[most_common_p_matrix])
+                                if len(locs) == 0:
+                                    locs = [[] for _ in range(test_splits)]
+                                else:
+                                    locs = list(np.array(locs)[0])#[most_common_p_matrix])  #[0]
                                 p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
                                 area_lengths = [len(i) for i in p_matrices]
                                 common_length = max(set(area_lengths), key = area_lengths.count)
@@ -323,19 +365,10 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
                                 cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
                                 np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)
 
-                            score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs)
+                            score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs, target_only=True, no_ac=False)
                             # print(score)
 
-                            if signals == None:
-                                table_i = signal_i
-                            elif modes == None:
-                                table_i = mode_i
-                            elif years == None:
-                                table_i = year_i
-                            elif noises == None:
-                                table_i = noise_i
-                            elif spatials == None:
-                                table_i = spatial_i
+                            
                             print(f'Table_i: {table_i}')
                             # path = local_base_path + f'/{output}/scores'
                             # if os.path.isdir(path) != True : os.makedirs(path)
@@ -377,6 +410,10 @@ def run_multiple(settings, years=None, modes=None, signals=None, noises=None, sp
     print(pcmci_df)
     pcmci_df = pd.DataFrame(pcmci_df, columns=table_list)
     pcmci_df.to_csv(path + f'/{test}_pcmci.csv', index=False)
+    corr_ts_df = pd.DataFrame(corr_ts_list, columns=table_list)
+    corr_ts_df.to_csv(path + f'/{test}_pcaaa_corr_ts.csv', index=False)
+    corr_pc_df = pd.DataFrame(corr_pc_list, columns=table_list)
+    corr_pc_df.to_csv(path + f'/{test}_pcaaa_corr_pc.csv', index=False)
     
 
     return
@@ -399,12 +436,21 @@ settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020
 settings['extra_dir'] = 'Code_Lennart'
 settings['filename'] = 'multiple_test'
 
+parser.add_argument("-dir", "--user_dir", help="User dir")
+parser.add_argument("-test", "--testtt", help="Test to perform, can be ['signals', 'modes', 'years', 'spatial_one', 'spatial_mult','noise_one', 'noise_mult'")
+
+args = parser.parse_args()
+
 if len(sys.argv) > 1:
-    settings['user_dir']  = sys.argv[1]
+    settings['user_dir']  = args.user_dir
     user_dir = settings['user_dir']  + '/' + settings['extra_dir'] + '/results'
+    testtt = args.testtt
+    print(testtt)
 else:
+    print('No args parsed')
     settings['user_dir'] = "/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD"
     user_dir = settings['user_dir']  + '/' + settings['extra_dir'] + '/results'
+    testtt = 'debug' 
 print(f"DIR is: {user_dir}")
 
 
@@ -426,7 +472,30 @@ settings['alpha'] = 0.01
 settings['measure'] = 'average'
 settings['val_measure'] = 'average'
 
-run_multiple(settings, years=None, modes=[7], signals=[0.09], noises=[10], spatials=[1000], iterations=100, model='one')
+if testtt == 'signals':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=[8], modes=[7], signals=None, noises=[10], spatials=[500], iterations=100, model='one')
+elif testtt == 'modes':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=[8], modes=None, signals=[0.12], noises=[10], spatials=[1000], iterations=30, model='multiple')
+elif testtt == 'years':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=None, modes=[7], signals=[0.12], noises=[10], spatials=[1000], iterations=30, model='multiple')
+elif testtt == 'spatial_one':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=[8], modes=[7], signals=[0.05], noises=[10], spatials=None, iterations=100, model='one')
+elif testtt == 'noise_one':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=[8], modes=[7], signals=[0.05], noises=None, spatials=[1000], iterations=100, model='one')
+elif testtt == 'spatial_mult':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=[8], modes=[7], signals=[0.8], noises=[10], spatials=None, iterations=30, model='multiple')
+elif testtt == 'noise_mult':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=[8], modes=[7], signals=[0.8], noises=None, spatials=[1000], iterations=30, model='multiple')
+elif testtt == 'debug':
+    print(f'Testing {testtt}')
+    run_multiple(settings, years=[5], modes=[4], signals=[0.8], noises=None, spatials=[1000], iterations=2, model='multiple', debug=True)
 
 
 

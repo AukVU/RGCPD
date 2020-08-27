@@ -106,6 +106,8 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
     table_list = None
     test = None
 
+    test_splits = 5
+
     DBSCAN_list = list(np.array(cluster).flat)
     if cluster == None:
         DBSCAN_list = np.arange(100, 410, 50)
@@ -131,6 +133,9 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
         for iteration in range(iterations):
             settings['N'] = N
             settings['ny'] = N * 30
+            settings['model'] = 'multiple'
+            settings['autocor'] = 0.9
+            settings['timefreq'] = 1
             print(f'Iteration {iteration + 1}/{iterations}')
             print('')
             print(f"cluster_eps: {cluster_eps}")
@@ -167,8 +172,8 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
             list_for_MI   = [BivariateMI_PCMCI(name='test_precur', func=bivariate, kwrgs_func={'alpha':.1, 'FDR_control':False}, distance_eps=cluster_eps, min_area_in_degrees2=3, kwrgs_bivariate=kwrgs_bivariate)]
 
-            start_end_TVdate = None
-            start_end_date = None
+            start_end_TVdate = ('7-1', '12-31')
+            start_end_date = ('1-1', '12-31')
 
             RGCPD_path = local_base_path + f'/{output}/output_RGCPD/{bivariate.__name__}'
             shutil.rmtree(RGCPD_path, ignore_errors=True)
@@ -179,7 +184,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
                     list_for_MI=list_for_MI,
                     start_end_TVdate=start_end_TVdate,
                     start_end_date=start_end_date,
-                    tfreq=10, lags_i=np.array([1]),
+                    tfreq=settings['timefreq'], lags_i=np.array([1]),
                     verbosity=0,
                     path_outmain=RGCPD_path)
 
@@ -193,7 +198,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 
             #kwrgs_events={'event_percentile':66}
             kwrgs_events=None
-            rg.traintest(method='random5', kwrgs_events=kwrgs_events)
+            rg.traintest(method=f'random{test_splits}', kwrgs_events=kwrgs_events)
 
             rg.calc_corr_maps()
 
@@ -245,7 +250,10 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
             if bivariate.__name__ == 'parcorr_map_time':
                 pcmci_matrix_path = pcmci_matrix_path + f'-{lag}-{target}-{precur}'
             # settings = {'N': len(rg.pcmci_results_dict[0])}
-            locs = list(np.array(locs)[0])#[most_common_p_matrix])
+            if len(locs) == 0:
+                locs = [[] for _ in range(test_splits)]
+            else:
+                locs = list(np.array(locs)[0])#[most_common_p_matrix])  #[0]
             p_matrices = np.array([rg.pcmci_results_dict[i]['p_matrix'] for i in rg.pcmci_results_dict])
             area_lengths = [len(i) for i in p_matrices]
             common_length = max(set(area_lengths), key = area_lengths.count)
@@ -269,7 +277,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
             cts.save_matrices(settings, pcmci_matrix_path, p_matrix, val_matrix, iteratelist=locs)
             np.save(pcmci_matrix_path + '/ZZZ_correlated', locs)
 
-            score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs)
+            score = causal_score.calculate_causal_score(settings, val=False, verbose=False, locs=locs, target_only=True, no_ac=False)
             # print(score)
 
             if cluster == None:
@@ -332,7 +340,7 @@ def run_DBSCAN_test(settings, cluster=None, iterations=10):
 settings = {}
 settings['N'] = 7
 settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 3287
-settings['spatial_covariance'] = 50
+settings['spatial_covariance'] = 500
 settings['random_modes'] = False
 settings['noise_use_mean'] = False
 settings['noise_level'] = 10

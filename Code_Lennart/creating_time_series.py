@@ -19,6 +19,8 @@ from tigramite.plotting import plot_graph
 import seaborn as sns
 sns.set()
 
+from functions_pp import time_mean_bins
+
 import networkx as nx
 from networkx.drawing.nx_agraph import graphviz_layout
 
@@ -183,7 +185,7 @@ def create_causal_map(N, settings, verbose=False):
     while result == None:
         links_coeffs = {}
         # autocorrelation = 0.1 * np.random.random() + 0.8
-        autocorrelation = settings['signal'] - 0.1
+        autocorrelation = 0.8
         for mode in range(0, N):
             possible_links = list(range(N))
             del possible_links[mode]
@@ -212,7 +214,7 @@ def create_causal_map(N, settings, verbose=False):
                     strength = (settings['signal'] - 0.1) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=-3,high=0) + 
                     links_coeffs[mode] += [((choice, 10), strength)]
             autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
-            autocorrelation = settings['signal'] - 0.05
+            autocorrelation = settings['autocor']
         try:
             check_stability(links_coeffs)
             result = "Generated"
@@ -225,10 +227,10 @@ def create_causal_map_all_links(N, settings, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
-        autocorrelation = 0.1 * np.random.random() + 0.8
+        autocorrelation = 0.8
         for mode in range(0, N):
             links_coeffs[mode] = [((mode, 1), autocorrelation)]
-            autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
+            autocorrelation = settings['autocor']
         strengths = [(settings['signal'] - ((settings['signal'] / 2) * m / (N-2))) for m in range(N-1)]
         mode = 0
         for link in range(N-1):
@@ -248,10 +250,10 @@ def create_causal_map_one(N, settings, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
-        autocorrelation = 0.1 * np.random.random() + 0.8
+        autocorrelation = 0.8
         for mode in range(0, N):
             links_coeffs[mode] = [((mode, 1), autocorrelation)]
-            autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
+            autocorrelation = settings['autocor']
         mode = 0
         strength = settings['signal'] * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
         if verbose:
@@ -388,6 +390,18 @@ def save_time_series(savar, settings, output='test'):
     for i in range(1, data.shape[1]):
         df[f'ts{i}'] = data[:,i]
     df.to_csv(filename, index=False)
+
+def create_dataframe(savar, settings, mask):
+    data = savar.data_field @ savar.modes_weights.reshape(settings['N'], -1).transpose()
+    periods = data.shape[0]
+    # print('save time series')
+
+    dates = pd.date_range(start='1/1/1979', periods=periods)
+    xarray = xr.DataArray(data, dims=('time','ts'), coords={'time':dates})
+    # xarray.attrs['mask'] = mask
+    # a = ' hoi '
+    return xarray
+
 
 def save_matrices(settings, path, pmatrix, val_matrix=None, iteratelist=None):
     if os.path.isdir(path) != True : os.makedirs(path)
@@ -578,7 +592,23 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
 
 
         data_mask = np.repeat(mask, N).reshape(-1,N)
-        dataframe = pp.DataFrame(data, mask=data_mask)
+        # dataframe = pd.DataFrame(data)
+        # dataframe.mask = data_mask #, mask=data_mask
+        # periods = data.shape[0]
+        # dates = pd.date_range(start='1/1/1979', periods=periods)
+        # dataframe['time'] = pd.to_datetime(dates)
+
+
+        dataframe = create_dataframe(savar, settings, mask)
+
+        dataframe_binned, _ = time_mean_bins(dataframe, to_freq=settings['timefreq'], start_end_date=('1-1', '12-31'), start_end_year=None, closed_on_date='12-31')
+
+        RV_mask = np.array([True if d.values in dataframe_binned.time else False for d in dataframe.time])
+        indices = np.where(RV_mask)[0]
+        data_mask = np.array(data_mask)
+        data_mask = data_mask[indices]
+        dataframe = pp.DataFrame(dataframe_binned.data, mask=data_mask)
+        print(f"Length timeseries after 10 day mean: {dataframe_binned.data.shape[0]}")
 
         cond_ind_test = ParCorr()
         pcmci = PCMCI(dataframe=dataframe, cond_ind_test=cond_ind_test)
@@ -610,6 +640,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         if not cluster:
             # draw_network_func(links_coeffs, settings, results=results, output=settings['filename'])
             pcmci_plot(links_coeffs, settings, results=results, output=settings['filename'])
+        return dataframe_binned.data
 
         
 

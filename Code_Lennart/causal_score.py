@@ -14,8 +14,8 @@ def calculate_p_value_score(found, real, correlated, measure='', alpha=0.001, ta
     real_matrix = real_matrix_orig[correlated]
     found_matrix = found_matrix_orig
     if target_only:
-        real_matrix = real_matrix_orig[0]
-        found_matrix = found_matrix[0]
+        real_matrix = real_matrix_orig[0][1]
+        found_matrix = found_matrix[0][1]
 
     accuracy = 0.0
     if measure == 'Average':
@@ -33,8 +33,8 @@ def calculate_val_score(found, real, mask, correlated, measure='', target_only=T
     real_matrix = real_matrix_orig[correlated]
     found_matrix = found_matrix_orig
     if target_only:
-        real_matrix = real_matrix_orig[0]
-        found_matrix = found_matrix_orig[0]
+        real_matrix = real_matrix_orig[0][1]
+        found_matrix = found_matrix_orig[0][1]
 
     found_masked = ma.masked_array(found_matrix, mask=np.logical_not(mask))
     max_found = np.max(found_masked)
@@ -130,18 +130,18 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
 
 
 
-settings = {}
-settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
-settings['extra_dir'] = 'Code_Lennart'
-settings['filename'] = 'test_met_savar11'
-settings['N'] = 5
+# settings = {}
+# settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
+# settings['extra_dir'] = 'Code_Lennart'
+# settings['filename'] = 'test_met_savar11'
+# settings['N'] = 5
 
-settings['alpha'] = 0.01
-settings['measure'] = 'average'
-settings['val_measure'] = 'average'
+# settings['alpha'] = 0.01
+# settings['measure'] = 'average'
+# settings['val_measure'] = 'average'
 
-score = calculate_causal_score(settings, val=False, verbose=True, target_only=True, locs=[0,1,3], no_ac=True)
-print(score)
+# score = calculate_causal_score(settings, val=False, verbose=True, target_only=True, locs=[0,1,3], no_ac=False)
+# print(score)
 
 
 

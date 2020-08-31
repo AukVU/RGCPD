@@ -11,11 +11,13 @@ from collections import Counter
 
 import pandas as pd 
 import math, scipy
+import seaborn as sns 
 import matplotlib.pyplot as plt 
 plt.rcParams['figure.figsize'] = (20.0, 10.0)
 import itertools as it
 import pywt as wv
 from scipy.fftpack import fft
+import scipy.stats as st
 from copy import deepcopy
 from pprint import pprint as pp 
 from pandas.plotting import register_matplotlib_converters
@@ -114,44 +116,66 @@ def plot_choice_wavelet_signal(data, columns, savefig=False):
 
 def wavelet_var(data, wavelet, mode, levels, method='wavedec'):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
-    print(f'[INFO] Wavelet variance per scale analysis start of {col}..')
+    print(f'[INFO] Wavelet variance per scale analysis..')
     ap = data
-    result_var_level = np.zeros(levels)
+    result_var_level = np.zeros((levels, 3))
     if method == 'dwt':
         for i in range(levels):
             ap, det = wv.dwt(ap, wavelet, mode=mode)
-            result_var_level[i] =  np.dot(det[1:-1], det[1:-1])/(len(data) - 2**(i - 1) + 1)
+            result_var_level[i][0] =  np.dot(det[1:-1], det[1:-1])/(len(data) - 2**(i - 1) + 1)
+            result_var_level[i][1] = np.var(data)/(2**i+1)
         print('[INFO] Wavelet variant scale analysis done using DWT recursion ')
         return result_var_level
     if method == 'wavedec':
-        coeffs = wv.wavedec(ap, wavelet, mode=mode, level=level)
-        details = coeff[1:]
+        coeffs = wv.wavedec(ap, wavelet, mode=mode, level=levels)
+        details = coeffs[1:]
         for i in range(levels):
-            result_var_level[i] = np.dot(details[i], details[i])/(len(data) - 2**(i - 1) + 1)
+            result_var_level[i][0] = np.dot(details[i], details[i])/(len(data) - 2**(i - 1) + 1)
+            result_var_level[i][1] = np.var(data)/(2**i+1)
         print('[INFO] Wavelet variant scale analysis done using WAVEDEC  ')
         return result_var_level
 
     if method == 'modwt':
         data = get_pad_data(data=data)
-        coeffs = wv.swt(data, wavelet, trim_approx=True, norm=True)
+        coeffs = wv.swt(data, wavelet, level=levels, trim_approx=True, norm=True)
         details = coeffs[1:]
         for i in range(levels):
-            result_var_level = np.dot(details[i], details[i])/(len(data) - 2**(i - 1) + 1)
+            Mj = len(data) - 2**(i - 1) + 1
+            result_var_level[i][0] = np.dot(details[i], details[i])/(Mj)
+            result_var_level[i][1] = np.var(data)/(2*(2**(i-1)))
+            result_var_level[i][2] = max(Mj/2**(i) , 1)
+            # print(f'eta3 {result_var_level[i][2]}')
+            # print(f' Going to  results {result_var_level[i][1]} scale to scale {result_var_level[i][0]}')
         print('[INFO] Wavelet variant scale analysis done using MODWT')
         return result_var_level
 
-def plot_wavelet_var(var_result, title, savefig=False):
+def conf_interval(data, alpha=0.05):
+    obs = Counter(data[:,1]).most_common()
+    pp(obs, indent=4)
+    obs = np.array(obs)
+    # n1, n2 = obs.sum(axis=1)
+    # print(n1, n2)
+
+def plot_wavelet_var(var_result, title, mode='var', savefig=False):
     plt.figure(figsize=(16,8), dpi=90)
-    ci_low, ci_high  = stats.DescrStatsW(var_result).tconfint_mean()
+    ci_low, ci_high  = None, None
     scales = np.arange(1, len(var_result)+1)
-    scales = np.exp2(scales)
-    plt.fill_between(scales, var_result - ci_low, var_result + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
-    plt.plot(scales, var_result, color='k', alpha=0.6, label=r'Var result of $\tau$')
+    if mode == 'var':
+        ci_low, ci_high  = stats.DescrStatsW(var_result[:,1]).tconfint_mean()
+        plt.plot(scales, var_result[:,1], 'o-', color='k', alpha=0.6, label=r'Var result of $\tau$')
+        plt.fill_between(scales, (var_result[:,1] + ci_low), (var_result[:,1] + ci_high), color='r', alpha=0.05, label=r'95 % confidence interval')
+    if mode == 'scale':
+        ci_low, ci_high  = stats.DescrStatsW(var_result[:,0]).tconfint_mean()
+        plt.plot(scales, var_result[:,0], 'o-', color='k', alpha=0.6, label=r'Var result of $\tau$')
+        plt.fill_between(scales, (var_result[:,0] + ci_low), (var_result[:,0] + ci_high), color='r', alpha=0.05, label=r'95 % confidence interval')
     plt.xlabel(r'Scales $\tau$')
+    
+    # st.t.interval(0.95, len(var_result)-1, loc=np.mean(var_result), scale=st.sem(var_result))
     plt.ylabel(r'Wavelet variance $\nu^2$')
     plt.title(f'Wavelet variance per level  of {str(title)} ')
     plt.yscale('log',basey=10) 
     plt.xscale('log',basex=2)
+    # plt.xticks(np.exp2(scales))
     plt.tight_layout()
     plt.legend(loc=0)
     if savefig == True:
@@ -279,7 +303,7 @@ def create_mci_coeff(cA, cA_t, rg_index, rg, debug=False):
     for i in range(0,len(cA)):    
         idx_lvl_t = pd.DatetimeIndex(pd.date_range(rg_index[0] ,end=rg_index[-1], periods=len(cA_t[i]) ).strftime('%Y-%m-%d') )
         idx_prec = pd.DatetimeIndex(pd.date_range(rg_index[0], rg_index[-1], periods=len(cA[i]) ).strftime('%Y-%m-%d') )
-        dates = core_pp.get_subdates(dates=idx_lvl_t, start_end_date=('06-15', '08-20'), start_end_year=None, lpyr=False)
+        dates = core_pp.get_subdates(dates=idx_lvl_t, start_end_date=('06-01', '08-31'), start_end_year=None, lpyr=False)
         full_time  = idx_lvl_t
         RV_time  = dates
         RV_mask = pd.Series(np.array([True if d in RV_time else False for d in full_time]), index=pd.MultiIndex.from_product(([0], idx_lvl_t)), name='RV_mask')

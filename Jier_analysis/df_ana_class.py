@@ -494,8 +494,11 @@ class VisualizeAnalysis(VisualizAnalysisBase):
 
     def vis_spectrum(self, title, subtitle, results, freqdf, freq, idx_):
         fig, ax = self._subplots_func_adjustment(col=len(subtitle))
-        rows, cols = ax.shape
-     
+        try:
+            rows, cols = ax.shape
+        except:
+            rows = ax.shape[0]
+            cols= 1     
         # TODO Better way to plot all results tuples  instead of double for-loops
         counter = len(results)
         label = list(results.keys())

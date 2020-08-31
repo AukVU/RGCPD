@@ -8,6 +8,7 @@ if main_dir not in sys.path:
 import numpy as np 
 import statsmodels.api as sm 
 from statsmodels.tsa.api import VAR
+import seaborn as sns
 import matplotlib.pyplot as plt 
 plt.style.use('seaborn')
 import pandas as pd 
@@ -85,10 +86,28 @@ def display_wavelet_decomposition(poly, index, title, wave):
     wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), name=title, wave=wave)
     plt.show()
 
-
+def display_sensitivity(tests,subjects, savefig=False):
+    df = pd.DataFrame(data=tests)
+    df[subjects].plot(subplots=True, layout=(3, -1), figsize=(19, 8))
+    if savefig == True:
+        plt.savefig('Sensitivity/experiment0/result_0_analysis .pdf', dpi=120)
+        plt.savefig('Sensitivity/experiment0/result_0_analysis .png', dpi=120)
+    plt.show()  
 
 if __name__ == "__main__":
-    pass
+    np.random.seed(12345)
+    rn = np.random.normal(loc=0, scale=1, size=10**5)
+    step_set=  [-1, 0, 1]
+    rw =  np.random.choice(a=step_set, size=10**5)
+    rw  = np.cumsum(np.concatenate([[0], rw]))
+    df= pd.DataFrame(data={'WN': rn, 'RW': rw[:-1]})
+    wave = wv.Wavelet('haar')
+    mode = wv.Modes.periodic
+    levels=6
+    wvar = wa.wavelet_var(df['WN'],wavelet=wave, mode=mode, levels=levels, method='modwt' )
+    # wa.plot_wavelet_var(wvar, 'Test')
+    wa.conf_interval(wvar)
+
     # rg_wind = wa.generate_rgcpd(prec_path='z500hpa_1979-2018_1_12_daily_2.5deg.nc')
     # rg_sm = wa.generate_rgcpd(prec_path='sm2_1979-2018_1_12_daily_1.0deg.nc')
 

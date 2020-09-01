@@ -18,6 +18,7 @@ import itertools as it
 import pywt as wv
 from scipy.fftpack import fft
 import scipy.stats as st
+from scipy.special import *
 from copy import deepcopy
 from pprint import pprint as pp 
 from pandas.plotting import register_matplotlib_converters
@@ -149,33 +150,43 @@ def wavelet_var(data, wavelet, mode, levels, method='wavedec'):
         print('[INFO] Wavelet variant scale analysis done using MODWT')
         return result_var_level
 
-def conf_interval(data, alpha=0.05):
-    obs = Counter(data[:,1]).most_common()
-    pp(obs, indent=4)
-    obs = np.array(obs)
-    # n1, n2 = obs.sum(axis=1)
-    # print(n1, n2)
+def conf_interval(data, method='var', alpha=0.05):
+    conf_intv = np.zeros((len(data),2))
+    if method == 'var':
+        conf_intv[:,0] = (data[:,2]*data[:,1])/chdtri(data[:,2], 1 - alpha)
+        conf_intv[:,1] = (data[:,2]*data[:,1])/chdtri(data[:,2], alpha)
+        # pp(conf_intv)
+        return conf_intv
+    if method =='scale':
+        conf_intv[:,0] = (data[:,0]*data[:,2])/chdtri(data[:,2], 1 - alpha)
+        conf_intv[:,1] = (data[:,0]*data[:,2])/chdtri(data[:,2], alpha)
+        return conf_intv
 
-def plot_wavelet_var(var_result, title, mode='var', savefig=False):
+def plot_wavelet_var(var_result, title, mode='var', alpha=0.05, savefig=False):
     plt.figure(figsize=(16,8), dpi=90)
     ci_low, ci_high  = None, None
     scales = np.arange(1, len(var_result)+1)
     if mode == 'var':
-        ci_low, ci_high  = stats.DescrStatsW(var_result[:,1]).tconfint_mean()
+        # Gaussian normality CI
+        # ci_low, ci_high  =    stats.DescrStatsW(var_result[:,1]).tconfint_mean()
+        # st.t.interval(0.95, len(var_result)-1, loc=np.mean(var_result), scale=st.sem(var_result))
+        # Chi2 CI
+        conf  =  conf_interval(var_result, method=mode,alpha=alpha )
+        ci_low, ci_high = conf[:,0], conf[:,1]
         plt.plot(scales, var_result[:,1], 'o-', color='k', alpha=0.6, label=r'Var result of $\tau$')
-        plt.fill_between(scales, (var_result[:,1] + ci_low), (var_result[:,1] + ci_high), color='r', alpha=0.05, label=r'95 % confidence interval')
+        plt.fill_between(scales, (abs(var_result[:,1] - ci_low)), (var_result[:,1] + ci_high), color='r', alpha=0.3, label=r'95 % confidence interval')
     if mode == 'scale':
-        ci_low, ci_high  = stats.DescrStatsW(var_result[:,0]).tconfint_mean()
+        conf  =  conf_interval(var_result, method=mode,alpha=alpha )
+        ci_low, ci_high = conf[:,0], conf[:,1]
         plt.plot(scales, var_result[:,0], 'o-', color='k', alpha=0.6, label=r'Var result of $\tau$')
-        plt.fill_between(scales, (var_result[:,0] + ci_low), (var_result[:,0] + ci_high), color='r', alpha=0.05, label=r'95 % confidence interval')
+        plt.fill_between(scales, (abs(var_result[:,0] - ci_low)), (var_result[:,0] + ci_high), color='r', alpha=0.3, label=r'95 % confidence interval')
     plt.xlabel(r'Scales $\tau$')
     
-    # st.t.interval(0.95, len(var_result)-1, loc=np.mean(var_result), scale=st.sem(var_result))
+ 
     plt.ylabel(r'Wavelet variance $\nu^2$')
     plt.title(f'Wavelet variance per level  of {str(title)} ')
     plt.yscale('log',basey=10) 
     plt.xscale('log',basex=2)
-    # plt.xticks(np.exp2(scales))
     plt.tight_layout()
     plt.legend(loc=0)
     if savefig == True:

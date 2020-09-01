@@ -95,7 +95,7 @@ def display_sensitivity(tests,subjects, savefig=False):
     plt.show()  
 
 if __name__ == "__main__":
-    np.random.seed(12345)
+    # np.random.seed(12345)
     rn = np.random.normal(loc=0, scale=1, size=10**5)
     step_set=  [-1, 0, 1]
     rw =  np.random.choice(a=step_set, size=10**5)
@@ -105,8 +105,9 @@ if __name__ == "__main__":
     mode = wv.Modes.periodic
     levels=6
     wvar = wa.wavelet_var(df['WN'],wavelet=wave, mode=mode, levels=levels, method='modwt' )
-    # wa.plot_wavelet_var(wvar, 'Test')
-    wa.conf_interval(wvar)
+    wa.plot_wavelet_var(wvar, 'Test')
+    # conf = wa.conf_interval(wvar)
+    # pp(conf)
 
     # rg_wind = wa.generate_rgcpd(prec_path='z500hpa_1979-2018_1_12_daily_2.5deg.nc')
     # rg_sm = wa.generate_rgcpd(prec_path='sm2_1979-2018_1_12_daily_1.0deg.nc')

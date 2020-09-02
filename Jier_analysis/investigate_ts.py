@@ -101,11 +101,20 @@ if __name__ == "__main__":
     rw =  np.random.choice(a=step_set, size=10**5)
     rw  = np.cumsum(np.concatenate([[0], rw]))
     df= pd.DataFrame(data={'WN': rn, 'RW': rw[:-1]})
-    wave = wv.Wavelet('haar')
+    wave = wv.Wavelet('sym4')
+    # wave = wa.create_least_asymmetric_filter(mode='dwt')
     mode = wv.Modes.periodic
     levels=6
-    wvar = wa.wavelet_var(df['WN'],wavelet=wave, mode=mode, levels=levels, method='modwt' )
-    wa.plot_wavelet_var(wvar, 'Test')
+    U = wa.npess(df['WN'].values)
+    coeff = wa.create_low_freq_components(df['WN'], level=3, wave=wave)
+    _, cD = coeff
+    info = wa.multires_info(coeff, j=3)
+    print(info)
+    # wa.plot_npess(U)
+    # cDU = wa.npess(cD[0])
+    # wa.plot_npess(U, cDU, wave.name)
+    # wvar = wa.wavelet_var(df['WN'],wavelet=wave, mode=mode, levels=levels, method='modwt' )
+    # wa.plot_wavelet_var(wvar, 'Test')
     # conf = wa.conf_interval(wvar)
     # pp(conf)
 

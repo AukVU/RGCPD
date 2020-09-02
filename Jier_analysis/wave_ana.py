@@ -41,8 +41,11 @@ current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
 # df.plot()
 # testing.N, testing.K = rows, col 
 # df = testing.makeTimeDataFrame(freq='MS')
-families = ['haar', 'db1', 'db2', 'db3', 'db4', 'db5', 'db6', 'db7']
-
+families = ['haar',  'db2', 'db4', 'db8', 'sym4', 'sym8']
+g_la8 = [-0.0757657147893407,-0.0296355276459541,
+    0.4976186676324578,0.8037387518052163,0.2978577956055422,
+    -0.0992195435769354,-0.0126039672622612,0.0322231006040713
+    ]
 def energy(coeffs): 
     return np.sqrt(np.sum(np.array(coeffs) ** 2) / len(coeffs) )
 
@@ -67,6 +70,50 @@ def renyi_entropy(X, alpha):
         counts = Counter(X).most_common()
         probs = np.array([float(count[1]) / len(X) for count in counts])
         return (1.0 / (1.0 - alpha)) * np.log2(np.sum(probs ** alpha))
+
+def npess(data):
+    'Normalized partial energy sequence'
+    U  = np.empty(len(data))
+
+    for i, elem in np.ndenumerate(data):
+        U[i] = elem * elem
+
+    U = np.array(sorted(U, reverse=True))
+
+    return np.divide(np.cumsum(U),sum(U))
+
+def plot_npess(npess, wave_coeff, wave_name,  col='Test', savefig=False):
+    plt.figure(figsize=(16, 8), dpi=120)
+
+    plt.plot(np.arange(len(npess)), npess, '--', color='k', label='NPESS of '+col)
+    plt.plot(wave_coeff, '-x', label='NPESS Wave Coeff with '+ wave_name)
+    plt.xlabel('# n')
+    plt.ylabel('Energy')
+    plt.title('NPESS '+col)
+    plt.legend(loc=0)
+    
+    if savefig == True:
+        plt.savefig('Wavelet/wave_choice_npess'+ col +'_analysis .pdf', dpi=120)
+        plt.savefig('Wavelet/wave_choice_npess'+ col +'_analysis .png', dpi=120)
+    plt.show()
+
+def multires_info(coeffs, j, ap=False, det=False):
+    # TODO POOP PERCENTAGES
+    approx , details = coeffs[0][0], coeffs[0][1:]
+    det_sum  = np.sum(np.asarray([np.dot(detail, detail) for detail in details]))
+    det_sum_lvl = np.sum(np.asarray([ np.dot(coef, coef) for _, coef in enumerate(coeffs[0][1:j]) ]))
+    E = np.dot(approx, approx) + det_sum
+    part1 = ((np.dot(approx, approx)/j) + det_sum)/E 
+    print(part1,  E *E)
+    part2 = np.log2((E * part1)/(E * (np.dot(approx, approx) + det_sum_lvl )))
+    print('------\n')
+    print(part2)
+    print('-----\n')
+    print(part1*part2)
+    return part1*part2
+
+def ridge_regress(X, Y):
+    pass 
 
 def choose_wavelet_signal(data, families=families, debug=False):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
@@ -300,10 +347,41 @@ def create_signal_recontstruction(data, wave, level, mode=wv.Modes.periodic):
 
     return rec_a, rec_d
 
-def create_modwt_decomposition(data, wave, level):
-    w = wave
+def convert_to_filter_bank(g, mode='modwt'):
+    if mode !='modwt':
+        return wv.orthogonal_filter_bank(g)
+    else:
+        g_normalized = g/np.sqrt(2)
+        return wv.orthogonal_filter_bank(g_normalized)
+
+def create_least_asymmetric_filter(g=g_la8, mode='modwt'):
+    if mode != 'modwt':
+        filter_bank = convert_to_filter_bank(g, mode=mode)
+        la = wv.Wavelet(name='la8', filter_bank=filter_bank)
+        la.orthogonal = True 
+        la.biorthogonal = True 
+        return la 
+    else:
+        filter_bank = convert_to_filter_bank(g=g, mode=mode)
+        la = wv.Wavelet(name='la8_modwt', filter_bank=filter_bank)
+        la.orthognoal = True
+        la.biorthogonal = True 
+        return la
+
+def convert_to_modwt_filter(wave):
+    new_wave  = wv.Wavelet(name=wave.name+'norm', filter_bank=[np.asarray(f)/np.sqrt(2) for f in wave.filter_bank])
+    new_wave.orthogonal = True
+    new_wave.biorthogonal = True 
+    return new_wave
+
+def create_modwt_decomposition(data, wave, level, la=False):
+
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
-    assert isinstance(w, wv.Wavelet)
+    assert isinstance(wave, wv.Wavelet)
+    if not la :
+        w = convert_to_modwt_filter(wave)
+    else:
+        w = create_least_asymmetric_filter()
     a = get_pad_data(data=data)
     coeffs =  wv.swt(a, w, level=level, trim_approx=True, norm=True) #[(cAn, (cDn, ...,cDn-1, cD1)]
     return coeffs[0], coeffs[1:]

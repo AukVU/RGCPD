@@ -6,7 +6,9 @@ if main_dir not in sys.path:
     sys.path.append(main_dir)
     sys.path.append(sub_dir)
 import numpy as np 
+import itertools as it
 import statsmodels.api as sm 
+import  statsmodels.stats.api as stats
 from statsmodels.tsa.api import VAR
 import seaborn as sns
 import matplotlib.pyplot as plt 
@@ -20,6 +22,7 @@ from RGCPD import RGCPD
 from RGCPD import BivariateMI
 import wave_ana as wa 
 import multiprocessing as mp 
+from pathlib import Path
 
 # TODO CREATE SENSITIVITY
 
@@ -56,8 +59,8 @@ def polynomial_fit_turbulance(ar, rg_data, col, sigma, const, theta, nu):
     _, poly = sd.postprocess_ts(serie=poly, regression='ct', col=col, debug=False)
     return poly
 
-def display_polynome(poly, ar_list, rg_data, col, title,  save_fig, dependance):
-    sd.display_poly_data_ar(simul_data=poly, ar=ar_list, signal=rg_data[col], save_fig=save_fig, dep=dependance, title=title)
+def display_polynome(poly, ar_list, rg_data, col, title, path,   save_fig, dependance):
+    sd.display_poly_data_ar(simul_data=poly, ar=ar_list, signal=rg_data[col], path=path, save_fig=save_fig, dep=dependance, title=title)
     
 def create_wavelet_details(poly, index_poly, wave, level, mode, debug=True):
     return wa.create_low_freq_components(pd.Series(poly, index=index_poly), level=level, wave=wave, mode=mode , debug=debug)
@@ -76,40 +79,71 @@ def  get_mci_coeffs_lag(details_prec, details_target, index, rg_obj, debug=False
     _ , prec_lag = wa.extract_mci_lags(to_clean_mci_df=mci_obj, lag=0)
     return prec_lag
 
-def plot_wavelet_variance(var_result, title, savefig):
-    wa.plot_wavelet_var(var_result, title, savefig=savefig)
+def plot_wavelet_variance(var_result, title, path, savefig):
+    wa.plot_wavelet_var(var_result, title, path=path, savefig=savefig)
 
-def plot_mci_prediction(detail_prec, prec_lag, title, savefig=False):
-    wa.plot_mci_pred_relation(cA=detail_prec, prec_lag=prec_lag, title=title, savefig=savefig)
+def plot_mci_prediction(detail_prec, prec_lag, title, path,  savefig=False):
+    wa.plot_mci_pred_relation(cA=detail_prec, path=path, prec_lag=prec_lag, title=title, savefig=savefig)
 
 def display_wavelet_decomposition(poly, index, title, wave):
     wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), name=title, wave=wave)
     plt.show()
 
-def display_sensitivity(tests,subjects, savefig=False):
+def display_sensitivity(tests, subjects, path, title, savefig=False):
+   
     df = pd.DataFrame(data=tests)
-    df[subjects].plot(subplots=True, layout=(3, -1), figsize=(19, 8))
+    fig, ax = plt.subplots(len(df), 1, figsize=(16, 8), sharex=True)
+    fig.suptitle(title)
+
+    dfL = df[[subjects]].unstack().apply(pd.Series)
+    dfL.T.index.set_names('iterations')
+    data = dfL.T.copy()
+
+    conf_0 = stats.DescrStatsW(data[subjects]['std']).tconfint_mean()
+    conf_1 = stats.DescrStatsW(data[subjects]['avg']).tconfint_mean()
+    conf_2 = stats.DescrStatsW(data[subjects]['var']).tconfint_mean()
+   
+    ax[0].plot(data[subjects]['std'])
+    ax[0].fill_between(len(data[subjects]['std']),(( data[subjects]['std']- conf_0[0])), (data[subjects]['std'] + conf_0[1]), color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[0].legend(loc=0)
+
+    ax[1].plot(data[subjects]['avg'])
+    ax[1].fill_between(len(data[subjects]['avg']),(( data[subjects]['avg']- conf_1[0])), (data[subjects]['avg'] + conf_1[1]), color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[1].legend(loc=0)
+
+    ax[2].plot(data[subjects]['var'])
+    ax[2].fill_between(len(data[subjects]['var']),(( data[subjects]['var']- conf_2[0])), (data[subjects]['var'] + conf_2[1]), color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[2].legend(loc=0)
+    ax[2].set_xlabel('Iterations')
+
     if savefig == True:
-        plt.savefig('Sensitivity/experiment0/result_0_analysis .pdf', dpi=120)
-        plt.savefig('Sensitivity/experiment0/result_0_analysis .png', dpi=120)
-    plt.show()  
+        Path('Sensitivity/'+path).mkdir(parents=True, exist_ok=True)
+        plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .pdf', dpi=120)
+        # plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .png', dpi=120)
+    else:
+        plt.show()  
+
 
 if __name__ == "__main__":
+    pass
     # np.random.seed(12345)
-    rn = np.random.normal(loc=0, scale=1, size=10**5)
-    step_set=  [-1, 0, 1]
-    rw =  np.random.choice(a=step_set, size=10**5)
-    rw  = np.cumsum(np.concatenate([[0], rw]))
-    df= pd.DataFrame(data={'WN': rn, 'RW': rw[:-1]})
-    wave = wv.Wavelet('sym4')
-    # wave = wa.create_least_asymmetric_filter(mode='dwt')
-    mode = wv.Modes.periodic
-    levels=6
-    U = wa.npess(df['WN'].values)
-    coeff = wa.create_low_freq_components(df['WN'], level=3, wave=wave)
-    _, cD = coeff
-    info = wa.multires_info(coeff, j=3)
-    print(info)
+    # rn = np.random.normal(loc=0, scale=1, size=10**5)
+    # step_set=  [-1, 0, 1]
+    # rw =  np.random.choice(a=step_set, size=10**5)
+    # rw  = np.cumsum(np.concatenate([[0], rw]))
+    # df= pd.DataFrame(data={'WN': rn, 'RW': rw[:-1]})
+    # wave = wv.Wavelet('sym4')
+    # # wave = wa.create_least_asymmetric_filter(mode='dwt')
+    # mode = wv.Modes.periodic
+    # levels=6
+    # U = wa.npess(df['WN'].values)
+    # coeff = wa.create_low_freq_components(df['WN'], level=3, wave=wave)
+    # _, cD = coeff
+    # # wa.multires_info(coeff, j_0=3, j=1)
+    # wa.test(coeff, j_0=3)
+    # inf = wa.multires_info(coeff, j_0=3, j=1)
+    # print(( np.dot(df['WN'], df['WN']) - abs(info))/np.dot(df['WN'], df['WN']))
+
     # wa.plot_npess(U)
     # cDU = wa.npess(cD[0])
     # wa.plot_npess(U, cDU, wave.name)

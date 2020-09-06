@@ -32,6 +32,7 @@ from visualize_cwt import *
 register_matplotlib_converters()
 # np.random.seed(12345)
 plt.style.use('seaborn')
+from pathlib import Path
 current_analysis_path = os.path.join(main_dir, 'Jier_analysis')
 
 # rows, col = 1000, 1
@@ -72,6 +73,7 @@ def renyi_entropy(X, alpha):
         return (1.0 / (1.0 - alpha)) * np.log2(np.sum(probs ** alpha))
 
 def npess(data):
+    # https://pdfs.semanticscholar.org/0c8b/e141c9092ed389b9931ac09ec2e852d437c6.pdf appendix A3
     'Normalized partial energy sequence'
     U  = np.empty(len(data))
 
@@ -83,28 +85,84 @@ def npess(data):
     return np.divide(np.cumsum(U),sum(U))
 
 def plot_npess(npess, wave_coeff, wave_name,  col='Test', savefig=False):
-    plt.figure(figsize=(16, 8), dpi=120)
+  
+    fig, ax = plt.subplots(2, 1, figsize=(16, 8), sharex=True)
+    fig.sup_title('NPESS '+col)
+    ax[0].plot(np.arange(len(npess)), npess, '--', color='k', label='NPESS of '+col)
+    ax[0].ylabel('Partial Energy')
+    ax[0].legend(loc=0)
+    ax[1].plot(wave_coeff, '-x', label='NPESS Wave Coeff with '+ wave_name)
+    ax[1].legend(loc=0)
+    ax[1].xlabel('# datapoints')
+    ax[1].ylabel('Parital Energy')
 
-    plt.plot(np.arange(len(npess)), npess, '--', color='k', label='NPESS of '+col)
-    plt.plot(wave_coeff, '-x', label='NPESS Wave Coeff with '+ wave_name)
-    plt.xlabel('# n')
-    plt.ylabel('Energy')
-    plt.title('NPESS '+col)
-    plt.legend(loc=0)
     
     if savefig == True:
         plt.savefig('Wavelet/wave_choice_npess'+ col +'_analysis .pdf', dpi=120)
         plt.savefig('Wavelet/wave_choice_npess'+ col +'_analysis .png', dpi=120)
     plt.show()
 
-def multires_info(coeffs, j, ap=False, det=False):
+def  test(coeffs, j_0):
+    # TODO FIX EITHER THIS OR MULTI RES INFO
+    #! approx = vj_0
+    #! details = wj
+
+    det_sum = np.sum(np.asarray([ np.dot(coef, coef) for _, coef in enumerate(coeffs[0][1:j_0]) ]))
+    approx, details = coeffs[0][0], coeffs[0][1:]
+    E = np.dot(approx, approx) * det_sum
+    k_list = range(len(approx))
+    j_list = range(j_0)
+
+    for k in k_list:
+        A = (approx[k])**2
+        for j in j_list:
+            A += (details[j][k])**2
+        A = np.log2(A)
+
+        B = np.log2(E)
+
+        for j in j_list:
+            C = 0
+            for k in k_list:
+                C += approx[k]**2 + details[j][k]**2
+            C = np.log2(C)
+
+            D = np.log2(approx[k]**2 / j_0 + details[j][k]**2)
+
+            F = B + D - C - A
+
+            G = (approx[k]**2 / j_0 + details[j][k]**2) / E
+
+            H = G * F
+        
+    print('done?')
+
+def multires_info(coeffs, j_0, j):
     # TODO POOP PERCENTAGES
+    #  approx = vj_0, details = wj
+    # https://arxiv.org/ftp/arxiv/papers/1502/1502.05879.pdf eqn 26, 27
     approx , details = coeffs[0][0], coeffs[0][1:]
+    pp(approx)
+    print('---------------\n')
+    pp(details)
+    sys.exit()
     det_sum  = np.sum(np.asarray([np.dot(detail, detail) for detail in details]))
     det_sum_lvl = np.sum(np.asarray([ np.dot(coef, coef) for _, coef in enumerate(coeffs[0][1:j]) ]))
-    E = np.dot(approx, approx) + det_sum
-    part1 = ((np.dot(approx, approx)/j) + det_sum)/E 
-    print(part1,  E *E)
+
+    E = np.dot(approx, approx) + det_sum_lvl
+
+    # wj = [ np.dot(coef, coef) for _, coef in enumerate(coeffs[0][1:j]) ]
+    # temp = [np.dot(detail, detail) for detail in details]
+    # vJ = np.dot(approx, approx)
+    # vJ_ = vJ/j_0
+    # wj.append(vJ_)
+    # p1 = np.sum(np.asarray(wj))/E 
+    # A = np.log2(np.sum(np.asarray(wj)))
+    # B = np.log2(E)
+    # p2 = A + np.log2()
+    part1 = ((np.dot(approx, approx)) + det_sum)/E 
+ 
+
     part2 = np.log2((E * part1)/(E * (np.dot(approx, approx) + det_sum_lvl )))
     print('------\n')
     print(part2)
@@ -159,23 +217,25 @@ def plot_choice_wavelet_signal(data, columns, savefig=False):
         df.xs(col, level=('analysis'), axis=1).plot(subplots=True, layout=(4, 4), figsize=(16, 8), title='Analysis  of '+ col+' per wavelet on decomposition level')
         if savefig == True:
             plt.savefig('Wavelet/wave_choice'+ col +'_analysis .pdf', dpi=120)
-            plt.savefig('Wavelet/wave_choice'+ col +'_analysis .png', dpi=120)
+            # plt.savefig('Wavelet/wave_choice'+ col +'_analysis .png', dpi=120)
     plt.show()  
 
-def wavelet_var(data, wavelet, mode, levels, method='wavedec'):
+def wavelet_var(data, wavelet, mode, levels, method='modwt'):
     assert isinstance(data, pd.Series) , f"Expect pandas Series, {type(data)} given"
     print(f'[INFO] Wavelet variance per scale analysis..')
     ap = data
-    result_var_level = np.zeros((levels, 3))
+    temp = wv.dwt_max_level(len(data), wavelet.dec_len)
+    lvl_decomp = levels if temp > levels else temp
+    result_var_level = np.zeros((lvl_decomp, 3))
     if method == 'dwt':
-        for i in range(levels):
+        for i in range(lvl_decomp):
             ap, det = wv.dwt(ap, wavelet, mode=mode)
             result_var_level[i][0] =  np.dot(det[1:-1], det[1:-1])/(len(data) - 2**(i - 1) + 1)
             result_var_level[i][1] = np.var(data)/(2**i+1)
         print('[INFO] Wavelet variant scale analysis done using DWT recursion ')
         return result_var_level
     if method == 'wavedec':
-        coeffs = wv.wavedec(ap, wavelet, mode=mode, level=levels)
+        coeffs = wv.wavedec(ap, wavelet, mode=mode, level=lvl_decomp)
         details = coeffs[1:]
         for i in range(levels):
             result_var_level[i][0] = np.dot(details[i], details[i])/(len(data) - 2**(i - 1) + 1)
@@ -185,9 +245,10 @@ def wavelet_var(data, wavelet, mode, levels, method='wavedec'):
 
     if method == 'modwt':
         data = get_pad_data(data=data)
-        coeffs = wv.swt(data, wavelet, level=levels, trim_approx=True, norm=True)
+        new_wavelet = convert_to_modwt_filter(wavelet)
+        coeffs = wv.swt(data, new_wavelet, level=lvl_decomp, trim_approx=True, norm=True)
         details = coeffs[1:]
-        for i in range(levels):
+        for i in range(lvl_decomp):
             Mj = len(data) - 2**(i - 1) + 1
             result_var_level[i][0] = np.dot(details[i], details[i])/(Mj)
             result_var_level[i][1] = np.var(data)/(2*(2**(i-1)))
@@ -197,7 +258,7 @@ def wavelet_var(data, wavelet, mode, levels, method='wavedec'):
         print('[INFO] Wavelet variant scale analysis done using MODWT')
         return result_var_level
 
-def conf_interval(data, method='var', alpha=0.05):
+def conf_interval_wave_var(data, method='scale', alpha=0.05):
     conf_intv = np.zeros((len(data),2))
     if method == 'var':
         conf_intv[:,0] = (data[:,2]*data[:,1])/chdtri(data[:,2], 1 - alpha)
@@ -209,7 +270,7 @@ def conf_interval(data, method='var', alpha=0.05):
         conf_intv[:,1] = (data[:,0]*data[:,2])/chdtri(data[:,2], alpha)
         return conf_intv
 
-def plot_wavelet_var(var_result, title, mode='var', alpha=0.05, savefig=False):
+def plot_wavelet_var(var_result, title, path,  mode='scale', alpha=0.05, savefig=False):
     plt.figure(figsize=(16,8), dpi=90)
     ci_low, ci_high  = None, None
     scales = np.arange(1, len(var_result)+1)
@@ -218,12 +279,12 @@ def plot_wavelet_var(var_result, title, mode='var', alpha=0.05, savefig=False):
         # ci_low, ci_high  =    stats.DescrStatsW(var_result[:,1]).tconfint_mean()
         # st.t.interval(0.95, len(var_result)-1, loc=np.mean(var_result), scale=st.sem(var_result))
         # Chi2 CI
-        conf  =  conf_interval(var_result, method=mode,alpha=alpha )
+        conf  =  conf_interval_wave_var(var_result, method=mode,alpha=alpha )
         ci_low, ci_high = conf[:,0], conf[:,1]
         plt.plot(scales, var_result[:,1], 'o-', color='k', alpha=0.6, label=r'Var result of $\tau$')
         plt.fill_between(scales, (abs(var_result[:,1] - ci_low)), (var_result[:,1] + ci_high), color='r', alpha=0.3, label=r'95 % confidence interval')
     if mode == 'scale':
-        conf  =  conf_interval(var_result, method=mode,alpha=alpha )
+        conf  =  conf_interval_wave_var(var_result, method=mode,alpha=alpha )
         ci_low, ci_high = conf[:,0], conf[:,1]
         plt.plot(scales, var_result[:,0], 'o-', color='k', alpha=0.6, label=r'Var result of $\tau$')
         plt.fill_between(scales, (abs(var_result[:,0] - ci_low)), (var_result[:,0] + ci_high), color='r', alpha=0.3, label=r'95 % confidence interval')
@@ -237,8 +298,9 @@ def plot_wavelet_var(var_result, title, mode='var', alpha=0.05, savefig=False):
     plt.tight_layout()
     plt.legend(loc=0)
     if savefig == True:
-        plt.savefig('Wavelet/variance/wave_var_scale'+ str(title) +'_analysis .pdf', dpi=120)
-        plt.savefig('Wavelet/variance/wave_var_scale'+ str(title) +'_analysis .png', dpi=120)
+        Path('Wavelet/variance/'+path).mkdir(parents=True, exist_ok=True)
+        plt.savefig('Wavelet/variance/'+path+'/wave_var_scale'+ str(title) +'_analysis .pdf', dpi=120)
+        # plt.savefig('Wavelet/variance/'+path+'/wave_var_scale'+ str(title) +'_analysis .png', dpi=120)
     else:
         plt.show()
 
@@ -295,7 +357,7 @@ def plot_discr_wave_decomp(data, wave, name, savefig=False):
     plt.tight_layout()
     if savefig == True:
             plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .pdf', dpi=120)
-            plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .png', dpi=120)
+            # plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .png', dpi=120)
     else:
         plt.show()
 
@@ -358,13 +420,13 @@ def create_least_asymmetric_filter(g=g_la8, mode='modwt'):
     if mode != 'modwt':
         filter_bank = convert_to_filter_bank(g, mode=mode)
         la = wv.Wavelet(name='la8', filter_bank=filter_bank)
-        la.orthogonal = True 
+        la.orthogonal = True
         la.biorthogonal = True 
         return la 
     else:
         filter_bank = convert_to_filter_bank(g=g, mode=mode)
         la = wv.Wavelet(name='la8_modwt', filter_bank=filter_bank)
-        la.orthognoal = True
+        la.orthogonal = True
         la.biorthogonal = True 
         return la
 
@@ -416,7 +478,7 @@ def extract_mci_lags(to_clean_mci_df, lag=0):
     lag_precurs = [lags.values[:,lag][1] for _, lags in enumerate(to_clean_mci_df)]
     return lag_target, lag_precurs
 
-def plot_mci_pred_relation(cA, prec_lag, title, savefig=False):
+def plot_mci_pred_relation(cA, prec_lag, path, title, savefig=False):
     # TODO RECOGNISABLE WAY TO SAVE DISTINCTS PLOTS
     x_as = np.arange(1, len(cA)+1)
     x_as = np.exp2(x_as)
@@ -428,8 +490,9 @@ def plot_mci_pred_relation(cA, prec_lag, title, savefig=False):
     plt.ylabel('MCI')
     plt.legend(loc=0)
     if savefig ==True:
-        plt.savefig('Wavelet/Mci/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.pdf', dpi=120)
-        plt.savefig('Wavelet/Mci/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.png', dpi=120)
+        Path('Wavelet/Mci/'+path).mkdir(parents=True, exist_ok=True)
+        plt.savefig('Wavelet/Mci/'+path+'/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.pdf', dpi=120)
+        # plt.savefig('Wavelet/Mci/'+path+'/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.png', dpi=120)
     else:
         plt.show()
 

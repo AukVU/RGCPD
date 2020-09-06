@@ -27,7 +27,7 @@ from sklearn.linear_model import LinearRegression
 from scipy.stats import normaltest
 from scipy import signal
 import multiprocessing as mp
-
+from pathlib import Path
 from statsmodels.tools.sm_exceptions import ConvergenceWarning, InterpolationWarning
 warnings.simplefilter('ignore', ConvergenceWarning)
 warnings.simplefilter('ignore', InterpolationWarning)
@@ -253,7 +253,7 @@ def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(16, 8), t
 
     if save_fig == True:
         plt.savefig('Fitted/AR/Plots/time_serie__pierce_LJbox.pdf', dpi=120)
-        plt.savefig('Fitted/AR/Plots/time_serie__pierce_LJbox.png', dpi=120)
+        # plt.savefig('Fitted/AR/Plots/time_serie__pierce_LJbox.png', dpi=120)
     plt.show()
    
 def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, signal:pd.Series, order:tuple, save_fig:bool=False):
@@ -280,10 +280,10 @@ def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, signal:pd.Seri
     plt.legend()
     if save_fig == True:
         plt.savefig('Fitted/ARMA/Synthetic_data_.pdf', dpi=120)
-        plt.savefig('Fitted/ARMA/Synthetic_data_.png', dpi=120)
+        # plt.savefig('Fitted/ARMA/Synthetic_data_.png', dpi=120)
     plt.show()
 
-def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:str=' ', save_fig:bool=False, dep:bool=False):
+def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, path:str=' ', title:str=' ', save_fig:bool=False, dep:bool=False):
 
     _dates = pd.DatetimeIndex(signal.index.levels[1], freq='infer')
     __dates = None 
@@ -316,8 +316,9 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, title:s
     plt.ylabel('Variance in temperature Celsius')
     plt.legend()
     if save_fig == True:
-        plt.savefig('Fitted/AR/Plots/'+title+'.pdf', dpi=120)
-        plt.savefig('Fitted/AR/Plots/'+title+'.png', dpi=120)
+        Path('Fitted/AR/Plots/'+path).mkdir(parents=True, exist_ok=True)
+        plt.savefig('Fitted/AR/Plots/'+path+'/'+title+'.pdf', dpi=120)
+        # plt.savefig('Fitted/AR/Plots/'+path+'/'+title+'.png', dpi=120)
 
     # plt.show()
 

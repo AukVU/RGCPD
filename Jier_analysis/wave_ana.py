@@ -276,7 +276,7 @@ def plot_wavelet_var(var_result, title, path,  mode='scale', alpha=0.05, savefig
     scales = np.arange(1, len(var_result)+1)
     if mode == 'var':
         # Gaussian normality CI
-        # ci_low, ci_high  =    stats.DescrStatsW(var_result[:,1]).tconfint_mean()
+        # ci_low, ci_high  =    stats.DescrStatsW(var_result[:,1]).zconfint_mean()
         # st.t.interval(0.95, len(var_result)-1, loc=np.mean(var_result), scale=st.sem(var_result))
         # Chi2 CI
         conf  =  conf_interval_wave_var(var_result, method=mode,alpha=alpha )

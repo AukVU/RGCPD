@@ -54,8 +54,8 @@ def polynomial_fit(ar, rg_data, col, sigma, const, dependance, x1=np.empty((1)),
     _ , poly = sd.postprocess_ts(serie=poly, regression='ct', col=col, debug=False)
     return poly
 
-def polynomial_fit_turbulance(ar, rg_data, col, sigma, const, theta, nu):
-    poly  = sd.create_polynomial_fit_ar_turbulance(ar=ar, sigma=sigma, data=rg_data, const=const, yule_walker=True, theta=theta, nu=nu)
+def polynomial_fit_turbulance(ar, rg_data, col, sigma, const, nu):
+    poly  = sd.create_polynomial_fit_ar_turbulance(ar=ar, sigma=sigma, data=rg_data, const=const, yule_walker=True,  nu=nu)
     _, poly = sd.postprocess_ts(serie=poly, regression='ct', col=col, debug=False)
     return poly
 
@@ -89,7 +89,7 @@ def display_wavelet_decomposition(poly, index, title, wave):
     wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), name=title, wave=wave)
     plt.show()
 
-def display_sensitivity(tests, subjects, path, title, savefig=False):
+def display_sensitivity(tests, size, subjects, path, title, savefig=False):
    
     df = pd.DataFrame(data=tests)
     fig, ax = plt.subplots(len(df), 1, figsize=(16, 8), sharex=True)
@@ -102,17 +102,17 @@ def display_sensitivity(tests, subjects, path, title, savefig=False):
     conf_0 = stats.DescrStatsW(data[subjects]['std']).tconfint_mean()
     conf_1 = stats.DescrStatsW(data[subjects]['avg']).tconfint_mean()
     conf_2 = stats.DescrStatsW(data[subjects]['var']).tconfint_mean()
-   
-    ax[0].plot(data[subjects]['std'])
-    ax[0].fill_between(len(data[subjects]['std']),(( data[subjects]['std']- conf_0[0])), (data[subjects]['std'] + conf_0[1]), color='r', alpha=0.5, label=r'95 % confidence interval')
+    
+    ax[0].plot( data[subjects]['std'].values)
+    ax[0].fill_between(np.arange(len(data[subjects]['std'].values)), data[subjects]['std'].values- conf_0[0], data[subjects]['std'].values + conf_0[1], color='r', alpha=0.5, label=r'95 % confidence interval')
     ax[0].legend(loc=0)
 
-    ax[1].plot(data[subjects]['avg'])
-    ax[1].fill_between(len(data[subjects]['avg']),(( data[subjects]['avg']- conf_1[0])), (data[subjects]['avg'] + conf_1[1]), color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[1].plot( data[subjects]['avg'].values)
+    ax[1].fill_between(np.arange(len(data[subjects]['std'].values)), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'95 % confidence interval')
     ax[1].legend(loc=0)
 
-    ax[2].plot(data[subjects]['var'])
-    ax[2].fill_between(len(data[subjects]['var']),(( data[subjects]['var']- conf_2[0])), (data[subjects]['var'] + conf_2[1]), color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[2].plot(data[subjects]['var'].values)
+    ax[2].fill_between(np.arange(len(data[subjects]['std'].values)), data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % confidence interval')
     ax[2].legend(loc=0)
     ax[2].set_xlabel('Iterations')
 

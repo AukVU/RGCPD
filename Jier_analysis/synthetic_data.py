@@ -319,8 +319,8 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, path:st
         Path('Fitted/AR/Plots/'+path).mkdir(parents=True, exist_ok=True)
         plt.savefig('Fitted/AR/Plots/'+path+'/'+title+'.pdf', dpi=120)
         # plt.savefig('Fitted/AR/Plots/'+path+'/'+title+'.png', dpi=120)
-
-    # plt.show()
+    else:
+        plt.show()
 
 def evaluate_synthetic_data(display:bool=False):
     # Synthetic data
@@ -439,7 +439,7 @@ def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, de
     else:
         return simul_data
 
-def create_polynomial_fit_ar_turbulance(ar:list, sigma:float, data:pd.Series, const:int, yule_walker:bool=False, theta:float=0.1, nu:float=0.1):
+def create_polynomial_fit_ar_turbulance(ar:list, sigma:float, data:pd.Series, const:int, yule_walker:bool=False,  nu:float=0.1):
     print('\n[INFO] Start running polynomial fit turbulance...')
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale=sigma, size=N)
@@ -450,7 +450,7 @@ def create_polynomial_fit_ar_turbulance(ar:list, sigma:float, data:pd.Series, co
     simul_data[1] =  const + (nu * ar_0 * simul_data[0] ) + epsilon[1]
     for i in range(2, N):
 
-        simul_data[i] = const + (nu * ar_0 * simul_data[i -1]) + (theta * ar_1 * simul_data[i - 2])+ epsilon[i] 
+        simul_data[i] = const + (nu * ar_0 * simul_data[i -1]) + (nu * ar_1 * simul_data[i - 2])+ epsilon[i] 
 
     print('[INFO] Polynomial turbulance fit done.')
     if yule_walker == True:

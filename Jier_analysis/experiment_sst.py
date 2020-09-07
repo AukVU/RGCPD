@@ -21,7 +21,8 @@ import wave_ana as wa
 import multiprocessing as mp
 import investigate_ts as inv
 import argparse 
-
+# TODO CREATE DATASTRUCTURE TO CAPTURE VARIATION ON NU ITERATIONS OFR A GIVEN PRECURSOR 
+# TODO WRITE A FUNCTION TO GENERALLY PLOT SENSITIVITY OF EITHER ITERATIONS OR NU  ITERATIONS OR PER COLUMNS STATS 
 parser = argparse.ArgumentParser()
 parser.add_argument('-it', '--iteration', type=int, required=True, help='The number of iterations to run the experiments')
 parser.add_argument('-w', '--wavelet', type=str, default='sym4', help='The name of the wavelets to work with DWT')
@@ -60,24 +61,25 @@ dataset +='_'+args.variable
 cols =  rg_data.columns.tolist()
 
 wave = wv.Wavelet(args.wavelet)
-gammas = np.arange(0, 1.1, 0.1)
-nus = np.arange(0, 1.1, 0.1)
-thetas = np.arange(0, 1.1 , 0.1)
+gammas = np.arange(0.1, 1.1, 0.1)
+nus = np.arange(0.1, 1.1, 0.1)
+
 
 tests = ['avg', 'std', 'var']
 elements = ['wvar', 'dep', 'mci']
-poly_stats ={key:{key: [] for  key in tests} for key in elements}
+
 end_iter = args.iteration
 
 
 for col in cols[1:]:
     for nu in nus:
-    # for-loop iteratie for consistency
-        for it in np.arange(0, end_iter):
+        poly_stats ={key:{key: [] for  key in tests} for key in elements}   
+        # for-loop iteratie for consistency
+        for it in np.arange(0, end_iter+1):
             ar_ts, const_ts = inv.extract_ar_data(rg_data, cols[0])
             ar, const = inv.extract_ar_data(rg_data, col) 
 
-            poly_prec = inv.polynomial_fit_turbulance(ar=ar, col=col,  sigma=np.std(rg_data[col].values), rg_data=rg_data, const=const, theta=1, nu=nu)
+            poly_prec = inv.polynomial_fit_turbulance(ar=ar, col=col,  sigma=np.std(rg_data[col].values), rg_data=rg_data, const=const,  nu=nu)
             poly_ts = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, dependance=False)
             poly_dep = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, gamma=1, dependance=True, x1=poly_prec)
 
@@ -112,11 +114,11 @@ for col in cols[1:]:
             poly_stats['mci']['avg'].append(np.average(target_prec_lag))
             poly_stats['mci']['var'].append(np.var(target_prec_lag))
             
-            if it % 10 == 0:
+            # if it in [0, end_iter//2, end_iter] :
 
-                inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'Dependance with {str(np.round(nu, 2))} variation with precursor {col} on {str(it)} iteration',path=dataset, savefig=True)
-                inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Dependance on iteration {str(it)} variation nu {str(np.round(nu, 2))}', path=dataset, savefig=True)
-                inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'target {cols[0]} and precursor {col} with nu {str(np.round(nu, 2))} and {1} gamma', path=dataset, save_fig=True, dependance=True)
+            #     inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'Dependance with {str(np.round(nu, 2))} variation with precursor {col} on {str(it)} iteration',path=dataset, savefig=True)
+            #     inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Dependance on iteration {str(it)} variation nu {str(np.round(nu, 2))}', path=dataset, savefig=True)
+            #     inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'target {cols[0]} and precursor {col} with nu {str(np.round(nu, 2))} and {1} gamma', path=dataset, save_fig=True, dependance=True)
                 
             #     # inv.plot_wavelet_variance(var_result=result_var_target, title=cols[0] +'_iteration'+ str(it), savefig=True)
             #     # inv.plot_wavelet_variance(var_result=result_var_prec, title=col +'_ iteration'+ str(it), savefig=True)
@@ -124,13 +126,10 @@ for col in cols[1:]:
             #     inv.display_polynome(poly=poly_prec, ar_list=ar, rg_data=rg_data, col=col, title=f'AR fit on {col} precursor with {str(nu)} variation on {str(it)} iteration ', save_fig=True, dependance=False)  
 
                
-            if it == end_iter -1 : 
-                inv.display_sensitivity(tests=poly_stats, subjects=elements[-1], title='Run '+str(it)+' variation of nu '+str(nu)+' of experiment '+elements[-1]+' '+col, path=dataset, savefig=True)
-                inv.display_sensitivity(tests=poly_stats, subjects=elements[-2],title='Run '+str(it)+' variation of nu '+str(nu)+' of experiment '+elements[-2]+' '+col, path=datset, savefig=True)
-                inv.display_sensitivity(tests=poly_stats, subjects=elements[-3],title='Run '+str(it)+' variation of nu '+str(nu)+' of experiment '+elements[-3]+' '+col, path=datset, savefig=True)
-    
+            if it == end_iter : 
+                inv.display_sensitivity(tests=poly_stats, size=it, subjects=elements[-1], title='Run '+str(it)+' variation of nu '+str(nu)+' of experiment '+elements[-1].upper()+' '+col, path=dataset, savefig=True)
+                inv.display_sensitivity(tests=poly_stats, size=it, subjects=elements[-2],title='Run '+str(it)+' variation of nu '+str(nu)+' of experiment '+elements[-2].upper()+' '+col, path=dataset, savefig=True)
+                inv.display_sensitivity(tests=poly_stats,size=it, subjects=elements[-3],title='Run '+str(it)+' variation of nu '+str(nu)+' of experiment '+elements[-3].upper()+' '+col, path=dataset, savefig=True)
+                
 
                     
-
-
-

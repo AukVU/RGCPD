@@ -105,7 +105,7 @@ for i, col in enumerate(cols[1:]):
 
  
             
-            if it in [0, end_iter-1//2, end_iter-1] :
+            if it in [0, (end_iter-1)//2, end_iter-1] :
 
                 inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with nu {str(np.round(nu, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset, savefig=True)
                 inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(it)} variation \n with nu {str(np.round(nu, 2))}', path=dataset, savefig=True)

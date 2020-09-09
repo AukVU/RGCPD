@@ -88,11 +88,14 @@ def plot_mci_prediction(detail_prec, prec_lag, title, path,  savefig=False, ense
     else:
         x_as = np.arange(1, len(detail_prec)+1)
         x_as = np.exp2(x_as)
-        prec_lag = np.average(prec_lag, axis=1)
+        prec_lag = np.average(prec_lag, axis=0)
+  
         plt.figure(figsize=(16,8), dpi=120)
-        plt.plot(prec_lag, label='precrursor ')
-        plt.xticks(x_as)
-        plt.fill_between(np.arange(len(prec_lag)), prec_lag - np.percentile(prec_lag, [5, 95])[0], prec_lag + np.percentile(prec_lag, [5, 95])[1], color='r', alpha=0.05, label=r'5- 95 precentile confidence interval')
+        plt.plot(x_as, prec_lag, label='precrursor')
+        plt.vlines(x_as[np.argmax(prec_lag)], ymin=plt.ylim()[0], ymax=plt.ylim()[1],linestyles='dashed', label='MCI peak')
+        plt.xscale('log', basex=2)
+        plt.xticks(x_as, [str(2**i)+' days' for i in range(1, len(detail_prec)+1)], rotation=45) 
+        plt.fill_between(x_as, prec_lag - stats.DescrStatsW(prec_lag).tconfint_mean()[0], prec_lag + stats.DescrStatsW(prec_lag).tconfint_mean()[1], color='r', alpha=0.09, label=r'95 % sample confidence interval')
         plt.title(title)
         plt.xlabel('Scales in daily means')
         plt.ylabel('MCI')
@@ -117,20 +120,20 @@ def display_sensitivity_in_iter(tests, subjects, path, title, savefig=False):
     dfL.T.index.set_names('iterations')
     data = dfL.T.copy()
 
-    conf_0 = np.percentile(data[subjects]['perc'].values, [5, 95])
-    conf_1 = np.percentile(data[subjects]['avg'].values, [5, 95])
-    conf_2 = np.percentile(data[subjects]['var'].values, [5, 95])
+    conf_0 = stats.DescrStatsW(data[subjects]['perc'].values).tconfint_mean()
+    conf_1 = stats.DescrStatsW(data[subjects]['avg']).tconfint_mean()
+    conf_2 = stats.DescrStatsW(data[subjects]['var'].values).tconfint_mean()
     
-    ax[0].plot( data[subjects]['perc'].values)
-    ax[0].fill_between(np.arange(len(data[subjects]['perc'].values)), data[subjects]['perc'].values- conf_0[0], data[subjects]['perc'].values + conf_0[1], color='r', alpha=0.5, label=r'5- 95 precentile confidence interval')
+    ax[0].plot( data[subjects]['perc'].values, label='Sample std')
+    ax[0].fill_between(np.arange(len(data[subjects]['perc'].values)), data[subjects]['perc'].values- conf_0[0], data[subjects]['perc'].values + conf_0[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
     ax[0].legend(loc=0)
 
-    ax[1].plot( data[subjects]['avg'].values)
-    ax[1].fill_between(np.arange(len(data[subjects]['avg'].values)), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'5- 95 precentile confidence interval')
+    ax[1].plot( data[subjects]['avg'].values, label='Sample avg')
+    ax[1].fill_between(np.arange(len(data[subjects]['avg'].values)), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
     ax[1].legend(loc=0)
 
-    ax[2].plot(data[subjects]['var'].values)
-    ax[2].fill_between(np.arange(len(data[subjects]['var'].values)), data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'5- 95 precentile confidence interval')
+    ax[2].plot(data[subjects]['var'].values, label='Sample var')
+    ax[2].fill_between(np.arange(len(data[subjects]['var'].values)), data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % sample confidence interval')
     ax[2].legend(loc=0)
     ax[2].set_xlabel('Iterations')
 
@@ -141,12 +144,15 @@ def display_sensitivity_in_iter(tests, subjects, path, title, savefig=False):
     else:
         plt.show()  
 
-def display_boxplot_sensitivity(tests, subject, sens_vars, path, title, savefig=False):
-    df = pd.DataFrame(tests[subject], columns=[str(i) for i in sens_vars])
-    print('\n', df.head(), df.index, df.keys(), 'conf_intervals',df.apply(lambda x: np.percentile(x, [5, 95]) ), sep='\n\n')
-    sys.exit()
-    kwargs ={ 'meanline':True, 'showmeans':True, 'whis':0.75}
+def display_boxplot_sensitivity(tests, subject, sens_vars, path, depth,  title, savefig=False):
+    df = pd.DataFrame(tests[subject].flatten(), columns=[str(i) for i in sens_vars])
+    kwargs ={ 'meanline':True, 'showmeans':True} 
     df.boxplot(figsize=(16, 8), **kwargs)
+    plt.ylabel(r'MCI Peaks at level of decomposition ')
+    plt.xlabel(r'Variation $\nu$')
+    plt.yscale('log',basey=2) 
+    plt.yticks(np.exp2(np.arange(1, depth +1)), [str(2**i)+' days' for i in range(1, depth+1)], rotation=45)
+    # plt.legend(loc=0)
     plt.title(title)
     if savefig == True:
             Path('Sensitivity/'+path).mkdir(parents=True, exist_ok=True)

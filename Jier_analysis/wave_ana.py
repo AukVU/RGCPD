@@ -380,7 +380,7 @@ def create_low_freq_components(data, level=6, wave='db4', mode=wv.Modes.periodic
             print('Vj Level: ', i,'Size: ', len(c))
         for i, x in enumerate(cA):
             print('Wj Level: ', i, 'Size: ', len(c))
-    return cA, cD
+    return cA, cD, lvl_decomp
 
 def create_signal_recontstruction(data, wave, level, mode=wv.Modes.periodic):
     w = wave
@@ -479,12 +479,13 @@ def extract_mci_lags(to_clean_mci_df, lag=0):
     return lag_target, lag_precurs
 
 def plot_mci_pred_relation(cA, prec_lag, path, title, savefig=False):
-    # TODO RECOGNISABLE WAY TO SAVE DISTINCTS PLOTS
     x_as = np.arange(1, len(cA)+1)
     x_as = np.exp2(x_as)
     plt.figure(figsize=(16,8), dpi=120)
     plt.plot(x_as, prec_lag, label='precrursor ')
-    plt.xticks(x_as)
+    plt.vlines(x_as[np.argmax(prec_lag)], ymin=plt.ylim()[0], ymax=plt.ylim()[1],linestyles='dashed', label='MCI peak')
+    plt.xscale('log', basex=2)
+    plt.xticks(x_as, [str(2**i)+' days' for i in range(1, len(prec_lag)+1)], rotation=45) 
     plt.title(title)
     plt.xlabel('Scales in daily means')
     plt.ylabel('MCI')

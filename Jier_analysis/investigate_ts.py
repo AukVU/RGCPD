@@ -82,14 +82,32 @@ def  get_mci_coeffs_lag(details_prec, details_target, index, rg_obj, debug=False
 def plot_wavelet_variance(var_result, title, path, savefig):
     wa.plot_wavelet_var(var_result, title, path=path, savefig=savefig)
 
-def plot_mci_prediction(detail_prec, prec_lag, title, path,  savefig=False):
-    wa.plot_mci_pred_relation(cA=detail_prec, path=path, prec_lag=prec_lag, title=title, savefig=savefig)
+def plot_mci_prediction(detail_prec, prec_lag, title, path,  savefig=False, ensemble=False):
+    if not ensemble == True:
+        wa.plot_mci_pred_relation(cA=detail_prec, path=path, prec_lag=prec_lag, title=title, savefig=savefig)
+    else:
+        x_as = np.arange(1, len(detail_prec)+1)
+        x_as = np.exp2(x_as)
+        prec_lag = np.average(prec_lag, axis=1)
+        plt.figure(figsize=(16,8), dpi=120)
+        plt.plot(prec_lag, label='precrursor ')
+        plt.xticks(x_as)
+        plt.fill_between(np.arange(len(prec_lag)), prec_lag - np.percentile(prec_lag, [5, 95])[0], prec_lag + np.percentile(prec_lag, [5, 95])[1], color='r', alpha=0.05, label=r'5- 95 precentile confidence interval')
+        plt.title(title)
+        plt.xlabel('Scales in daily means')
+        plt.ylabel('MCI')
+        plt.legend(loc=0)
+        if savefig == True:
+            Path('Sensitivity/'+path).mkdir(parents=True, exist_ok=True)
+            plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .pdf', dpi=120)
+        else:
+            plt.show()
 
 def display_wavelet_decomposition(poly, index, title, wave):
     wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), name=title, wave=wave)
     plt.show()
 
-def display_sensitivity(tests, size, subjects, path, title, savefig=False):
+def display_sensitivity_in_iter(tests, subjects, path, title, savefig=False):
    
     df = pd.DataFrame(data=tests)
     fig, ax = plt.subplots(len(df), 1, figsize=(16, 8), sharex=True)
@@ -99,20 +117,20 @@ def display_sensitivity(tests, size, subjects, path, title, savefig=False):
     dfL.T.index.set_names('iterations')
     data = dfL.T.copy()
 
-    conf_0 = stats.DescrStatsW(data[subjects]['std']).tconfint_mean()
-    conf_1 = stats.DescrStatsW(data[subjects]['avg']).tconfint_mean()
-    conf_2 = stats.DescrStatsW(data[subjects]['var']).tconfint_mean()
+    conf_0 = np.percentile(data[subjects]['perc'].values, [5, 95])
+    conf_1 = np.percentile(data[subjects]['avg'].values, [5, 95])
+    conf_2 = np.percentile(data[subjects]['var'].values, [5, 95])
     
-    ax[0].plot( data[subjects]['std'].values)
-    ax[0].fill_between(np.arange(len(data[subjects]['std'].values)), data[subjects]['std'].values- conf_0[0], data[subjects]['std'].values + conf_0[1], color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[0].plot( data[subjects]['perc'].values)
+    ax[0].fill_between(np.arange(len(data[subjects]['perc'].values)), data[subjects]['perc'].values- conf_0[0], data[subjects]['perc'].values + conf_0[1], color='r', alpha=0.5, label=r'5- 95 precentile confidence interval')
     ax[0].legend(loc=0)
 
     ax[1].plot( data[subjects]['avg'].values)
-    ax[1].fill_between(np.arange(len(data[subjects]['std'].values)), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[1].fill_between(np.arange(len(data[subjects]['avg'].values)), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'5- 95 precentile confidence interval')
     ax[1].legend(loc=0)
 
     ax[2].plot(data[subjects]['var'].values)
-    ax[2].fill_between(np.arange(len(data[subjects]['std'].values)), data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % confidence interval')
+    ax[2].fill_between(np.arange(len(data[subjects]['var'].values)), data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'5- 95 precentile confidence interval')
     ax[2].legend(loc=0)
     ax[2].set_xlabel('Iterations')
 
@@ -123,6 +141,18 @@ def display_sensitivity(tests, size, subjects, path, title, savefig=False):
     else:
         plt.show()  
 
+def display_boxplot_sensitivity(tests, subject, sens_vars, path, title, savefig=False):
+    df = pd.DataFrame(tests[subject], columns=[str(i) for i in sens_vars])
+    print('\n', df.head(), df.index, df.keys(), 'conf_intervals',df.apply(lambda x: np.percentile(x, [5, 95]) ), sep='\n\n')
+    sys.exit()
+    kwargs ={ 'meanline':True, 'showmeans':True, 'whis':0.75}
+    df.boxplot(figsize=(16, 8), **kwargs)
+    plt.title(title)
+    if savefig == True:
+            Path('Sensitivity/'+path).mkdir(parents=True, exist_ok=True)
+            plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .pdf', dpi=120)
+    else:
+        plt.show()
 
 if __name__ == "__main__":
     pass

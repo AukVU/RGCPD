@@ -414,7 +414,7 @@ def create_polynomial_fit_arma(ar:list, ma:list, sigma:float, data:pd.Series):
     
     return simul_data
 
-def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False, theta:float=0.1, nu:float=0.1,  gamma:float=0.1,  x1:np.array=np.zeros(100)):
+def create_polynomial_fit_ar(ar:list, sigma:float, data:pd.Series, const:int, dependance:bool=False, yule_walker:bool=False, gamma:float=0.1,  x1:np.array=np.zeros(100)):
     print('\n[INFO] Start running polynomial fit...')
     N =  len(data)
     epsilon = np.random.normal(loc=0, scale= sigma, size=N)

@@ -332,7 +332,7 @@ def create_rgcpd_obj(rg, precur_aggr=1):
 def setup_wavelets_rgdata(rg, wave='db4', modes=wv.Modes.periodic):
     cols = rg.df_data.columns.tolist()[:-2]
     rg_data  = rg.df_data[cols]
-    rg_data = rg_data.rename(columns={cols[i]:'prec'+str(i) for i in range(1, len(cols)) })
+    # rg_data = rg_data.rename(columns={cols[i]:'prec'+str(i) for i in range(1, len(cols)) })
     rg_index = rg_data.index.levels[1]
     # precursor_list = [rg_data['prec'+str(i)].values for i in range(1, len(cols))]
     # target = rg_data[cols[0]]
@@ -463,7 +463,7 @@ def create_mci_coeff(cA, cA_t, rg_index, rg, debug=False):
         ts_tca1 = pd.Series(cA_t[i], index=pd.MultiIndex.from_product(([0],idx_lvl_t)), name='3ts')
         df = pd.concat([ts_tca1, ts_ca1, trainIsTrue, RV_mask], axis=1)
         rg.df_data = df
-        rg.PCMCI_df_data()
+        rg.PCMCI_df_data(tau_max=2)
         rg.PCMCI_get_links()
         rg.df_MCIc
         obj_rgcpd.append(deepcopy(rg.df_MCIc))

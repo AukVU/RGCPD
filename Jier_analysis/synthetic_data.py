@@ -284,7 +284,8 @@ def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, signal:pd.Seri
     plt.show()
 
 def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, path:str=' ', title:str=' ', save_fig:bool=False, dep:bool=False):
-
+    fig, ax = plt.subplots(3, 1, figsize=(16,8), dpi=120)
+    fig.subplots_adjust(hspace=0.5)
     _dates = pd.DatetimeIndex(signal.index.levels[1], freq='infer')
     __dates = None 
     if len(_dates) > len(simul_data):
@@ -300,21 +301,30 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, path:st
         
 
     l +='\\epsilon_{t}'
-    plt.figure(figsize=(16, 8), dpi=90)
-
+ 
     ci_low, ci_high  = stats.DescrStatsW(simul_data).tconfint_mean()
     if len(_dates) > len(simul_data):
-        plt.fill_between(__dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
-        plt.plot(__dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
+        ax[0].plot(__dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
+        ax[0].fill_between(__dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
+        ax[0].set_ylabel(r'Variance in Celsius$^{\circ}$')
+        ax[0].legend(loc=0)
+        
     else:
-        plt.fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
-        plt.plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
+        ax[0].plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
+        ax[0].fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
+        ax[0].set_ylabel('Variance in temperature Celsius')
+        ax[0].legend(loc=0)
+        
 
-    plt.plot(_dates, signal, '-k', label='Precursor data', alpha=0.5)
-    plt.title('Ar2 fit on ' + title)
-    plt.xlabel('Dates')
-    plt.ylabel('Variance in temperature Celsius')
-    plt.legend()
+    ax[1].plot(_dates, signal, '-k', label='Precursor data', alpha=0.5)
+    fig.suptitle('Ar2 fit on ' + title)
+    ax[1].set_xlabel('Dates in years')
+    ax[1].set_ylabel(r'Variance in Celsius$^{\circ}$')
+    ax[1].legend(loc=0)
+    ax[2].csd(signal, simul_data, 256, 1., detrend='mean')
+    # cxy, f  = ax[2].csd(signal, simul_data, 256, 1., detrend='mean')
+    # print(f'[INFO] Cross Spectrum before scaling {cxy}, Frequency {f}\n')
+    ax[2].set_ylabel('Cross Frequency (dB)')
     if save_fig == True:
         Path('Fitted/AR/Plots/'+path).mkdir(parents=True, exist_ok=True)
         plt.savefig('Fitted/AR/Plots/'+path+'/'+title+'.pdf', dpi=120)

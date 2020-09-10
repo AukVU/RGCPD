@@ -110,7 +110,7 @@ def display_wavelet_decomposition(poly, index, title, wave):
     wa.plot_discr_wave_decomp(data=pd.Series(poly, index=index), name=title, wave=wave)
     plt.show()
 
-def display_sensitivity_in_iter(tests, subjects, path, title, savefig=False):
+def display_sensitivity_in_iter(tests, size,  subjects, path, title, savefig=False):
    
     df = pd.DataFrame(data=tests)
     fig, ax = plt.subplots(len(df), 1, figsize=(16, 8), sharex=True)
@@ -124,16 +124,17 @@ def display_sensitivity_in_iter(tests, subjects, path, title, savefig=False):
     conf_1 = stats.DescrStatsW(data[subjects]['avg']).tconfint_mean()
     conf_2 = stats.DescrStatsW(data[subjects]['var'].values).tconfint_mean()
     
-    ax[0].plot( data[subjects]['perc'].values, label='Sample std')
-    ax[0].fill_between(np.arange(len(data[subjects]['perc'].values)), data[subjects]['perc'].values- conf_0[0], data[subjects]['perc'].values + conf_0[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    ax[0].plot(np.arange(size), data[subjects]['perc'].values, label='Sample std')
+    ax[0].set_xticks(np.arange(size))
+    ax[0].fill_between(np.arange(size), data[subjects]['perc'].values- conf_0[0], data[subjects]['perc'].values + conf_0[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
     ax[0].legend(loc=0)
-
-    ax[1].plot( data[subjects]['avg'].values, label='Sample avg')
-    ax[1].fill_between(np.arange(len(data[subjects]['avg'].values)), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    ax[1].set_xticks(np.arange(size))
+    ax[1].plot(np.arange(size), data[subjects]['avg'].values, label='Sample avg')
+    ax[1].fill_between(np.arange(size), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
     ax[1].legend(loc=0)
-
-    ax[2].plot(data[subjects]['var'].values, label='Sample var')
-    ax[2].fill_between(np.arange(len(data[subjects]['var'].values)), data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    ax[2].set_xticks(np.arange(size))
+    ax[2].plot(np.arange(size), data[subjects]['var'].values, label='Sample var')
+    ax[2].fill_between(np.arange(size),  data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % sample confidence interval')
     ax[2].legend(loc=0)
     ax[2].set_xlabel('Iterations')
 
@@ -145,7 +146,7 @@ def display_sensitivity_in_iter(tests, subjects, path, title, savefig=False):
         plt.show()  
 
 def display_boxplot_sensitivity(tests, subject, sens_vars, path, depth,  title, savefig=False):
-    df = pd.DataFrame(tests[subject].flatten(), columns=[str(i) for i in sens_vars])
+    df = pd.DataFrame(tests[subject], columns=[str(i) for i in sens_vars])
     kwargs ={ 'meanline':True, 'showmeans':True} 
     df.boxplot(figsize=(16, 8), **kwargs)
     plt.ylabel(r'MCI Peaks at level of decomposition ')

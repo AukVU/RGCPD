@@ -21,11 +21,11 @@ import wave_ana as wa
 import multiprocessing as mp
 import investigate_ts as inv
 import argparse 
-# TODO CREATE DATASTRUCTURE TO CAPTURE VARIATION ON NU ITERATIONS OF A GIVEN PRECURSOR 
-# TODO WRITE A FUNCTION TO GENERALLY PLOT SENSITIVITY OF EITHER ITERATIONS OR NU  ITERATIONS OR PER COLUMNS STATS 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('-it', '--iteration', type=int, required=True, help='The number of iterations to run the experiments')
 parser.add_argument('-w', '--wavelet', type=str, default='sym4', help='The name of the wavelets to work with DWT')
+parser.add_argument('-e', '--experiment', type=str, default='nu', help='Give kind of experiment needed, choose between, nu or gamma')
 parser.add_argument('-v', '--variable', type=str, default='nu', help='The variable to run experiment on, nu, gamma, thetas')
 args = parser.parse_args()
 
@@ -57,35 +57,48 @@ dataset +='_'+args.variable
 # db4_normalized.biorthogonal = True
 # la8 = wa.create_least_asymmetric_filter()
 # db4 = wv.Wavelet('db4')
-
+experiments = None
 cols =  rg_data.columns.tolist()
 
 wave = wv.Wavelet(args.wavelet)
+
 gammas = np.arange(0.1, 1.1, 0.1)
 nus = np.arange(0.1, 1.1, 0.1)
+# nus = np.arange(0.1, 0.3, 0.1)
 
+if args.experiment == 'nu':
+    experiments = nus 
+if args.experiment == 'gamma':
+    experiments = gammas
 
 tests = ['avg', 'perc', 'var']
 elements = ['wvar', 'dep', 'mci']
 
 end_iter = args.iteration
-poly_stats_iter ={key:{key: [] for  key in tests} for key in elements} 
+
 
 daily_mean_peak = np.empty((args.iteration, len(nus)))
 exp_col =  {key: daily_mean_peak for key in cols[1:]}
 level_decomposition = None
 for i, col in enumerate(cols[1:]):
     
-    for nu in nus: # all xis [0.1, .... 1]
+    for exp in experiments: # all xis [0.1, .... 1]
         poly_stats ={key:[] for key in elements} 
+        poly_stats_iter ={key:{key: [] for  key in tests} for key in elements} 
         # for-loop iteratie for consistency
         for it in np.arange(0, end_iter): #all experiments M = end_iter+1
             ar_ts, const_ts = inv.extract_ar_data(rg_data, cols[0])
             ar, const = inv.extract_ar_data(rg_data, col) 
+            if args.experiment == 'nu':
+                poly_prec = inv.polynomial_fit_turbulance(ar=ar, col=col,  sigma=np.std(rg_data[col].values), rg_data=rg_data, const=const,  nu=exp)
+                poly_ts = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, dependance=False)
+                poly_dep = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, gamma=gammas[-1], dependance=True, x1=poly_prec)
+            else:
+                poly_prec = inv.polynomial_fit_turbulance(ar=ar, col=col,  sigma=np.std(rg_data[col].values), rg_data=rg_data, const=const,  nu=nus[-1])
+                poly_ts = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, dependance=False)
+                poly_dep = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, gamma=exp, dependance=True, x1=poly_prec)
+         
 
-            poly_prec = inv.polynomial_fit_turbulance(ar=ar, col=col,  sigma=np.std(rg_data[col].values), rg_data=rg_data, const=const,  nu=nu)
-            poly_ts = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, dependance=False)
-            poly_dep = inv.polynomial_fit(ar=ar_ts, rg_data=rg_data, col=cols[0], sigma=np.std(rg_data[cols[0]].values), const=const_ts, gamma=1, dependance=True, x1=poly_prec)
 
 
             poly_stats['dep'].append(poly_dep)
@@ -116,7 +129,7 @@ for i, col in enumerate(cols[1:]):
 
             day_means_scales = np.arange(1, len(prec_cD)+1)
             day_means_scales = np.exp2(day_means_scales).astype(np.float64)
-            exp_col[col][it,np.argwhere(nus==nu)[0][0]] = day_means_scales[np.argmax(target_prec_lag)] #  This will be the holy grail for boxplot
+            exp_col[col][it,np.argwhere(experiments==exp)[0][0]] = day_means_scales[np.argmax(target_prec_lag)] #  This will be the holy grail for boxplot
             if lvl == lvl2:
                 level_decomposition = lvl 
                 
@@ -125,24 +138,38 @@ for i, col in enumerate(cols[1:]):
             
             if it in [0, (end_iter-1)//2, end_iter-1] :
 
-                inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with nu {str(np.round(nu, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset, savefig=True)
-                inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(it)} variation \n with nu {str(np.round(nu, 2))}', path=dataset, savefig=True)
-                inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'Target dependance {cols[0]} and precursor {col} \n with nu {str(np.round(nu, 2))} and {1} gamma', path=dataset, save_fig=True, dependance=True)
-                
+                if args.experiment == 'nu':
+                    
+                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with nu {str(np.round(exp, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset, savefig=True)
+                    inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(it)} variation \n with nu {str(np.round(exp, 2))}', path=dataset, savefig=True)
+                    inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'Target dependance {cols[0]} and precursor {col} \n with nu {str(np.round(exp, 2))} and {gammas[-1]} gamma', path=dataset, save_fig=True, dependance=True)
+                else:
+                    
+                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with gamma {str(np.round(exp, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset, savefig=True)
+                    inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(it)} variation \n with gamma {str(np.round(exp, 2))}', path=dataset, savefig=True)
+                    inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'Target dependance {cols[0]} and precursor {col} \n with nu {str(np.round(nus[-1], 2))} and {exp} gamma', path=dataset, save_fig=True, dependance=True)
             #     # inv.plot_wavelet_variance(var_result=result_var_target, title=cols[0] +'_iteration'+ str(it), savefig=True)
             #     # inv.plot_wavelet_variance(var_result=result_var_prec, title=col +'_ iteration'+ str(it), savefig=True)
             #     # inv.display_polynome(poly=poly_ts, ar_list=ar_ts, rg_data=rg_data, col=cols[0], title=f'AR fit on {cols[0]} target with {str(it)} iteration', save_fig=True, dependance=False)
             #     inv.display_polynome(poly=poly_prec, ar_list=ar, rg_data=rg_data, col=col, title=f'AR fit on {col} precursor with {str(nu)} variation on {str(it)} iteration ', save_fig=True, dependance=False)  
 
             if it == end_iter - 1 :
-                inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=poly_stats['mci'], title=f'MCI ensemble with nu {str(np.round(nu, 2))} variation with precursor {col} \n on {str(end_iter)} total iterations',path=dataset, savefig=True, ensemble=True)
-                inv.display_sensitivity_in_iter(tests=poly_stats_iter, subjects=elements[-1], title='Totale run of '+str(end_iter)+' iteration of nu for of experiment '+elements[-1].upper()+' '+col, path=dataset, savefig=True)
-                inv.display_sensitivity_in_iter(tests=poly_stats_iter, subjects=elements[-2],title='Totale run of '+str(end_iter)+' iteration of nu for of experiment '+elements[-2].upper()+' '+col, path=dataset, savefig=True)
-                inv.display_sensitivity_in_iter(tests=poly_stats_iter, subjects=elements[-3],title='Totale run of '+str(end_iter)+' iteration of nu for of experiment '+elements[-3].upper()+' '+col, path=dataset, savefig=True)
+                if args.experiment == 'nu':
+                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=poly_stats['mci'], title=f'MCI ensemble with nu {str(np.round(exp, 2))} variation with precursor {col} \n on {str(end_iter)} total iterations',path=dataset, savefig=True, ensemble=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter,  subjects=elements[-1], title='Totale run of '+str(end_iter)+' iteration with experiment  nu on '+elements[-1].upper()+' '+col, path=dataset, savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter,size=end_iter, subjects=elements[-2],title='Totale run of '+str(end_iter)+' iteration with experiment  nu on  '+elements[-2].upper()+' '+col, path=dataset, savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-3],title='Totale run of '+str(end_iter)+' iteration with experiment  nu on  '+elements[-3].upper()+' '+col, path=dataset, savefig=True)
+                else:
+                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=poly_stats['mci'], title=f'MCI ensemble with gamma {str(np.round(exp, 2))} variation with precursor {col} \n on {str(end_iter)} total iterations',path=dataset, savefig=True, ensemble=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter,  subjects=elements[-1], title='Totale run of '+str(end_iter)+' iteration with experiment  gamma on '+elements[-1].upper()+' '+col, path=dataset, savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-2],title='Totale run of '+str(end_iter)+' iteration with experiment  gamma on  '+elements[-2].upper()+' '+col, path=dataset, savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-3],title='Totale run of '+str(end_iter)+' iteration with experiment  gamma on  '+elements[-3].upper()+' '+col, path=dataset, savefig=True)
 
 
-
-inv.display_boxplot_sensitivity(tests=exp_col, subject=cols[1], sens_vars=nus, depth=level_decomposition, path=dataset+'box_plots', title=r'Evaluation of sensitivity $\nu$ '+cols[1], savefig=True)
+    if args.experiment == 'nu':
+        inv.display_boxplot_sensitivity(tests=exp_col, subject=col, sens_vars=nus, depth=level_decomposition, path=dataset+'box_plots', title=r'Evaluation of sensitivity $\nu$ '+col, savefig=True)
+    else:
+        inv.display_boxplot_sensitivity(tests=exp_col, subject=col, sens_vars=nus, depth=level_decomposition, path=dataset+'box_plots', title=r'Evaluation of sensitivity $\nu$ '+col, savefig=True)   
 
 
     

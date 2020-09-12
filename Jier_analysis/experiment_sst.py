@@ -63,8 +63,8 @@ cols =  rg_data.columns.tolist()
 wave = wv.Wavelet(args.wavelet)
 
 gammas = np.arange(0.1, 1.1, 0.1)
-# nus = np.arange(0.1, 1.1, 0.1)
-nus = np.arange(0.1, 1.1, 0.4)
+nus = np.arange(0.1, 1.1, 0.1)
+# nus = np.arange(0.1, 1.1, 0.4)
 
 
 if args.experiment == 'nu':

@@ -12,6 +12,7 @@ import  statsmodels.stats.api as stats
 from statsmodels.tsa.api import VAR
 import seaborn as sns
 import matplotlib.pyplot as plt 
+import matplotlib.ticker as ticker
 plt.style.use('seaborn')
 import pandas as pd 
 import pywt as wv
@@ -103,6 +104,8 @@ def plot_mci_prediction(detail_prec, prec_lag, title, path,  savefig=False, ense
         if savefig == True:
             Path('Sensitivity/'+path).mkdir(parents=True, exist_ok=True)
             plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .pdf', dpi=120)
+            plt.clf()
+            plt.close()
         else:
             plt.show()
 
@@ -121,20 +124,33 @@ def display_sensitivity_in_iter(tests, size,  subjects, path, title, savefig=Fal
     data = dfL.T.copy()
 
     conf_0 = stats.DescrStatsW(data[subjects]['perc'].values).tconfint_mean()
-    conf_1 = stats.DescrStatsW(data[subjects]['avg']).tconfint_mean()
+    conf_1 = stats.DescrStatsW(data[subjects]['avg'].values).tconfint_mean()
     conf_2 = stats.DescrStatsW(data[subjects]['var'].values).tconfint_mean()
+
+    # print(data.loc[:,(slice(None), 'avg')].values, data.index,  data.iloc[:, 0],  data.iloc[:, 1],  data.iloc[:, 2], sep='\n\n')
+    # sys.exit()
+    # data.plot(subplots=True, ax=ax)
+
+    # print(f'\n Index lengthserie {data.index.size} \n data {data} \n {data.iloc[:,0]} \n {data.iloc[:,0].index.size} \n {data.iloc[:, 0].values} ')
+    # sys.exit()
+    ax[0].plot(data.index, data.loc[:, (slice(None), 'perc')].values, label='Sample std')
     
-    ax[0].plot(np.arange(size), data[subjects]['perc'].values, label='Sample std')
-    ax[0].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
-    ax[0].fill_between(np.arange(size), data[subjects]['perc'].values- conf_0[0], data[subjects]['perc'].values + conf_0[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
+  
+    ax[0].fill_between(data.index, data.iloc[:, 1].values- conf_0[0],  data.iloc[:, 1].values + conf_0[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    # ax[0].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
+    ax[0].xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax[0].legend(loc=0)
-    ax[1].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
-    ax[1].plot(np.arange(size), data[subjects]['avg'].values, label='Sample avg')
-    ax[1].fill_between(np.arange(size), data[subjects]['avg'].values- conf_1[0], data[subjects]['avg'].values + conf_1[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    
+    ax[1].plot(data.index, data.loc[:, (slice(None), 'avg')].values, label='Sample avg')
+    ax[1].fill_between(data.index,  data.iloc[:, 0].values- conf_1[0],  data.iloc[:, 0].values- + conf_1[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    # ax[1].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
+    ax[1].xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax[1].legend(loc=0)
-    ax[2].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
-    ax[2].plot(np.arange(size), data[subjects]['var'].values, label='Sample var')
-    ax[2].fill_between(np.arange(size),  data[subjects]['var'].values - conf_2[0], data[subjects]['var'].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    
+    ax[2].plot(data.index, data.loc[:, (slice(None), 'var')].values, label='Sample var')
+    ax[2].fill_between(data.index,   data.iloc[:, 2].values - conf_2[0],  data.iloc[:, 2].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % sample confidence interval')
+    # ax[2].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
+    ax[2].xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax[2].legend(loc=0)
     ax[2].set_xlabel('Iterations')
 
@@ -142,6 +158,8 @@ def display_sensitivity_in_iter(tests, size,  subjects, path, title, savefig=Fal
         Path('Sensitivity/'+path).mkdir(parents=True, exist_ok=True)
         plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .pdf', dpi=120)
         # plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .png', dpi=120)
+        plt.clf()
+        plt.close()
     else:
         plt.show()  
 
@@ -158,6 +176,8 @@ def display_boxplot_sensitivity(tests, subject, sens_vars, path, depth,  title, 
     if savefig == True:
             Path('Sensitivity/'+path).mkdir(parents=True, exist_ok=True)
             plt.savefig('Sensitivity/'+path+'/result_'+ str(title) + '_analysis .pdf', dpi=120)
+            plt.clf()
+            plt.close()
     else:
         plt.show()
 

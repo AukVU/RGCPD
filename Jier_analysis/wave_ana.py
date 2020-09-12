@@ -99,8 +99,11 @@ def plot_npess(npess, wave_coeff, wave_name,  col='Test', savefig=False):
     
     if savefig == True:
         plt.savefig('Wavelet/wave_choice_npess'+ col +'_analysis .pdf', dpi=120)
-        plt.savefig('Wavelet/wave_choice_npess'+ col +'_analysis .png', dpi=120)
-    plt.show()
+        # plt.savefig('Wavelet/wave_choice_npess'+ col +'_analysis .png', dpi=120)
+        plt.clf()
+        plt.close()
+    else:
+        plt.show()
 
 def  test(coeffs, j_0):
     # TODO FIX EITHER THIS OR MULTI RES INFO
@@ -218,6 +221,9 @@ def plot_choice_wavelet_signal(data, columns, savefig=False):
         if savefig == True:
             plt.savefig('Wavelet/wave_choice'+ col +'_analysis .pdf', dpi=120)
             # plt.savefig('Wavelet/wave_choice'+ col +'_analysis .png', dpi=120)
+            plt.clf()
+            plt.close()
+        
     plt.show()  
 
 def wavelet_var(data, wavelet, mode, levels, method='modwt'):
@@ -301,6 +307,8 @@ def plot_wavelet_var(var_result, title, path,  mode='scale', alpha=0.05, savefig
         Path('Wavelet/variance/'+path).mkdir(parents=True, exist_ok=True)
         plt.savefig('Wavelet/variance/'+path+'/wave_var_scale'+ str(title) +'_analysis .pdf', dpi=120)
         # plt.savefig('Wavelet/variance/'+path+'/wave_var_scale'+ str(title) +'_analysis .png', dpi=120)
+        plt.clf()
+        plt.close()
     else:
         plt.show()
 
@@ -358,6 +366,8 @@ def plot_discr_wave_decomp(data, wave, name, savefig=False):
     if savefig == True:
             plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .pdf', dpi=120)
             # plt.savefig('Wavelet/wave_decompose'+ name +'_analysis .png', dpi=120)
+            plt.clf()
+            plt.close()
     else:
         plt.show()
 
@@ -494,6 +504,8 @@ def plot_mci_pred_relation(cA, prec_lag, path, title, savefig=False):
         Path('Wavelet/Mci/'+path).mkdir(parents=True, exist_ok=True)
         plt.savefig('Wavelet/Mci/'+path+'/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.pdf', dpi=120)
         # plt.savefig('Wavelet/Mci/'+path+'/MCI on scale wavelet on lag 0 of '+str(title)+' iteration.png', dpi=120)
+        plt.clf()
+        plt.close()
     else:
         plt.show()
 

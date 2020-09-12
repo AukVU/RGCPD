@@ -228,8 +228,11 @@ def display_info_ts(y:pd.Series, figsize=(16, 8), title="TS", lags=20, save_fig:
     plt.tight_layout()
     if save_fig == True:
         plt.savefig('Fitted/AR/Plots/times_serie_'+title+'_stats.pdf', dpi=120)
-        plt.savefig('Fitted/AR/Plots/time_serie_'+title+'stats.png', dpi=120)
-    plt.show()
+        # plt.savefig('Fitted/AR/Plots/time_serie_'+title+'stats.png', dpi=120)
+        plt.clf()
+        plt.close()
+    else:
+        plt.show()
 
 def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(16, 8), title="", lags=20, save_fig:bool=False, debug:bool=False):
     
@@ -254,7 +257,10 @@ def display_pierce_LJbox(y:pd.Series, dates:pd.DatetimeIndex, figsize=(16, 8), t
     if save_fig == True:
         plt.savefig('Fitted/AR/Plots/time_serie__pierce_LJbox.pdf', dpi=120)
         # plt.savefig('Fitted/AR/Plots/time_serie__pierce_LJbox.png', dpi=120)
-    plt.show()
+        plt.clf()
+        plt.close()
+    else:
+        plt.show()
    
 def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, signal:pd.Series, order:tuple, save_fig:bool=False):
     # TODO FIX IF ORDER [0] DIFFERS FROM ORDER[1]
@@ -281,7 +287,10 @@ def display_poly_data_arma(simul_data:np.array, ar:list, ma:list, signal:pd.Seri
     if save_fig == True:
         plt.savefig('Fitted/ARMA/Synthetic_data_.pdf', dpi=120)
         # plt.savefig('Fitted/ARMA/Synthetic_data_.png', dpi=120)
-    plt.show()
+        plt.clf()
+        plt.close()
+    else:
+        plt.show()
 
 def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, path:str=' ', title:str=' ', save_fig:bool=False, dep:bool=False):
     fig, ax = plt.subplots(3, 1, figsize=(16,8), dpi=120)
@@ -312,7 +321,7 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, path:st
     else:
         ax[0].plot(_dates, simul_data, '-b', label='AR(2)= '+'$'+l+'$', alpha=0.5)
         ax[0].fill_between(_dates, simul_data-ci_low, simul_data + ci_high, color='r', alpha=0.3, label=r'95 % confidence interval')
-        ax[0].set_ylabel('Variance in temperature Celsius')
+        ax[0].set_ylabel(r'Variance in Celsius$^{\circ}$')
         ax[0].legend(loc=0)
         
 
@@ -329,6 +338,8 @@ def display_poly_data_ar(simul_data:np.array, ar:list, signal:pd.Series, path:st
         Path('Fitted/AR/Plots/'+path).mkdir(parents=True, exist_ok=True)
         plt.savefig('Fitted/AR/Plots/'+path+'/'+title+'.pdf', dpi=120)
         # plt.savefig('Fitted/AR/Plots/'+path+'/'+title+'.png', dpi=120)
+        plt.clf()
+        plt.close()
     else:
         plt.show()
 

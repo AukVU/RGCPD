@@ -146,11 +146,7 @@ for i, col in enumerate(cols[1:]):
                     
                     inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with gamma {str(np.round(exp, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset+'_intermediate', savefig=True)
                     inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'Target dependance {cols[0]} and precursor {col} \n with nu {str(np.round(nus[-1], 2))} and {exp} gamma', path=dataset, save_fig=True, dependance=True)
-            
-            #     # inv.plot_wavelet_variance(var_result=result_var_target, title=cols[0] +'_iteration'+ str(it), savefig=True)
-            #     # inv.plot_wavelet_variance(var_result=result_var_prec, title=col +'_ iteration'+ str(it), savefig=True)
-            #     # inv.display_polynome(poly=poly_ts, ar_list=ar_ts, rg_data=rg_data, col=cols[0], title=f'AR fit on {cols[0]} target with {str(it)} iteration', save_fig=True, dependance=False)
-            #     inv.display_polynome(poly=poly_prec, ar_list=ar, rg_data=rg_data, col=col, title=f'AR fit on {col} precursor with {str(nu)} variation on {str(it)} iteration ', save_fig=True, dependance=False)  
+
 
             if it == end_iter - 1 :
                 if args.experiment == 'nu':

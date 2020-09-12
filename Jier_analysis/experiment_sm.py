@@ -121,30 +121,28 @@ for i, col in enumerate(cols[1:]):
 
                 if args.experiment == 'nu':
                     
-                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with nu {str(np.round(exp, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset, savefig=True)
+                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with nu {str(np.round(exp, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset+'_intermediate', savefig=True)
                     inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(it)} variation \n with nu {str(np.round(exp, 2))}', path=dataset, savefig=True)
                     inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'Target dependance {cols[0]} and precursor {col} \n with nu {str(np.round(exp, 2))} and {gammas[-1]} gamma', path=dataset, save_fig=True, dependance=True)
                 else:
                     
-                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with gamma {str(np.round(exp, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset, savefig=True)
+                    inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=target_prec_lag, title=f'MCI with gamma {str(np.round(exp, 2))} variation with precursor {col} \n on {str(it)} iteration',path=dataset+'_intermediate', savefig=True)
                     inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(it)} variation \n with gamma {str(np.round(exp, 2))}', path=dataset, savefig=True)
                     inv.display_polynome(poly=poly_dep, ar_list=[ar_ts[0], ar_ts[1], 1.0], rg_data=rg_data, col=cols[0], title=f'Target dependance {cols[0]} and precursor {col} \n with nu {str(np.round(nus[-1], 2))} and {exp} gamma', path=dataset, save_fig=True, dependance=True)
-            #     # inv.plot_wavelet_variance(var_result=result_var_target, title=cols[0] +'_iteration'+ str(it), savefig=True)
-            #     # inv.plot_wavelet_variance(var_result=result_var_prec, title=col +'_ iteration'+ str(it), savefig=True)
-            #     # inv.display_polynome(poly=poly_ts, ar_list=ar_ts, rg_data=rg_data, col=cols[0], title=f'AR fit on {cols[0]} target with {str(it)} iteration', save_fig=True, dependance=False)
-            #     inv.display_polynome(poly=poly_prec, ar_list=ar, rg_data=rg_data, col=col, title=f'AR fit on {col} precursor with {str(nu)} variation on {str(it)} iteration ', save_fig=True, dependance=False)  
-
+  
             if it == end_iter - 1 :
                 if args.experiment == 'nu':
+                    inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(end_iter)} th iteration variation \n with nu {str(np.round(exp, 2))}', path=dataset, savefig=True)
                     inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=poly_stats['mci'], title=f'MCI ensemble with nu {str(np.round(exp, 2))} variation with precursor {col} \n on {str(end_iter)} total iterations',path=dataset, savefig=True, ensemble=True)
-                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter,  subjects=elements[-1], title='Totale run of '+str(end_iter)+' iteration with experiment  nu on '+elements[-1].upper()+' '+col, path=dataset, savefig=True)
-                    inv.display_sensitivity_in_iter(tests=poly_stats_iter,size=end_iter, subjects=elements[-2],title='Totale run of '+str(end_iter)+' iteration with experiment  nu on  '+elements[-2].upper()+' '+col, path=dataset, savefig=True)
-                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-3],title='Totale run of '+str(end_iter)+' iteration with experiment  nu on  '+elements[-3].upper()+' '+col, path=dataset, savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter,  subjects=elements[-1], title='Totale run of '+str(end_iter)+' iteration with experiment  nu '+str(exp)+' on '+elements[-1].upper()+' '+col, path=dataset+'_iterations', savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter,size=end_iter, subjects=elements[-2],title='Totale run of '+str(end_iter)+' iteration with experiment  nu '+str(exp)+' on  '+elements[-2].upper()+' '+col, path=dataset+'_iterations', savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-3],title='Totale run of '+str(end_iter)+' iteration with experiment  nu '+str(exp)+' on  '+elements[-3].upper()+' '+col, path=dataset+'_iterations', savefig=True)
                 else:
+                    inv.plot_wavelet_variance(var_result=result_var_prec_dep, title=f'Wavelet scale2scale variance on {str(end_iter)} th iteration variation \n with gamma {str(np.round(exp, 2))}', path=dataset, savefig=True)
                     inv.plot_mci_prediction(detail_prec=prec_cD, prec_lag=poly_stats['mci'], title=f'MCI ensemble with gamma {str(np.round(exp, 2))} variation with precursor {col} \n on {str(end_iter)} total iterations',path=dataset, savefig=True, ensemble=True)
-                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter,  subjects=elements[-1], title='Totale run of '+str(end_iter)+' iteration with experiment  gamma on '+elements[-1].upper()+' '+col, path=dataset, savefig=True)
-                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-2],title='Totale run of '+str(end_iter)+' iteration with experiment  gamma on  '+elements[-2].upper()+' '+col, path=dataset, savefig=True)
-                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-3],title='Totale run of '+str(end_iter)+' iteration with experiment  gamma on  '+elements[-3].upper()+' '+col, path=dataset, savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter,  subjects=elements[-1], title='Totale run of '+str(end_iter)+' iteration with experiment  gamma '+str(exp)+' on '+elements[-1].upper()+' '+col, path=dataset+'_iterations', savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-2],title='Totale run of '+str(end_iter)+' iteration with experiment  gamma '+str(exp)+' on  '+elements[-2].upper()+' '+col, path=dataset+'_iterations', savefig=True)
+                    inv.display_sensitivity_in_iter(tests=poly_stats_iter, size=end_iter, subjects=elements[-3],title='Totale run of '+str(end_iter)+' iteration with experiment  gamma'+str(exp)+' on  '+elements[-3].upper()+' '+col, path=dataset+'_iterations', savefig=True)
 
 
     if args.experiment == 'nu':

@@ -20,6 +20,7 @@ import seaborn as sns
 sns.set()
 
 from functions_pp import time_mean_bins
+# from df_ana import autocorr_sm, plot_ac
 
 import networkx as nx
 from networkx.drawing.nx_agraph import graphviz_layout
@@ -72,6 +73,12 @@ def get_links_coeffs(links_coeffs):
             0: [((0, 1), 0.5), ((2, 2), -0.4)],
             1: [((1, 1), 0.5), ((0, 1), 0.4)],
             2: [((2, 1), 0.5), ((1, 1), 0.4)]
+        }
+    elif links_coeffs == 'Jier':
+        return {
+            0: [((0, 1), 0.15), ((1, 1), 0.15), ((2, 1), -0.15)],
+            1: [((1, 1), 0.15), ((2, 1), -0.15), ((2, 2), -0.15)],
+            2: [((2, 1), 0.15), ((1, 1), -0.15), ((0, 1), -0.15)]
         }
 
 def plot_timeseries_func(savar, plot_points, settings, output='test'):
@@ -180,39 +187,43 @@ def draw_network_func(links_coeffs, settings, results=None, output='test'):
     plt.savefig(filename, format='pdf')
     # plt.show()
 
-def create_causal_map(N, settings, verbose=False):
+def create_causal_map_old(N, settings, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
         # autocorrelation = 0.1 * np.random.random() + 0.8
-        autocorrelation = 0.8
+        autocorrelation = settings['autocor_target']
         for mode in range(0, N):
             possible_links = list(range(N))
             del possible_links[mode]
-            links_coeffs[mode] = [((mode, 10), autocorrelation)]
+            links_coeffs[mode] = [((mode, 1), autocorrelation)]
             start = 1
             if mode == 0:
-                for link in range(np.random.randint(1,3)):
+                number_of_links = settings['n_precurs']
+                # if settings['debug']:
+                #     number_of_links = 2
+                for link in range(number_of_links):
                     # choice = np.random.choice(possible_links)
                     # possible_links.remove(choice)
                     # strength = max(0, np.random.uniform(low=0,high=0.1) + settings['signal'])
-                    strength = max(0, settings['signal']) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
+                    strength = settings['signal'] * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
                     if verbose:
                         print(f"Link {link + 1} with strength {strength}")
-                    links_coeffs[mode] += [((link + 1, 10), strength)]
+                    links_coeffs[mode] += [((link + 1, 1), strength)]
             elif mode == (N - 1):
                 # print('passed')
                 pass
             else:
-                if N > 5:
-                    if mode == (N - 3):
-                        # print('passed')
-                        pass
+                # if N > 5:
+                #     if mode == (N - 3):
+                #         # print('passed')
+                #         pass
+                possible_links.remove(0)
                 for link in range(np.random.randint(start,4)):
                     choice = np.random.choice(possible_links)
                     possible_links.remove(choice)
-                    strength = (settings['signal'] - 0.1) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=-3,high=0) + 
-                    links_coeffs[mode] += [((choice, 10), strength)]
+                    strength = (settings['signal'] - 0.02) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=-3,high=0) + 
+                    links_coeffs[mode] += [((choice, 1), strength)]
             autocorrelation = 0.9 + np.random.uniform(low=-0.095, high=0.095)
             autocorrelation = settings['autocor']
         try:
@@ -227,7 +238,7 @@ def create_causal_map_all_links(N, settings, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
-        autocorrelation = 0.8
+        autocorrelation = settings['autocor_target']
         for mode in range(0, N):
             links_coeffs[mode] = [((mode, 1), autocorrelation)]
             autocorrelation = settings['autocor']
@@ -246,11 +257,35 @@ def create_causal_map_all_links(N, settings, verbose=False):
             pass
     return links_coeffs
 
+def create_causal_map_some_modes(N, settings, verbose=False):
+    result = None
+    while result == None:
+        links_coeffs = {}
+        autocorrelation = settings['autocor_target']
+        for mode in range(0, N):
+            links_coeffs[mode] = [((mode, 1), autocorrelation)]
+            autocorrelation = settings['autocor']
+        strengths = [(settings['signal'] - ((settings['signal'] / 2) * m / (N-2))) for m in range(N-1)]
+        print(f"Strenghts of the links is: {strengths}")
+        mode = 0
+        for link in range(N-3):
+            strength = max(0, strengths[link]) * np.random.choice([-1,1]) #0.1 * np.random.uniform(low=0,high=0) + 
+            # if verbose:
+            print(f"Link {link + 1} with strength {strength}")
+            links_coeffs[mode] += [((link + 1, 1), strength)]
+        try:
+            check_stability(links_coeffs)
+            result = "Generated"
+        except:
+            # print("New try making causal map")
+            pass
+    return links_coeffs
+
 def create_causal_map_one(N, settings, verbose=False):
     result = None
     while result == None:
         links_coeffs = {}
-        autocorrelation = 0.8
+        autocorrelation = settings['autocor_target']
         for mode in range(0, N):
             links_coeffs[mode] = [((mode, 1), autocorrelation)]
             autocorrelation = settings['autocor']
@@ -466,7 +501,7 @@ def create_real_matrices_old(settings, general_path, links_coeffs):
     save_matrices(settings, path, pmatrix, val_matrix)
 
 
-def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, plot_timeseries=False, draw_network=False, cluster=False):
+def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, plot_timeseries=False, draw_network=False, custom_noise=False, cluster=False):
     nx, ny, T, N = settings['nx'], settings['ny'], settings['T'], settings['N']
     spatial_covariance = settings['spatial_covariance']
     general_path = settings['user_dir'] + '/' + settings['extra_dir'] + '/results/' + settings['filename']
@@ -484,6 +519,10 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
             links_coeffs = create_causal_map_one(2, settings, verbose)
             settings['N'] = N = 2
             settings['ny'] = ny = settings['nx'] * 2
+        elif settings['model'] == 'old':
+            links_coeffs = create_causal_map_old(N, settings, verbose)
+        elif settings['model'] == 'some':
+            links_coeffs = create_causal_map_some_modes(N, settings, verbose)
         else:
             links_coeffs = create_causal_map_all_links(N, settings, verbose)
     elif links_coeffs == None:
@@ -491,6 +530,7 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         links_coeffs = get_links_coeffs('Xavier')
     elif type(links_coeffs) == str:
         links_coeffs = get_links_coeffs(links_coeffs)
+        print(links_coeffs)
     else:
         print('Using default causal map of Xavier')
         links_coeffs = get_links_coeffs('Xavier')
@@ -551,6 +591,10 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         verbose = verbose
     )
     savar.create_linear_savar_data()
+    if custom_noise:
+        size_data_field = savar.data_field.shape
+        noise_add = np.random.normal(scale=settings['custom_noise_level'], size=size_data_field)
+        savar.data_field = savar.data_field + noise_add
 
     if plot_modes and not cluster:
         modes = varimax(savar.data_field)
@@ -602,6 +646,22 @@ def create_time_series(settings, links_coeffs, verbose=False, plot_modes=False, 
         dataframe = create_dataframe(savar, settings, mask)
 
         dataframe_binned, _ = time_mean_bins(dataframe, to_freq=settings['timefreq'], start_end_date=('1-1', '12-31'), start_end_year=None, closed_on_date='12-31')
+
+        # if not cluster:
+        #     dataframe_plot = dataframe_binned.to_pandas()
+        #     fig, ax = plt.subplots(nrows=1, ncols=2, constrained_layout=True)
+        #     ax[0] = plot_ac(y=dataframe_plot[0], ax=ax[0], title='Target')
+        #     ax[0].set_xlim([0,15])
+        #     ax[0].set_xticks(range(0,15))
+        #     ax[0].set_xticklabels(range(0,15))
+        #     ax[0].set_ylim([0,1])
+
+            # ax[1] = plot_ac(y=dataframe_plot[1], ax=ax[1], title='Precur')
+            # ax[1].set_xlim([0,15])
+            # ax[1].set_xticks(range(0,15))
+            # ax[1].set_xticklabels(range(0,15))
+            # ax[1].set_ylim([0,1])
+            # plt.show()
 
         RV_mask = np.array([True if d.values in dataframe_binned.time else False for d in dataframe.time])
         indices = np.where(RV_mask)[0]

@@ -5,10 +5,12 @@ curr_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe(
 main_dir = '/'.join(curr_dir.split('/')[:-1])
 RGCPD_func = os.path.join(main_dir, 'RGCPD')
 cluster_func = os.path.join(main_dir, 'clustering/') 
+df_ana_func = os.path.join(main_dir, 'df_analysis/df_analysis') 
 if cluster_func not in sys.path:
     sys.path.append(main_dir)
     sys.path.append(RGCPD_func)
     sys.path.append(cluster_func)
+    sys.path.append(df_ana_func)
 
 
 import creating_time_series as cts
@@ -20,14 +22,14 @@ settings['random_modes'] = False
 settings['noise_use_mean'] = False
 
 settings['transient'] = 200
-settings['spatial_factor'] = 0.1
+settings['spatial_factor'] = 0.05 #0.1
 
 if len(sys.argv) > 1:
     settings['user_dir'] = sys.argv[1]
 else:
     settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 settings['extra_dir'] = 'Code_Lennart'
-settings['filename'] = 'test_met_savar11'
+settings['filename'] = 'Xavier'
 
 # sys.exit()
 settings['random_causal_map'] = True
@@ -46,20 +48,23 @@ settings['N'] = 5
 settings['nx'], settings['ny'], settings['T'] = 30, settings['N'] * 30, 731 #3287 #1826 #5114 731
 settings['plot_points'] = settings['T']
 
-settings['signal'] = 0.25#0.5
+settings['signal'] = 0.15#0.5
 settings['noise_level'] = 10
+settings['custom_noise_level'] = 0
 settings['spatial_covariance'] = 500
 
 
-links_coeffs = 'model3'
+links_coeffs = 'Jier'
 
-settings['model'] = 'multiple'
-settings['autocor'] = 0.9
-settings['timefreq'] = 10
+settings['model'] = 'some'
+settings['autocor'] = 0.96
+settings['autocor_target'] = 0.6
+settings['timefreq'] = 1
 
 print('Start generating')
 cts.create_time_series(settings, links_coeffs,  verbose=True,
                                             plot_modes=False,
                                             plot_timeseries=True,
                                             draw_network=True,
+                                            custom_noise=False,
                                             cluster=False)

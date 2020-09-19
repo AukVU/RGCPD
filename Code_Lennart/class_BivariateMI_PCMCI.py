@@ -284,40 +284,39 @@ def granger_map(field, ts):
         granger = grangercausalitytests(data, [1, 10], verbose=False)
         corr_vals[i], pvals[i], _, _ = granger[10][0]['ssr_ftest']
         # corr_vals[i], pvals[i], _ = granger[1][0]['ssr_chi2test']
-        # print(' hoi')
     # restore original nans
     corr_vals[fieldnans] = np.nan
     return corr_vals, pvals
 
 
-def parcorr_map_spatial(field, ts):
-    x = np.ma.zeros(field.shape[1])
-    corr_vals = np.array(x)
-    pvals = np.array(x)
-    fieldnans = np.array([np.isnan(field[:,i]).any() for i in range(x.size)])
+# def parcorr_map_spatial(field, ts):
+#     x = np.ma.zeros(field.shape[1])
+#     corr_vals = np.array(x)
+#     pvals = np.array(x)
+#     fieldnans = np.array([np.isnan(field[:,i]).any() for i in range(x.size)])
     
-    nonans_gc = np.arange(0, fieldnans.size)[fieldnans==False]
-    ts = np.expand_dims(ts, axis=1)
-    for i in nonans_gc:
+#     nonans_gc = np.arange(0, fieldnans.size)[fieldnans==False]
+#     ts = np.expand_dims(ts, axis=1)
+#     for i in nonans_gc:
 
-        cond_ind_test = ParCorr()
-        if i < 199:
-            east = np.expand_dims(field[:,i+1], axis=1)
-        else:
-            east = np.expand_dims(field[:,0], axis=1)
-        if i > 0:
-            west = np.expand_dims(field[:,i-1], axis=1)
-        else:
-            west = np.expand_dims(field[:,-1], axis=1)
-        data = np.concatenate((west, east), axis=1)
-        # a = cond_ind_test.get_dependence_measure(data,[0,1])
-        # b = cond_ind_test.get_analytic_significance(a, len(ts[0]), 2)
-        a, b = cond_ind_test.run_test_raw(ts, np.expand_dims(field[:,i], axis=1), data)
-        corr_vals[i] = a
-        pvals[i] = b
-    # restore original nans
-    corr_vals[fieldnans] = np.nan
-    return corr_vals, pvals
+#         cond_ind_test = ParCorr()
+#         if i < 199:
+#             east = np.expand_dims(field[:,i+1], axis=1)
+#         else:
+#             east = np.expand_dims(field[:,0], axis=1)
+#         if i > 0:
+#             west = np.expand_dims(field[:,i-1], axis=1)
+#         else:
+#             west = np.expand_dims(field[:,-1], axis=1)
+#         data = np.concatenate((west, east), axis=1)
+#         # a = cond_ind_test.get_dependence_measure(data,[0,1])
+#         # b = cond_ind_test.get_analytic_significance(a, len(ts[0]), 2)
+#         a, b = cond_ind_test.run_test_raw(ts, np.expand_dims(field[:,i], axis=1), data)
+#         corr_vals[i] = a
+#         pvals[i] = b
+#     # restore original nans
+#     corr_vals[fieldnans] = np.nan
+#     return corr_vals, pvals
 
 def parcorr_map_time(field, ts, lag=1, target=False, precur=True):
     x = np.ma.zeros(field.shape[1])
@@ -338,8 +337,6 @@ def parcorr_map_time(field, ts, lag=1, target=False, precur=True):
                 z = np.concatenate((z,z2), axis=1)
             else:
                 z = np.expand_dims(field[:-lag, i], axis=1)
-        # a = cond_ind_test.get_dependence_measure(data,[0,1])
-        # b = cond_ind_test.get_analytic_significance(a, len(ts[0]), 2)
         field_i = np.expand_dims(field[lag:,i], axis=1)
         a, b = cond_ind_test.run_test_raw(ts, field_i, z)
         corr_vals[i] = a
@@ -408,18 +405,12 @@ def entropy_map(field, ts):
     
     nonans_gc = np.arange(0, fieldnans.size)[fieldnans==False]
 
-    # ts_contingency = np.histogram(ts, bins=60, density=False)[0]
     kde_ts = stats.gaussian_kde(ts)([np.arange(-30,30,1)])
     for i in nonans_gc:
-        # print(i)
         corr_vals[i] = transfer_entropy(field[:,i], ts)
-        # precur_contingency = np.histogram(field[:,i], bins=60, density=False)[0]
         kde_precur = stats.gaussian_kde(field[:,i])
         kde_precur = kde_precur([np.arange(-30,30,1)])
-        # where = np.where(kde_precur > 0)
-        # non_zero = kde_precur[where]
         chi2, pvals[i], _, _ = stats.chi2_contingency([kde_precur, kde_ts])
-        # chi2, pvals[i], _, _ = stats.chi2_contingency([precur_contingency, ts_contingency])
     
     mean = corr_vals.mean()
     corr_vals -= mean
@@ -440,15 +431,8 @@ def entropy_map_pearson(field, ts):
     # ts_contingency = np.histogram(ts, bins=60, density=False)[0]
     kde_ts = stats.gaussian_kde(ts)([np.arange(-30,30,1)])
     for i in nonans_gc:
-        # print(i)
         corr_vals[i] = transfer_entropy(field[:,i], ts)
-        # precur_contingency = np.histogram(field[:,i], bins=60, density=False)[0]
-        # kde_precur = stats.gaussian_kde(field[:,i])
-        # kde_precur = kde_precur([np.arange(-30,30,1)])
-        # where = np.where(kde_precur > 0)
-        # non_zero = kde_precur[where]
         _, pvals[i] = scipy.stats.pearsonr(ts,field[:,i])
-        # chi2, pvals[i], _, _ = stats.chi2_contingency([precur_contingency, ts_contingency])
     
     mean = corr_vals.mean()
     corr_vals -= mean

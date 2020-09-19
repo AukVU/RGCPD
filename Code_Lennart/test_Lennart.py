@@ -6,6 +6,7 @@
 
 import os, inspect, sys
 
+import matplotlib.pyplot as plt
 
 if sys.platform == 'linux':
     import matplotlib as mpl
@@ -48,12 +49,13 @@ from find_precursors import relabel
 from class_BivariateMI_PCMCI import corr_map
 from class_BivariateMI_PCMCI import entropy_map
 from class_BivariateMI_PCMCI import entropy_map_pearson
-from class_BivariateMI_PCMCI import parcorr_map_spatial
+# from class_BivariateMI_PCMCI import parcorr_map_spatial
 from class_BivariateMI_PCMCI import parcorr_map_time
 from class_BivariateMI_PCMCI import granger_map
 from class_BivariateMI_PCMCI import gpdc_map
 from class_BivariateMI_PCMCI import rcot_map
 from class_BivariateMI_PCMCI import cmiknn_map
+from df_ana import plot_ac, autocorr_sm
 
 import creating_time_series as cts
 
@@ -117,7 +119,7 @@ settings['val_measure'] = 'average'
 test_splits = 5
 
 # output = 'era5'
-output =  'test_met_savar11'
+output =  'Xavier'
 bivariate = corr_map
 # bivariate = entropy_map
 # bivariate = entropy_map_pearson
@@ -170,6 +172,7 @@ else:
 # start_end_TVdate = ('3-13', '2-25')
 start_end_TVdate = ('7-1', '12-31')
 start_end_date = ('1-1', '12-31')
+tfreq = 1
 # start_end_date = None
 
 RGCPD_path = local_base_path + f'/{output}/output_RGCPD/{bivariate.__name__}'
@@ -182,7 +185,7 @@ rg = RGCPD(list_of_name_path=list_of_name_path,
            list_for_MI=list_for_MI,
            start_end_TVdate=start_end_TVdate,
            start_end_date=start_end_date,
-           tfreq=10, lags_i=np.array([1]),
+           tfreq=tfreq, lags_i=np.array([1]),
            path_outmain=RGCPD_path)
 
 #selbox = [None, {'sst':[-180,360,-10,90]}]
@@ -274,14 +277,20 @@ kwrgs = {'link_colorbar_label':'cross-MCI',
                      'arrow_linewidth':50,
                      'label_fontsize':14,
                      'node_label_size':1}
-rg.PCMCI_plot_graph(s=1, variable='1ts', kwrgs=kwrgs)
-rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
+# rg.PCMCI_plot_graph(s=1, variable='1ts', kwrgs=kwrgs)
+# rg.PCMCI_plot_graph(s=2, kwrgs=kwrgs)
 
 
 
 timeseries_RGCPD = rg.df_data.copy() 
 timeseries_RGCPD = timeseries_RGCPD.loc[0]
 timeseries_RGCPD = timeseries_RGCPD.values[:,:2]# time x number of timeseries
+
+# fig, ax = plt.subplots(nrows=1, ncols=2, constrained_layout=True)
+# ax[0] = plot_ac(y=rg.df_data['1ts'], ax=ax[0], title='Target')
+
+# ax[1] = plot_ac(y=rg.df_data[f'{tfreq}..{locs[0][0][0]}..test_precur'], ax=ax[1], title='Precur')
+# plt.show()
 
 
 

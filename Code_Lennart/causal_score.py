@@ -4,7 +4,7 @@ import pandas as pd
 import os
 import sys
 
-def calculate_p_value_score(found, real, correlated, measure='', alpha=0.001, target_only=True):
+def calculate_p_value_score(found, real, correlated, measure='', alpha=0.001, target_only=True, lags=False):
     measure = measure.capitalize()
     real_matrix_orig = np.load(real)
     found_matrix_orig = np.load(found)
@@ -14,8 +14,11 @@ def calculate_p_value_score(found, real, correlated, measure='', alpha=0.001, ta
     real_matrix = real_matrix_orig[correlated]
     found_matrix = found_matrix_orig
     if target_only:
-        real_matrix = real_matrix_orig[0][1]
-        found_matrix = found_matrix[0][1]
+        real_matrix = real_matrix_orig[0]
+        found_matrix = found_matrix_orig[0]
+        if not lags:
+            real_matrix = real_matrix_orig[0][1]
+            found_matrix = found_matrix_orig[0][1]
 
     accuracy = 0.0
     if measure == 'Average':
@@ -48,7 +51,7 @@ def calculate_val_score(found, real, mask, correlated, measure='', target_only=T
         accuracy = (found_masked == real_masked).mean()
     return accuracy
 
-def calculate_causal_score(settings, val=False, verbose=False, locs=None, target_only=True, no_ac=True):
+def calculate_causal_score(settings, val=False, verbose=False, locs=None, target_only=True, no_ac=True, lags=False):
     general_path = settings['user_dir'] + '/' + settings['extra_dir'] + '/results/' + settings['filename']
     general_path = general_path + '/matrices'
 
@@ -102,7 +105,7 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
                     # print('Skipped because autocorrelatie')
                     continue
                 # print('Not skipped')
-            p_score, real_mask = calculate_p_value_score(found, real[mode], correlated, measure=settings['measure'], alpha=settings['alpha'], target_only=target_only)
+            p_score, real_mask = calculate_p_value_score(found, real[mode], correlated, measure=settings['measure'], alpha=settings['alpha'], target_only=target_only, lags=lags)
             results[f'{test} p_value'][mode] = p_score
             # val_score = calculate_val_score(all_files[i][number_of_modes + j], real[number_of_modes + j], real_mask, correlated, measure=settings['val_measure'], target_only=target_only)
             # results[f'{test} value'][mode] = val_score
@@ -133,14 +136,14 @@ def calculate_causal_score(settings, val=False, verbose=False, locs=None, target
 # settings = {}
 # settings['user_dir'] = user_dir = '/mnt/c/Users/lenna/Documents/Studie/2019-2020/Scriptie/RGCPD'
 # settings['extra_dir'] = 'Code_Lennart'
-# settings['filename'] = 'test_met_savar11'
+# settings['filename'] = 'multiple_test'
 # settings['N'] = 5
 
 # settings['alpha'] = 0.01
 # settings['measure'] = 'average'
 # settings['val_measure'] = 'average'
 
-# score = calculate_causal_score(settings, val=False, verbose=True, target_only=True, locs=[0,1,3], no_ac=False)
+# score = calculate_causal_score(settings, val=False, verbose=True, target_only=True, locs=None, no_ac=False, lags=True)
 # print(score)
 
 

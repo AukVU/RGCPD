@@ -29,7 +29,7 @@ def plot_coeffs(data, w, mode, title, level, use_dwt=True):
             ca.append(a)
             cd.append(d)
 
-    fig = plt.figure(figsize=(16,9))
+    fig = plt.figure(figsize=(10,9))
     ax_main = fig.add_subplot(len(ca) + 1, 1, 1)
     ax_main.set_title(title)
     ax_main.plot(data)

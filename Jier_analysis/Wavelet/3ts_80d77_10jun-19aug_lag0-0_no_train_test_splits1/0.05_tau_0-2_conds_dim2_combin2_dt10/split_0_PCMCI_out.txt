@@ -1,0 +1,179 @@
+
+# Initialize conditional independence test
+
+Parameters:
+independence test = par_corr
+significance = analyticmask_type = y
+time 18, samples 2
+
+##
+## Running Tigramite PC algorithm
+##
+
+Parameters:
+independence test = par_corr
+tau_min = 1
+tau_max = 2
+pc_alpha = 0.05
+max_conds_dim = 2
+max_combinations = 2
+
+
+
+## Variable 3ts
+
+Iterating through pc_alpha = [0.05]:
+
+# pc_alpha = 0.05 (1/1):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/4):
+    Combination 0:  --> pval = 0.92910 / val = -0.026
+    Non-significance detected.
+
+    Link (3ts -2) --> 3ts (2/4):
+    Combination 0:  --> pval = 0.59993 / val = -0.154
+    Non-significance detected.
+
+    Link (p_1_lvl_6_dec -1) --> 3ts (3/4):
+    Combination 0:  --> pval = 0.66222 / val = 0.128
+    Non-significance detected.
+
+    Link (p_1_lvl_6_dec -2) --> 3ts (4/4):
+    Combination 0:  --> pval = 0.60379 / val = -0.152
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 0 parent(s):
+
+Algorithm converged for variable 3ts
+
+## Variable p_1_lvl_6_dec
+
+Iterating through pc_alpha = [0.05]:
+
+# pc_alpha = 0.05 (1/1):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> p_1_lvl_6_dec (1/4):
+    Combination 0:  --> pval = 0.75518 / val = -0.092
+    Non-significance detected.
+
+    Link (3ts -2) --> p_1_lvl_6_dec (2/4):
+    Combination 0:  --> pval = 0.75064 / val = -0.093
+    Non-significance detected.
+
+    Link (p_1_lvl_6_dec -1) --> p_1_lvl_6_dec (3/4):
+    Combination 0:  --> pval = 0.09621 / val = -0.462
+    Non-significance detected.
+
+    Link (p_1_lvl_6_dec -2) --> p_1_lvl_6_dec (4/4):
+    Combination 0:  --> pval = 0.53463 / val = -0.181
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable p_1_lvl_6_dec has 0 parent(s):
+
+Algorithm converged for variable p_1_lvl_6_dec
+
+## Resulting condition sets:
+
+    Variable 3ts has 0 parent(s):
+
+    Variable p_1_lvl_6_dec has 0 parent(s):
+
+##
+## Running Tigramite MCI algorithm
+##
+
+Parameters:
+
+independence test = par_corr
+tau_min = 0
+tau_max = 2
+max_conds_py = None
+max_conds_px = None
+
+        link (3ts -1) --> 3ts (1/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.92910 | val = -0.026
+
+        link (3ts -2) --> 3ts (2/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.59993 | val = -0.154
+
+        link (p_1_lvl_6_dec 0) --> 3ts (3/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.27780 | val = 0.312
+
+        link (p_1_lvl_6_dec -1) --> 3ts (4/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.66222 | val = 0.128
+
+        link (p_1_lvl_6_dec -2) --> 3ts (5/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.60379 | val = -0.152
+
+        link (3ts 0) --> p_1_lvl_6_dec (1/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.27780 | val = 0.312
+
+        link (3ts -1) --> p_1_lvl_6_dec (2/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.75518 | val = -0.092
+
+        link (3ts -2) --> p_1_lvl_6_dec (3/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.75064 | val = -0.093
+
+        link (p_1_lvl_6_dec -1) --> p_1_lvl_6_dec (4/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.09621 | val = -0.462
+
+        link (p_1_lvl_6_dec -2) --> p_1_lvl_6_dec (5/5):
+        with conds_y = [ ]
+        with conds_x = [ ]
+        pval = 0.53463 | val = -0.181
+
+## Significant links at alpha = 0.05:
+
+    Variable 3ts has 0 link(s):
+
+    Variable p_1_lvl_6_dec has 0 link(s):
+
+## Significant links at alpha = 0.1:
+
+    Variable 3ts has 0 link(s):
+
+    Variable p_1_lvl_6_dec has 0 link(s):
+
+## Significant links at alpha = 0.05:
+
+    Variable 3ts has 0 link(s):
+
+    Variable p_1_lvl_6_dec has 0 link(s):
+
+## Significant links at alpha = 0.01:
+
+    Variable 3ts has 0 link(s):
+
+    Variable p_1_lvl_6_dec has 0 link(s):

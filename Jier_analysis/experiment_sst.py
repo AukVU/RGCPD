@@ -78,7 +78,7 @@ elements = ['wvar', 'dep', 'mci']
 end_iter = args.iteration
 
 
-daily_mean_peak = np.empty((args.iteration, len(nus)))
+daily_mean_peak = np.empty((args.iteration, len(experiments)))
 exp_col =  {key: daily_mean_peak for key in cols[1:]}
 level_decomposition = None
 for i, col in enumerate(cols[1:]):
@@ -166,7 +166,7 @@ for i, col in enumerate(cols[1:]):
     if args.experiment == 'nu':
         inv.display_boxplot_sensitivity(tests=exp_col, subject=col, sens_vars=nus, depth=level_decomposition, path=dataset+'box_plots', title=r'Evaluation of sensitivity $\nu$ '+col, savefig=True)
     else:
-        inv.display_boxplot_sensitivity(tests=exp_col, subject=col, sens_vars=nus, depth=level_decomposition, path=dataset+'box_plots', title=r'Evaluation of sensitivity $\nu$ '+col, savefig=True)   
+        inv.display_boxplot_sensitivity(tests=exp_col, subject=col, sens_vars=gammas, depth=level_decomposition, path=dataset+'box_plots', title=r'Evaluation of sensitivity $\gamma$ '+col, savefig=True)   
 
 
     

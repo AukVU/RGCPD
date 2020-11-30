@@ -499,7 +499,7 @@ class RGCPD:
                                                    self.pcmci_results_dict,
                                                    alpha_level)
         self.df_links = wPCMCI.get_df_links(self.parents_dict)
-        lags = np.arange(self.kwrgs_pcmci['tau_min'], self.kwrgs_pcmci['tau_max']+1)
+        lags = np.arange(0, self.kwrgs_pcmci['tau_max']+1)
         self.df_MCIc, self.df_MCIa = wPCMCI.get_df_MCI(self.pcmci_dict,
                                                  self.pcmci_results_dict,
                                                  lags, variable=var)
@@ -536,7 +536,7 @@ class RGCPD:
         f_name = f'CEN_{variable}_s{s}'
         fig_path = os.path.join(self.path_outsub1, f_name)+self.figext
         plt.savefig(fig_path, bbox_inches='tight')
-        plt.show()
+        # plt.show()
 
     def PCMCI_get_ParCorr_from_txt(self, variable=None, pc_alpha='auto'):
 

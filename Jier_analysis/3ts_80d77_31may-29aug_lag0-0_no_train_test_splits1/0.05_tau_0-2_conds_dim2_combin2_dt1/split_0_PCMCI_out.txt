@@ -1,0 +1,289 @@
+
+# Initialize conditional independence test
+
+Parameters:
+independence test = par_corr
+significance = analyticmask_type = y
+time 14600, samples 2
+
+##
+## Running Tigramite PC algorithm
+##
+
+Parameters:
+independence test = par_corr
+tau_min = 1
+tau_max = 2
+pc_alpha = 0.05
+max_conds_dim = 2
+max_combinations = 2
+
+
+
+## Variable 3ts
+
+Iterating through pc_alpha = [0.05]:
+
+# pc_alpha = 0.05 (1/1):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> 3ts (1/4):
+    Combination 0:  --> pval = 0.00000 / val = 0.817
+    No conditions of dimension 0 left.
+
+    Link (3ts -2) --> 3ts (2/4):
+    Combination 0:  --> pval = 0.00000 / val = 0.554
+    No conditions of dimension 0 left.
+
+    Link (precursor -1) --> 3ts (3/4):
+    Combination 0:  --> pval = 0.00564 / val = 0.026
+    No conditions of dimension 0 left.
+
+    Link (precursor -2) --> 3ts (4/4):
+    Combination 0:  --> pval = 0.00555 / val = 0.027
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 4 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.817
+        (3ts -2): max_pval = 0.00000, min_val = 0.554
+        (precursor -2): max_pval = 0.00555, min_val = 0.027
+        (precursor -1): max_pval = 0.00564, min_val = 0.026
+
+Testing condition sets of dimension 1:
+
+    Link (3ts -1) --> 3ts (1/4):
+    Combination 0: (3ts -2)  --> pval = 0.00000 / val = 0.760
+    Combination 1: (precursor -2)  --> pval = 0.00000 / val = 0.817
+    No conditions of dimension 1 left.
+
+    Link (3ts -2) --> 3ts (2/4):
+    Combination 0: (3ts -1)  --> pval = 0.00000 / val = -0.343
+    Combination 1: (precursor -2)  --> pval = 0.00000 / val = 0.553
+    No conditions of dimension 1 left.
+
+    Link (precursor -2) --> 3ts (3/4):
+    Combination 0: (3ts -1)  --> pval = 0.33613 / val = 0.009
+    Non-significance detected.
+
+    Link (precursor -1) --> 3ts (4/4):
+    Combination 0: (3ts -1)  --> pval = 0.33713 / val = 0.009
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.760
+        (3ts -2): max_pval = 0.00000, min_val = 0.343
+
+Algorithm converged for variable 3ts
+
+## Variable precursor
+
+Iterating through pc_alpha = [0.05]:
+
+# pc_alpha = 0.05 (1/1):
+
+Testing condition sets of dimension 0:
+
+    Link (3ts -1) --> precursor (1/4):
+    Combination 0:  --> pval = 0.00680 / val = 0.026
+    No conditions of dimension 0 left.
+
+    Link (3ts -2) --> precursor (2/4):
+    Combination 0:  --> pval = 0.00792 / val = 0.025
+    No conditions of dimension 0 left.
+
+    Link (precursor -1) --> precursor (3/4):
+    Combination 0:  --> pval = 0.00000 / val = 1.000
+    No conditions of dimension 0 left.
+
+    Link (precursor -2) --> precursor (4/4):
+    Combination 0:  --> pval = 0.00000 / val = 1.000
+    No conditions of dimension 0 left.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable precursor has 4 parent(s):
+        (precursor -1): max_pval = 0.00000, min_val = 1.000
+        (precursor -2): max_pval = 0.00000, min_val = 1.000
+        (3ts -1): max_pval = 0.00680, min_val = 0.026
+        (3ts -2): max_pval = 0.00792, min_val = 0.025
+
+Testing condition sets of dimension 1:
+
+    Link (precursor -1) --> precursor (1/4):
+    Combination 0: (precursor -2)  --> pval = 0.00000 / val = 1.000
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = 1.000
+    No conditions of dimension 1 left.
+
+    Link (precursor -2) --> precursor (2/4):
+    Combination 0: (precursor -1)  --> pval = 0.00000 / val = -1.000
+    Combination 1: (3ts -1)  --> pval = 0.00000 / val = 1.000
+    No conditions of dimension 1 left.
+
+    Link (3ts -1) --> precursor (3/4):
+    Combination 0: (precursor -1)  --> pval = 0.15657 / val = -0.014
+    Non-significance detected.
+
+    Link (3ts -2) --> precursor (4/4):
+    Combination 0: (precursor -1)  --> pval = 0.21219 / val = -0.012
+    Non-significance detected.
+
+    Sorting parents in decreasing order with 
+    weight(i-tau->j) = min_{iterations} |I_{ij}(tau)| 
+
+Updating parents:
+
+    Variable precursor has 2 parent(s):
+        (precursor -1): max_pval = 0.00000, min_val = 1.000
+        (precursor -2): max_pval = 0.00000, min_val = 1.000
+
+Algorithm converged for variable precursor
+
+## Resulting condition sets:
+
+    Variable 3ts has 2 parent(s):
+        (3ts -1): max_pval = 0.00000, min_val = 0.760
+        (3ts -2): max_pval = 0.00000, min_val = 0.343
+
+    Variable precursor has 2 parent(s):
+        (precursor -1): max_pval = 0.00000, min_val = 1.000
+        (precursor -2): max_pval = 0.00000, min_val = 1.000
+
+##
+## Running Tigramite MCI algorithm
+##
+
+Parameters:
+
+independence test = par_corr
+tau_min = 0
+tau_max = 2
+max_conds_py = None
+max_conds_px = None
+
+        link (3ts -1) --> 3ts (1/5):
+        with conds_y = [ (3ts -2) ]
+        with conds_x = [ (3ts -2) (3ts -3) ]
+        pval = 0.00000 | val = 0.765
+
+        link (3ts -2) --> 3ts (2/5):
+        with conds_y = [ (3ts -1) ]
+        with conds_x = [ (3ts -3) (3ts -4) ]
+        pval = 0.00000 | val = -0.365
+
+        link (precursor 0) --> 3ts (3/5):
+        with conds_y = [ (3ts -1) (3ts -2) ]
+        with conds_x = [ (precursor -1) (precursor -2) ]
+        pval = 0.00000 | val = 0.045
+
+        link (precursor -1) --> 3ts (4/5):
+        with conds_y = [ (3ts -1) (3ts -2) ]
+        with conds_x = [ (precursor -2) (precursor -3) ]
+        pval = 0.00036 | val = 0.034
+
+        link (precursor -2) --> 3ts (5/5):
+        with conds_y = [ (3ts -1) (3ts -2) ]
+        with conds_x = [ (precursor -3) (precursor -4) ]
+        pval = 0.00022 | val = 0.035
+
+        link (3ts 0) --> precursor (1/5):
+        with conds_y = [ (precursor -1) (precursor -2) ]
+        with conds_x = [ (3ts -1) (3ts -2) ]
+        pval = 0.00000 | val = 0.045
+
+        link (3ts -1) --> precursor (2/5):
+        with conds_y = [ (precursor -1) (precursor -2) ]
+        with conds_x = [ (3ts -2) (3ts -3) ]
+        pval = 0.00000 | val = 0.120
+
+        link (3ts -2) --> precursor (3/5):
+        with conds_y = [ (precursor -1) (precursor -2) ]
+        with conds_x = [ (3ts -3) (3ts -4) ]
+        pval = 0.00000 | val = 0.161
+
+        link (precursor -1) --> precursor (4/5):
+        with conds_y = [ (precursor -2) ]
+        with conds_x = [ (precursor -2) (precursor -3) ]
+        pval = 0.00000 | val = 0.995
+
+        link (precursor -2) --> precursor (5/5):
+        with conds_y = [ (precursor -1) ]
+        with conds_x = [ (precursor -3) (precursor -4) ]
+        pval = 0.00000 | val = -0.880
+
+## Significant links at alpha = 0.05:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | val = 0.765 | conf = (0.000, 0.000)
+        (3ts -2): pval = 0.00000 | val = -0.365 | conf = (0.000, 0.000)
+        (precursor 0): pval = 0.00000 | val = 0.045 | conf = (0.000, 0.000)
+        (precursor -2): pval = 0.00022 | val = 0.035 | conf = (0.000, 0.000)
+        (precursor -1): pval = 0.00036 | val = 0.034 | conf = (0.000, 0.000)
+
+    Variable precursor has 5 link(s):
+        (precursor -1): pval = 0.00000 | val = 0.995 | conf = (0.000, 0.000)
+        (precursor -2): pval = 0.00000 | val = -0.880 | conf = (0.000, 0.000)
+        (3ts -2): pval = 0.00000 | val = 0.161 | conf = (0.000, 0.000)
+        (3ts -1): pval = 0.00000 | val = 0.120 | conf = (0.000, 0.000)
+        (3ts 0): pval = 0.00000 | val = 0.045 | conf = (0.000, 0.000)
+
+## Significant links at alpha = 0.1:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.765
+        (3ts -2): pval = 0.00000 | qval = 0.00000 | val = -0.365
+        (precursor 0): pval = 0.00000 | qval = 0.00000 | val = 0.045
+        (precursor -2): pval = 0.00022 | qval = 0.00025 | val = 0.035
+        (precursor -1): pval = 0.00036 | qval = 0.00036 | val = 0.034
+
+    Variable precursor has 5 link(s):
+        (precursor -1): pval = 0.00000 | qval = 0.00000 | val = 0.995
+        (precursor -2): pval = 0.00000 | qval = 0.00000 | val = -0.880
+        (3ts -2): pval = 0.00000 | qval = 0.00000 | val = 0.161
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.120
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = 0.045
+
+## Significant links at alpha = 0.05:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.765
+        (3ts -2): pval = 0.00000 | qval = 0.00000 | val = -0.365
+        (precursor 0): pval = 0.00000 | qval = 0.00000 | val = 0.045
+        (precursor -2): pval = 0.00022 | qval = 0.00025 | val = 0.035
+        (precursor -1): pval = 0.00036 | qval = 0.00036 | val = 0.034
+
+    Variable precursor has 5 link(s):
+        (precursor -1): pval = 0.00000 | qval = 0.00000 | val = 0.995
+        (precursor -2): pval = 0.00000 | qval = 0.00000 | val = -0.880
+        (3ts -2): pval = 0.00000 | qval = 0.00000 | val = 0.161
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.120
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = 0.045
+
+## Significant links at alpha = 0.01:
+
+    Variable 3ts has 5 link(s):
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.765
+        (3ts -2): pval = 0.00000 | qval = 0.00000 | val = -0.365
+        (precursor 0): pval = 0.00000 | qval = 0.00000 | val = 0.045
+        (precursor -2): pval = 0.00022 | qval = 0.00025 | val = 0.035
+        (precursor -1): pval = 0.00036 | qval = 0.00036 | val = 0.034
+
+    Variable precursor has 5 link(s):
+        (precursor -1): pval = 0.00000 | qval = 0.00000 | val = 0.995
+        (precursor -2): pval = 0.00000 | qval = 0.00000 | val = -0.880
+        (3ts -2): pval = 0.00000 | qval = 0.00000 | val = 0.161
+        (3ts -1): pval = 0.00000 | qval = 0.00000 | val = 0.120
+        (3ts 0): pval = 0.00000 | qval = 0.00000 | val = 0.045

@@ -34,7 +34,7 @@ def plot_signal_decomp(data, w, mode, title, level):
         coeff_list = [None, coeff] + [None] * i
         rec_d.append(wv.waverec(coeff_list, w))
 
-    fig = plt.figure(figsize=(16,9), dpi=120)
+    fig = plt.figure(figsize=(10,9), dpi=120)
     ax_main = fig.add_subplot(len(rec_a) + 1, 1, 1)
     ax_main.set_title(title)
     ax_main.plot(data)
@@ -97,14 +97,14 @@ def plot_modwt(data, w, title, level):
 
     coeffs =  wv.swt(a, w, level=level, trim_approx=True, norm=True) #[(cAn, (cDn, ...,cDn-1, cD1)]
 
-    ylim = [a.min(), a.max()]
+#     ylim = [a.min(), a.max()]
 
-    _, axes = plt.subplots(len(coeffs) + 1, figsize=(19, 8), dpi=120)
+    _, axes = plt.subplots(len(coeffs) + 1, figsize=(10, 8), constrained_layout=True, dpi=120)
     axes[0].set_title(title)
     axes[0].plot(a, 'k', label='Original signal')
     axes[0].set_ylabel('deg in Celsius')
     axes[0].set_xlim(0, len(a) - 1)
-    axes[0].set_ylim(ylim[0], ylim[1])
+#     axes[0].set_ylim(ylim[0], ylim[1])
     axes[0].legend(loc=0)
 
 
@@ -117,13 +117,13 @@ def plot_modwt(data, w, title, level):
             ax.set_ylabel("D%d" % (len(coeffs) - i))
             ax.plot( coeffs[i], 'g')
         # Scale axes
-        ax.set_xlim(0, len(a) - 1)
+#         ax.set_xlim(0, len(a) - 1)
         # ax.set_ylim(ylim[0], ylim[1])
-    plt.tight_layout()
+#     plt.tight_layout()
     # plt.show()
 
 def compare_signal_vs_smooth(index, col,  original_ts, smoothed_ts, save_fig=False):
-    fig, ax = plt.subplots(2, 1, figsize=(19, 8), dpi=120)
+    fig, ax = plt.subplots(2, 1, figsize=(10, 8), dpi=120)
     ax[0].plot(index, original_ts, 'k', label='Original')
     ax[0].legend(loc=0)
     ax[1].plot(index, smoothed_ts, 'r-', label='Smoothed swt')

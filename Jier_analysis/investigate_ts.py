@@ -25,8 +25,6 @@ import wave_ana as wa
 import multiprocessing as mp 
 from pathlib import Path
 
-# TODO CREATE SENSITIVITY
-
 def generate_rgcpd_default(doc=""):
     if doc == " ":
         return wa.generate_rgcpd()
@@ -138,19 +136,19 @@ def display_sensitivity_in_iter(tests, size,  subjects, path, title, savefig=Fal
   
     ax[0].fill_between(data.index, data.iloc[:, 1].values- conf_0[0],  data.iloc[:, 1].values + conf_0[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
     # ax[0].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
-    ax[0].xaxis.set_major_locator(ticker.MultipleLocator(1))
+    # ax[0].xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax[0].legend(loc=0)
     
     ax[1].plot(data.index, data.loc[:, (slice(None), 'avg')].values, label='Sample avg')
     ax[1].fill_between(data.index,  data.iloc[:, 0].values- conf_1[0],  data.iloc[:, 0].values- + conf_1[1], color='r', alpha=0.5, label=r'95 % sample confidence interval')
     # ax[1].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
-    ax[1].xaxis.set_major_locator(ticker.MultipleLocator(1))
+    # ax[1].xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax[1].legend(loc=0)
     
     ax[2].plot(data.index, data.loc[:, (slice(None), 'var')].values, label='Sample var')
     ax[2].fill_between(data.index,   data.iloc[:, 2].values - conf_2[0],  data.iloc[:, 2].values + conf_2[1] , color='r', alpha=0.5, label=r'95 % sample confidence interval')
     # ax[2].set_xticks(np.arange(min(np.arange(size)), max(np.arange(size)+1),1.0) )
-    ax[2].xaxis.set_major_locator(ticker.MultipleLocator(1))
+    # ax[2].xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax[2].legend(loc=0)
     ax[2].set_xlabel('Iterations')
 

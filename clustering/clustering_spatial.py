@@ -161,13 +161,13 @@ def dendogram_clustering(var_filename, mask=None, kwrgs_load={},
     q = kwrgs_clust['q']
 
     # always reload / reaggregate xarray. Joblib cannot pickle xr.DataArray as input
-    # if len(kwrgs_loop_load) == 0:
-    #     reload = False # xarray will always be the same
-    #     xarray_ts = functions_pp.import_ds_timemeanbins(var_filename, **kwrgs_load)
-    #     if type(q) is int:
-    #         xarray = binary_occurences_quantile(xarray_ts, q=q)
-    # else:
-    #     reload = True
+    if len(kwrgs_loop_load) == 0:
+        reload = False # xarray will always be the same
+        xarray_ts = functions_pp.import_ds_timemeanbins(var_filename, **kwrgs_load)
+        if type(q) is int:
+            xarray = binary_occurences_quantile(xarray_ts, q=q)
+    else:
+        reload = True
 
     if len(kwrgs_loop) == 1:
         # insert fake axes

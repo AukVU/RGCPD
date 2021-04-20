@@ -63,10 +63,10 @@ import wrapper_PCMCI as wPCMCI
 targets = ['easterntemp']#, 'westerntemp']
 
 periods = ['JA_center']#, 'JA_shiftright', 'JA_shiftleft', 'JJA_center']
-seeds = np.array([1,2,3])
+seeds = np.array([1,2,3,4,5])
 combinations = np.array(np.meshgrid(targets, periods, seeds)).T.reshape(-1,3)
 
-i_default = 0 #8
+i_default = 4 #8
 
 def parseArguments():
     # Create argument parser
@@ -304,7 +304,8 @@ def merge_lagged_wrapper(df_data, lags, keys):
 def prediction_wrapper(df_data, lags, target_ts=None, keys: list=None, match_lag: bool=False,
                        n_boot: int=1):
 
-    alphas = np.append(np.logspace(.1, 1.5, num=25), [250])
+    # alphas = np.append(np.logspace(.1, 1.5, num=25), [250])
+    alphas = np.logspace(.1, 1.5, num=25)
     kwrgs_model = {'scoring':'neg_mean_absolute_error',
                    'alphas':alphas, # large a, strong regul.
                    'normalize':False}

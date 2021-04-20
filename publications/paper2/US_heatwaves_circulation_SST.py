@@ -32,7 +32,7 @@ import class_BivariateMI
 import climate_indices
 import plot_maps, core_pp, functions_pp, df_ana, find_precursors
 
-west_east = 'west'
+west_east = 'east'
 TV = 'USCAnew'
 if TV == 'init':
     TVpath = user_dir + '/surfdrive/output_RGCPD/circulation_US_HW/tf15_nc3_dendo_0ff31.nc'
@@ -68,7 +68,7 @@ elif TV == 'USCA':
 
 
 path_out_main = os.path.join(main_dir,
-                             'RGCPD/publications/paper2/output/heatwave_circulation_v300_z500_SST/{}'.format(TVpath.split('_')[-1][:-3]))
+                             'publications/paper2/output/heatwave_circulation_v300_z500_SST/{}'.format(TVpath.split('_')[-1][:-3]))
 
 
 
@@ -104,10 +104,10 @@ list_for_MI   = [BivariateMI(name='z500', func=class_BivariateMI.corr_map,
                                 calc_ts='pattern cov', selbox=(0,360,-10,90),
                                 use_sign_pattern=True),
                  BivariateMI(name='v300', func=class_BivariateMI.corr_map,
-                                              alpha=.05, FDR_control=True, lags=lags,
-                                              distance_eps=600, min_area_in_degrees2=5,
-                                              calc_ts='pattern cov', selbox=(0,360,-10,90),
-                                              use_sign_pattern=True)]
+                                alpha=.05, FDR_control=True, lags=lags,
+                                distance_eps=600, min_area_in_degrees2=5,
+                                calc_ts='pattern cov', selbox=(0,360,20,90),
+                                use_sign_pattern=True)]
 
 
 
@@ -176,14 +176,23 @@ filename = os.path.join(rg.path_outsub1, 'z500vsmx2t_'+
 
 fig.savefig(filename + rg.figext, bbox_inches='tight')
 
-
+#%% upon request of reviewer, using a smaller bounding box plot
+# kwrgs_plot.update({'drawbox':[(0,0), (155,300,20,73)]})
+# fig = plot_maps.plot_corr_maps(xrvals, xrmask, **kwrgs_plot)
+# fig.axes[0].contour(xrclustered.longitude, xrclustered.latitude,
+#            np.isnan(xrclustered), transform=ccrs.PlateCarree(),
+#            levels=[0, 2], linewidths=1, linestyles=['solid'], colors=['white'])
+# filename = os.path.join(rg.path_outsub1, 'z500vsmx2t_'+
+#                         rg.hash+'_'+str(cluster_label)+'small_box')
+# fig.savefig(filename + rg.figext, bbox_inches='tight')
 
 #%% Plot corr(v300, mx2t)
 
 
 kwrgs_plot['title'] = f'$corr(v300_t, T^{west_east.capitalize()[0]}_t)$'
 kwrgs_plot['drawbox'] = [(0,0), v300_green_bb]
-
+kwrgs_plot['zoomregion'] = (-180,360,20,90)
+kwrgs_plot['cbar_vert'] = -0.025
 
 v200 = rg.list_for_MI[1]
 xrvals, xrmask = RGCPD._get_sign_splits_masked(v200.corr_xr,
@@ -195,6 +204,27 @@ fig.axes[0].contour(xrclustered.longitude, xrclustered.latitude,
                     np.isnan(xrclustered), transform=ccrs.PlateCarree(),
                     levels=[0, 2], linewidths=1, linestyles=['solid'],
                     colors=['white'])
+filename = os.path.join(rg.path_outsub1, 'v300vsmx2t_'+
+                        rg.hash+'_'+str(cluster_label))
+
+fig.savefig(filename + rg.figext, bbox_inches='tight')
+
+
+
+kwrgs_plot['drawbox'] = None
+xrvals, xrmask = RGCPD._get_sign_splits_masked(v200.corr_xr,
+                                               min_detect_gc,
+                                               v200.corr_xr['mask'])
+fig = plot_maps.plot_corr_maps(xrvals, xrmask, **kwrgs_plot)
+
+fig.axes[0].contour(xrclustered.longitude, xrclustered.latitude,
+                    np.isnan(xrclustered), transform=ccrs.PlateCarree(),
+                    levels=[0, 2], linewidths=1, linestyles=['solid'],
+                    colors=['white'])
+filename = os.path.join(rg.path_outsub1, 'v300vsmx2t_nobox'+
+                        rg.hash+'_'+str(cluster_label))
+
+fig.savefig(filename + rg.figext, bbox_inches='tight')
 #%%
 import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
@@ -212,36 +242,47 @@ if west_east == 'east':
         west_east_labels = [1,2]
         naming = {1:'west', 2:'east'}
 
-    i, label = 0, 1
+    # i, label = 0, 1
     list_df_target = []
     for i, label in enumerate(west_east_labels):
         list_of_name_path = [(label, TVpath),
-                              ('z500', os.path.join(path_raw, 'z500_1979-2020_1_12_daily_2.5deg.nc'))]
+                     ('z500', os.path.join(path_raw, 'z500_1979-2020_1_12_daily_2.5deg.nc')),
+                     ('v300', os.path.join(path_raw, 'v300_1979-2020_1_12_daily_2.5deg.nc'))]
         rg.list_of_name_path = list_of_name_path
+
         rg.pp_TV()
         rg.traintest(method, seed=seed,
                       subfoldername=None)
         if 'east' in naming[label] or 'north' in naming[label]:
             z500_green_bb = (155,300,20,73) #: RW box
+            v300_green_bb = (170,359,23,73)
         elif 'west' in naming[label]:
             z500_green_bb = (145,325,20,62)
+            v300_green_bb = (100,330,24,70)
         rg.list_for_MI = [BivariateMI(name='z500', func=class_BivariateMI.corr_map,
                                         alpha=.05, FDR_control=True,
                                         distance_eps=600, min_area_in_degrees2=5,
                                         calc_ts='pattern cov', selbox=z500_green_bb,
-                                        use_sign_pattern=True, lags = np.array([0]))]
+                                        use_sign_pattern=True, lags = np.array([0])),
+                          BivariateMI(name='v300', func=class_BivariateMI.corr_map,
+                                              alpha=.05, FDR_control=True,
+                                              distance_eps=600, min_area_in_degrees2=5,
+                                              calc_ts='pattern cov', selbox=v300_green_bb,
+                                              use_sign_pattern=True, lags=np.array([0]))]
         rg.list_for_EOFS = None
-        rg.calc_corr_maps(['z500'])
+        rg.calc_corr_maps()
         rg.plot_maps_corr(save=True)
-        rg.cluster_list_MI(['z500'])
+        rg.cluster_list_MI()
         rg.get_ts_prec(precur_aggr=1)
         if i == 0:
             df_data = rg.df_data.copy()
             df_data = df_data.rename({'0..0..z500_sp':naming[label]+'RW',
+                                      '0..0..v300_sp':naming[label]+'RWv300',
                                       f'{label}ts':'mx2t'+naming[label]}, axis=1)
             print(df_data.columns)
         else:
             df_app = rg.df_data.copy().rename({'0..0..z500_sp':naming[label]+'RW',
+                                               '0..0..v300_sp':naming[label]+'RWv300',
                                                f'{label}ts':'mx2t'+naming[label]}, axis=1)
             list_df_target.append(df_app)
             print(df_app.columns)
@@ -321,6 +362,11 @@ rg.plot_maps_corr(var='sst', save=save,
 #%%
 import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
+#%%
+
+
+
+
 
 #%% Quick forecast from SST
 import func_models as fc_utils

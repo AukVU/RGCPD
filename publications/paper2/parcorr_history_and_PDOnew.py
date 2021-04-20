@@ -35,7 +35,7 @@ from RGCPD import BivariateMI
 from class_BivariateMI import corr_map
 from class_BivariateMI import parcorr_z
 from class_BivariateMI import parcorr_map_time
-import climate_indices, filters, functions_pp, core_pp
+import climate_indices, filters, functions_pp, core_pp, plot_maps
 from func_models import standardize_on_train
 import func_models as fc_utils
 
@@ -45,7 +45,7 @@ expers = np.array(['parcorr',
                    'parcorrtime_target', 'parcorrtime_precur', 'parcorrtime_both', 'corr']) # np.array(['fixed_corr', 'adapt_corr'])
 combinations = np.array(np.meshgrid(expers)).T.reshape(-1,1)
 
-i_default = 1
+i_default = 4
 
 def parseArguments():
     # Create argument parser
@@ -122,7 +122,20 @@ if 'parcorr' == exper:
 
         if 'df_PDOsplit' not in globals():
             df_PDO, PDO_patterns = climate_indices.PDO(SST_pp_filepath,
-                                                       None) #rg.df_splits)
+                                                       None)
+            PDO_plot_kwrgs = {'units':'[-]', 'cbar_vert':-.1,
+                              # 'zoomregion':(130,260,20,60),
+                              'map_proj':ccrs.PlateCarree(central_longitude=220),
+                              'y_ticks':np.array([25,40,50,60]),
+                              'x_ticks':np.arange(130, 280, 25),
+                              'clevels':np.arange(-.6,.61,.075),
+                              'clabels':np.arange(-.6,.61,.3),
+                              'subtitles':np.array([['PDO loading pattern']])}
+            fig = plot_maps.plot_corr_maps(PDO_patterns[0], **PDO_plot_kwrgs)
+            filepath = os.path.join(path_out_main, 'PDO_pattern')
+            fig.savefig(filepath + '.pdf', bbox_inches='tight')
+            fig.savefig(filepath + '.png', bbox_inches='tight')
+
             # summerdates = core_pp.get_subdates(dates, start_end_TVdate)
             df_PDOsplit = df_PDO.loc[0]#.loc[summerdates]
             # standardize = preprocessing.StandardScaler()
@@ -424,8 +437,20 @@ else:
 #%%
 import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
-#%%
+#%% get Correlation between pattern and PDO
 
+rg.list_for_MI[0].calc_ts = 'pattern cov'
+rg.cluster_list_MI()
+rg.get_ts_prec()
+
+df_test = functions_pp.get_df_test(rg.df_data)
+
+df_PDO_and_SST = df_PDOs.merge(df_test, left_index=True, right_index=True)[['PDO', '1..0..sst_sp']]
+
+
+RV_mask = fc_utils.apply_shift_lag(rg.df_splits, 1)['x_pred'].loc[0]
+df_PDO_and_SST = df_PDO_and_SST[RV_mask.values]
+df_PDO_and_SST.corr()
 
 # rg.cluster_list_MI() ; rg.get_ts_prec() ;
 # out = rg.fit_df_data_ridge()

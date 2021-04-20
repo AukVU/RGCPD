@@ -64,10 +64,10 @@ targets = ['easterntemp', 'westerntemp']
 targets = ['easterntemp']
 
 periods = ['JA_center']
-seeds = np.array([1,2,3])
+seeds = np.array([1,2,3,4,5])
 combinations = np.array(np.meshgrid(targets, periods, seeds)).T.reshape(-1,3)
 
-i_default = 2 #8
+i_default = 0 #8
 
 def parseArguments():
     # Create argument parser
@@ -148,7 +148,6 @@ list_of_name_path = [(cluster_label, TVpath),
                      ('sst', os.path.join(path_raw, 'sst_1979-2020_1_12_monthly_1.0deg.nc'))]
                      # ('sst', os.path.join(path_raw, 'sst_1979-2020_1_12_daily_1.0deg.nc'))]
 
-lags=np.array([0,1,2,3,4,5])
 lags=np.array([1])
 tfreq = 2
 min_area_in_degrees2=3 #10
@@ -231,11 +230,25 @@ try:
     df_PDOs = functions_pp.load_hdf5(filepath_df_PDOs)['df_data']
 except:
 
-    SST_pp_filepath = user_dir + '/surfdrive/ERA5/input_raw/preprocessed/sst_1979-2020_1jan_31dec_daily_1.0deg.nc'
+
+    SST_pp_filepath = user_dir + '/surfdrive/ERA5/input_raw/preprocessed/sst_1979-2020_jan_dec_monthly_1.0deg.nc'
 
     if 'df_PDOsplit' not in globals():
         df_PDO, PDO_patterns = climate_indices.PDO(SST_pp_filepath,
-                                                   None) #rg.df_splits)
+                                                   None)
+        PDO_plot_kwrgs = {'units':'[-]', 'cbar_vert':-.1,
+                          # 'zoomregion':(130,260,20,60),
+                          'map_proj':ccrs.PlateCarree(central_longitude=220),
+                          'y_ticks':np.array([25,40,50,60]),
+                          'x_ticks':np.arange(130, 280, 25),
+                          'clevels':np.arange(-.6,.61,.075),
+                          'clabels':np.arange(-.6,.61,.3),
+                          'subtitles':np.array([['PDO loading pattern']])}
+        fig = plot_maps.plot_corr_maps(PDO_patterns[0], **PDO_plot_kwrgs)
+        filepath = os.path.join(path_out_main, 'PDO_pattern')
+        fig.savefig(filepath + '.pdf', bbox_inches='tight')
+        fig.savefig(filepath + '.png', bbox_inches='tight')
+
         # summerdates = core_pp.get_subdates(dates, start_end_TVdate)
         df_PDOsplit = df_PDO.loc[0]#.loc[summerdates]
         # standardize = preprocessing.StandardScaler()
@@ -372,6 +385,7 @@ def prediction_wrapper(df_data, lags, target_ts=None, keys: list=None, match_lag
                        n_boot: int=1):
 
     alphas = np.append(np.logspace(.1, 1.5, num=25), [250])
+    alphas = np.logspace(.1, 1.5, num=25)
     kwrgs_model = {'scoring':'neg_mean_absolute_error',
                    'alphas':alphas, # large a, strong regul.
                    'normalize':False}
@@ -510,7 +524,8 @@ df_forcings = out[1][[0]].rename({0:'sst_fc'}, axis=1).merge(df_forcings, left_i
 
 df_cond_all = cond_forecast_table(out[1], df_forcings,
                               score_func_list, n_boot=0)
-
+csv_filename = os.path.join(rg.path_outsub1, 'df_cond_all.csv')
+df_cond_all.to_csv(csv_filename)
 
 #%%
 def boxplot_cond_fc(df_cond, col, composites = 30):
@@ -539,7 +554,7 @@ def boxplot_cond_fc(df_cond, col, composites = 30):
         nlabels = plot_cols.copy() ; widths=(.5,.5)
         nlabels = [l.split(' ')[0] for l in nlabels]
         if col == 'PDO0.5rm':
-            nlabels = [l.capitalize() + '\nwinter PDO' for l in nlabels]
+            nlabels = [l.capitalize() + '\nwinter/spring\nPDO' for l in nlabels]
         else:
             nlabels = [l.capitalize() + ' \nPDO state' for l in nlabels]
 
@@ -547,7 +562,7 @@ def boxplot_cond_fc(df_cond, col, composites = 30):
         whiskerprops = dict(linestyle='-',linewidth=2.0, color='black')
         medianprops = dict(linestyle='-', linewidth=2, color='red')
         ax.boxplot(data, labels=nlabels,
-                   widths=widths, whis=.95, boxprops=boxprops, whiskerprops=whiskerprops,
+                   widths=widths, whis=[2.5, 97.5], boxprops=boxprops, whiskerprops=whiskerprops,
                    medianprops=medianprops, showmeans=True)
 
         text = f'{int(100*perc_incr)}%'
@@ -593,29 +608,34 @@ def boxplot_cond_fc(df_cond, col, composites = 30):
 col = 'PDO_1fc'
 df_cond = cond_forecast_table(out[1], df_forcings[[col]],
                               score_func_list, n_boot=2000)
+csv_filename = os.path.join(rg.path_outsub1, 'df_cond_PDOAR1.csv')
+df_cond.mean(axis=0,level=0).to_csv(csv_filename)
+
 boxplot_cond_fc(df_cond, col, composites = 30)
 boxplot_cond_fc(df_cond, col, composites = 50)
 #%% PDO half year rolling mean
 col = 'PDO0.5rm'
-df_rm = df_PDOs[[col]][df_PDOs.index.month == 6]
+df_rm = df_PDOs[[col]][df_PDOs.index.month == 5]
 df_rm = df_rm.loc[core_pp.get_oneyr(df_rm, *list(range(1980,2021)))]
 df_cond_rm = cond_forecast_table(out[1], df_rm,
                               score_func_list, n_boot=2000)
+csv_filename = os.path.join(rg.path_outsub1, 'df_cond_PDO_DJFMAMmean.csv')
+df_cond_rm.mean(axis=0,level=0).to_csv(csv_filename)
 boxplot_cond_fc(df_cond_rm, col, composites = 30)
 boxplot_cond_fc(df_cond_rm, col, composites = 50)
 #%%
 
-col = 'PDO_1'
-df_cond = cond_forecast_table(out[1], df_forcings[[col]],
-                              score_func_list, n_boot=2000)
-boxplot_cond_fc(df_cond, col, composites = 30)
-boxplot_cond_fc(df_cond, col, composites = 50)
-#%%
-col = 'sst_fc'
-df_cond = cond_forecast_table(out[1], df_forcings[[col]],
-                              score_func_list, n_boot=2000)
-boxplot_cond_fc(df_cond, col, composites = 30)
-boxplot_cond_fc(df_cond, col, composites = 50)
+# col = 'PDO_1'
+# df_cond = cond_forecast_table(out[1], df_forcings[[col]],
+#                               score_func_list, n_boot=2000)
+# boxplot_cond_fc(df_cond, col, composites = 30)
+# boxplot_cond_fc(df_cond, col, composites = 50)
+# #%%
+# col = 'sst_fc'
+# df_cond = cond_forecast_table(out[1], df_forcings[[col]],
+#                               score_func_list, n_boot=2000)
+# boxplot_cond_fc(df_cond, col, composites = 30)
+# boxplot_cond_fc(df_cond, col, composites = 50)
     #%%
 
 

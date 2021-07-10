@@ -59,7 +59,7 @@ def ridgeCV(y_ts, df_norm, keys=None, kwrgs_model=None):
     # leakage.
 
     # y_ts dates may no longer align with x_fit  y_fit masks
-    y_fit_mask = df_norm['TrainIsTrue'].loc[y_fit_mask.index].values
+    y_fit_mask = df_norm['TrainIsTrue'].loc[y_fit_mask.index].values==1
     y_train = RV_fit[y_fit_mask].squeeze()
 
     # if y_pred_mask is not None:
@@ -141,6 +141,10 @@ class ScikitModel:
             scoring = kwrgs.pop('scoringCV')
         else:
             scoring = None
+        if 'n_jobs' in kwrgs.keys():
+            n_jobs = kwrgs.pop('n_jobs')
+        else:
+            n_jobs = None
         # Get training years
         x_fit_mask, y_fit_mask, x_pred_mask, y_pred_mask = utils.get_masks(df_norm)
 
@@ -155,7 +159,7 @@ class ScikitModel:
         # leakage.
 
         # y_ts dates may no longer align with x_fit  y_fit masks
-        y_fit_mask = df_norm['TrainIsTrue'].loc[y_fit_mask.index].values
+        y_fit_mask = df_norm['TrainIsTrue'].loc[y_fit_mask.index].values==1
         y_train = RV_fit[y_fit_mask].squeeze()
 
         # if y_pred_mask is not None:
@@ -179,20 +183,14 @@ class ScikitModel:
             model = scikitmodel(**kwrgs)
 
         if len(kwrgs_gridsearch) != 0:
-            # get cross-validation splitter
-            # if 'kfold' in kwrgs.keys():
-            #     kfold = kwrgs.pop('kfold')
-            # else:
-            #     kfold = 5
-            # cv = utils.get_cv_accounting_for_years(y_train, kfold, seed=1)
-
             model = GridSearchCV(model,
                       param_grid=kwrgs_gridsearch,
                       scoring=scoring, cv=cv, refit=True,
                       return_train_score=True, verbose=self.verbosity,
-                      n_jobs=3)
+                      n_jobs=n_jobs)
             model.fit(X_train, y_train.values.ravel())
             model.best_estimator_.X_pred = X_pred # add X_pred to model
+            model.df_norm = df_norm # add df_norm to model for easy reproduction
             # if self.verbosity == 1:
             #     results = model.cv_results_
             #     scores = results['mean_test_score']
@@ -204,12 +202,14 @@ class ScikitModel:
         else:
             model.fit(X_train, y_train.values.ravel())
             model.X_pred = X_pred # add X_pred to model
+            model.df_norm = df_norm # add df_norm to model for easy reproduction
 
         if np.unique(y_train).size < 5:
             y_pred = model.predict_proba(X_pred)[:,1] # prob. event prediction
         else:
             y_pred = model.predict(X_pred)
 
-        prediction = pd.DataFrame(y_pred, index=y_pred_mask.index, columns=[0])
+        prediction = pd.DataFrame(y_pred, index=x_pred_mask[x_pred_mask].index,
+                                  columns=[0])
         #%%
         return prediction, model

@@ -40,7 +40,7 @@ list_for_MI = [BivariateMI(name='sst', func=class_BivariateMI.corr_map,
 rg = RGCPD(list_of_name_path=list_of_name_path,
            list_for_MI=list_for_MI,
            # tfreq=None, # <- seasonal forecasting mode, set tfreq to None! 
-           tfreq=2,
+           tfreq=3,
            start_end_TVdate=('03-01', '05-31'),# <- defining DJF target period 
            start_end_date=None,
            start_end_year=None,

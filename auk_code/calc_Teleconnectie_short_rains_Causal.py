@@ -31,33 +31,45 @@ list_of_name_path = [(18, os.path.join(path_test, 'q85_dendo_1bae1.nc')),
 
 list_for_MI = [BivariateMI(name='sst', func=class_BivariateMI.corr_map, 
                            alpha=.01, FDR_control=True, 
-                           lags=np.array([['01-01' , '03-31'],['04-01', '06-30'],
-                                          ['07-01', '09-30']]), # <- selecting time periods to aggregate
+                           lags=np.array([1,2,3]),
+                           # lags=np.array([['1950-06-01', '1950-08-31'],
+                           #                  ['1950-09-01', '1950-11-30'],
+                           #                  ['1950-12-01', '1951-02-28']]), # <- selecting time periods to aggregate
                            distance_eps=700, min_area_in_degrees2=5)]
 
 rg = RGCPD(list_of_name_path=list_of_name_path,
            list_for_MI=list_for_MI,
-           tfreq=None, # <- seasonal forecasting mode, set tfreq to None! 
-           start_end_TVdate=('12-01', '12-31'), # <- defining DJF target period 
+           # tfreq=None, # <- seasonal forecasting mode, set tfreq to None! 
+           tfreq=3,
+           start_end_TVdate=('10-01', '12-31'),# <- defining DJF target period 
+           start_end_date=None,
+           start_end_year=None,
            path_outmain=os.path.join(main_dir,'data'))
 
-rg.pp_TV(TVdates_aggr=True)
+rg.pp_precursors(detrend=True, anomaly=True, selbox=None)
+# start_end_year=(1950,2020)
+# TV_start_end_year = (start_end_year[0]+1,2020)
+
+# kwrgs_core_pp_time = {'start_end_year' : TV_start_end_year }
+
+rg.pp_TV(TVdates_aggr=False,ext_annual_to_mon=True)
+         # kwrgs_core_pp_time=kwrgs_core_pp_time)
 
 rg.plot_df_clust()
-rg.pp_precursors(detrend=True, anomaly=True, selbox=None)
+
 rg.fulltso
 
 rg.traintest(method='random_20')
 
 rg.calc_corr_maps() 
-
+#%%
 
 rg.cluster_list_MI()
 
 
 sst = rg.list_for_MI[0] 
 
-periodnames = ['JFM','AMJ','JAS']
+periodnames = ['JJA','SON','DJF']
 sst.prec_labels['lag'] = ('lag', periodnames)
 sst.corr_xr['lag'] = ('lag', periodnames)
 
@@ -75,8 +87,8 @@ rg._df_count
 #              kwrgs_mask_latlon={'latmax':30}) # <- split region 1 by 30 degree latitude
 # rg.list_for_MI[0].prec_labels = new_labels
 
-rg.get_ts_prec()
-rg.df_data
+# rg.get_ts_prec()
+# rg.df_data
 
 rg.PCMCI_df_data(tigr_function_call='run_pcmci',
                  kwrgs_tigr={'tau_min': 0,

@@ -21,18 +21,18 @@ from RGCPD import core_pp, functions_pp
 import func_SPI
 
 path_raw = os.path.join(main_dir, 'data')
-p_filepath = 'C:/Users/Auk/Documents/GitHub/RGCPD/data/tp_1950-2020_1_12_monthly_1.0deg.nc' 
+p_filepath = 'C:/Users/Auk/Documents/GitHub/RGCPD/data/tp_1950-2020_1_12_monthly_1.0deg.nc'
 # USBox = (240, 250, 40, 45)
 ds = core_pp.import_ds_lazy(p_filepath, auto_detect_mask=False)
 
-aggr = 3
-# output = func_SPI.calc_SPI_from_monthly(ds, aggr)
-# output = core_pp.detect_mask(output)
-# output.name = f'SPI{aggr}'
-# output.to_netcdf(functions_pp.get_download_path() + f'/Own_SPI_{aggr}.nc')
+aggr = 12
+output = func_SPI.calc_SPI_from_monthly(ds, aggr)
+output = core_pp.detect_mask(output)
+output.name = f'SPI{aggr}'
+output.to_netcdf(functions_pp.get_download_path() + f'/Own_SPI_{aggr}.nc')
 
-filepath = 'C:/Users/Auk/Documents/GitHub/RGCPD/data/tp_world_SPI_3.nc'
-output = core_pp.import_ds_lazy(filepath)
+# filepath = 'C:/Users/Auk/Documents/GitHub/RGCPD/data/tp_world_SPI_3.nc'
+# output = core_pp.import_ds_lazy(filepath)
 
 # SMI_package_filepath = os.path.join(path_raw, '/Users/semvijverberg/surfdrive/ERA5/SM_spi_gamma_01_1950-2019_1_12_monthly_1.0deg.nc')
 # SMI_package = core_pp.import_ds_lazy(SMI_package_filepath)

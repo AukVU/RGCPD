@@ -42,6 +42,8 @@ def get_oneyr(dt_pdf_pds_xr, *args):
         dates = pddatetime.where(pddatetime.year==year).dropna()
     return dates
 
+month_days = {1:31, 2:28, 3:31}
+
 def perform_post_processing(list_of_name_path, kwrgs_pp=None, verbosity=1):
     '''
     if argument of kwrgs_pp is list, then the first item is assumed to be the
@@ -83,6 +85,10 @@ def load_TV(list_of_name_path, name_ds='ts'):
         it tries to import the variable {TVname}
     if TVpath refers to .nc file:
         it tries to import the timeseries of cluster {TVname}.
+    if TVpath is pd.DataFrame:
+        fulltso becomes first colummn of DataFrame. Index should be correct
+        pd.DatetimeIndex.
+
 
 
     returns:
@@ -90,69 +96,83 @@ def load_TV(list_of_name_path, name_ds='ts'):
     '''
     name = list_of_name_path[0][0]
     filename = list_of_name_path[0][1]
-
-    if filename.split('.')[-1] == 'npy':
-        fulltso = load_npy(filename, name=name)
-    elif filename.split('.')[-1] == 'nc':
-        ds = core_pp.import_ds_lazy(filename)
-        if len(ds.dims) > 1:
-            fulltso = ds[name_ds].sel(cluster=name)
-        else:
-            if type(ds) is xr.Dataset:
-                fulltso = ds.to_array(name=name_ds)
+    if type(filename) is str:
+        if filename.split('.')[-1] == 'npy':
+            fulltso = load_npy(filename, name=name)
+        elif filename.split('.')[-1] == 'nc':
+            ds = core_pp.import_ds_lazy(filename)
+            if len(ds.dims) > 1:
+                fulltso = ds[name_ds].sel(cluster=name)
             else:
-                fulltso = ds
-            fulltso = fulltso.squeeze()
-
-    elif filename.split('.')[-1] == 'h5':
-        dict_df = load_hdf5(filename)
-        df = dict_df[list(dict_df.keys())[0]]
-        based_on_test = True
-        if hasattr(df.index, 'levels'):
-            splits = df.index.levels[0]
-            if splits.size == 1:
-                based_on_test = False
-                df = df.loc[0]
-            if based_on_test:
-                print('Get test timeseries of target pd.DataFrame')
-                df = get_df_test(df)
-            else:
-                df = df.mean(axis=0, level=1)
-                print('calculate mean of different train-test folds')
-        df = df[[name_ds]] ; df.index.name = 'time'
-        fulltso = df.to_xarray().to_array(name=name_ds).squeeze()
-    hashh = filename.split('_')[-1].split('.')[0]
+                if type(ds) is xr.Dataset:
+                    fulltso = ds.to_array(name=name_ds)
+                else:
+                    fulltso = ds
+                fulltso = fulltso.squeeze()
+        elif filename.split('.')[-1] == 'h5':
+            dict_df = load_hdf5(filename)
+            df = dict_df[list(dict_df.keys())[0]]
+            based_on_test = False
+            if hasattr(df.index, 'levels'):
+                splits = df.index.levels[0]
+                if splits.size == 1:
+                    based_on_test = False
+                    df = df.loc[0]
+                if based_on_test:
+                    print('Get test timeseries of target pd.DataFrame')
+                    df = get_df_test(df)
+                    df = df[~df.index.duplicated(keep='first')] # avoid double idx
+                else:
+                    df = df.mean(axis=0, level=1)
+                    print('calculate mean of different train-test folds')
+            df = df[[name_ds]] ; df.index.name = 'time'
+            fulltso = df.to_xarray().to_array(name=name_ds).squeeze()
+        hashh = filename.split('_')[-1].split('.')[0]
+    elif type(filename) is pd.DataFrame:
+        df_fulltso = filename.iloc[:,[0]] ; name_ds = df_fulltso.columns[0] ;
+        df_fulltso.index.name = 'time' ; hashh = ''
+        fulltso = df_fulltso.to_xarray().to_array(name=name_ds).squeeze()
+    else:
+        print('Not a valid datatype for TV path. See functions_pp.load_TV?')
     fulltso.name = str(list_of_name_path[0][0])+name_ds
     return fulltso, hashh
 
 def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
                start_end_year=None, RV_detrend=False, RV_anomaly=False,
                ext_annual_to_mon=True, TVdates_aggr: bool=False,
-               verbosity=1):    #%%
-    # fullts=rg.fulltso.copy();RV_detrend=False;RV_anomaly=False;verbosity=1;
-    # ext_annual_to_mon=False;TVdates_aggr=False; start_end_date=None; start_end_year=None
+               dailytomonths: bool=False, verbosity=1):
+    # fullts=load_TV(list_of_name_path,name_ds=rg.name_TVds)[0]
+    # RV_detrend=False;RV_anomaly=False;verbosity=1;
+    # ext_annual_to_mon=True;TVdates_aggr=False; start_end_date=None; start_end_year=None
+    # dailytomonths=False
+
+    # For some incredibly inexplicable reason, fullts was not pickle, even after
+    # copy or deepcopying the object. So I recreate the object now:
+    fullts = xr.DataArray(fullts.values, dims=fullts.dims, coords=fullts.coords,
+                          name=fullts.name)
 
 
-    dates = pd.to_datetime(fullts.time.values)
     # start_end_year selection done on fulltso in func above, but not when re-aggregating
-    fullts = fullts.sel(time=core_pp.get_subdates(dates=dates,
-                                          start_end_date=None,
-                                          start_end_year=start_end_year))
-    if RV_detrend: # do detrending on all timesteps
-        fullts = core_pp.detrend_lin_longterm(fullts)
+    fullts = core_pp.xr_core_pp_time(fullts, start_end_year=start_end_year,
+                                     dailytomonths=dailytomonths)
+
+    if RV_detrend==True: # do detrending on all timesteps
+        fullts = core_pp.detrend_wrapper(fullts) # default linear method
+    elif type(RV_detrend) is dict:
+        fullts = core_pp.detrend_wrapper(fullts, kwrgs_detrend=RV_detrend)
     if RV_anomaly: # do anomaly on complete timeseries (rolling mean applied!)
         fullts = anom1D(fullts)
 
-
+    dates = pd.to_datetime(fullts.time.values)
     startyear = dates.year[0]
     endyear = dates.year[-1]
     n_timesteps = dates.size
     n_yrs       = (endyear - startyear) + 1
 
     # align fullts with precursor import_ds_lazy()
-    fullts = fullts.sel(time=core_pp.get_subdates(dates=dates,
-                                                  start_end_date=start_end_date,
-                                                  start_end_year=start_end_year))
+    fullts = core_pp.xr_core_pp_time(fullts, seldates=start_end_date)
+    # fullts = fullts.sel(time=core_pp.get_subdates(dates=dates,
+    #                                               start_end_date=start_end_date))
 
     timestep_days = (dates[1] - dates[0]).days
     # if type(tfreq) == int: # timemeanbins between start_end_date
@@ -162,6 +182,7 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
     elif timestep_days >= 28 and timestep_days <= 31 and n_yrs != n_timesteps:
         input_freq = 'monthly'
         same_freq = (dates[1].month - dates[0].month) == tfreq #same_freq true/False
+
     elif tfreq == timestep_days:
         same_freq = True
     elif timestep_days == 365 or timestep_days == 366:
@@ -189,7 +210,7 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
     if same_freq == False and TVdates_aggr==False:
         if verbosity == 1:
             print('original tfreq of imported response variable is converted to '
-                  'desired tfreq')
+                  f'desired {tfreq} ({input_freq}) means')
         out = time_mean_bins(fullts, tfreq,
                              start_end_date,
                              start_end_year,
@@ -210,8 +231,8 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
 
 
     if input_freq == 'annual':
-        TV_ts = fullts
-        traintestgroups = pd.Series(np.arange(1, TV_ts.size+1),
+        RV_ts = fullts
+        traintestgroups = pd.Series(np.arange(1, RV_ts.size+1),
                                     index=pd.to_datetime(fullts.time.values))
     else:
         if input_freq == 'daily':
@@ -225,9 +246,16 @@ def process_TV(fullts, tfreq, start_end_TVdate, start_end_date=None,
         string_RV = list(dates_RV.strftime('%Y-%m-%d'))
         string_full = list(pd.to_datetime(fullts.time.values).strftime('%Y-%m-%d'))
         RV_period = [string_full.index(date) for date in string_full if date in string_RV]
-        TV_ts = fullts[RV_period]
+        RV_ts = fullts[RV_period]
 
-    return fullts, TV_ts, input_freq, traintestgroups
+    # convert to dataframe
+    df_fullts = pd.DataFrame(fullts.values,
+                         index=pd.to_datetime(fullts.time.values),
+                         columns=[fullts.name])
+    df_RV_ts = pd.DataFrame(RV_ts.values,
+                                 index=pd.to_datetime(RV_ts.time.values),
+                                 columns=['RV'+fullts.name])
+    return df_fullts, df_RV_ts, input_freq, traintestgroups
 
 def get_df_test(df, cols: list=None, df_splits: pd.DataFrame=None):
     '''
@@ -284,14 +312,14 @@ def get_df_train(df, cols: list=None, df_splits: pd.DataFrame=None, s=0):
         TrainIsTrue = df['TrainIsTrue']
     else:
         TrainIsTrue = df_splits['TrainIsTrue']
-    df_train = df.loc[s][TrainIsTrue.loc[s].values]
+    df_train = df.loc[s][TrainIsTrue.loc[s].values==1]
     if cols is not None:
         df_train = df_train[cols]
     return df_train
 
-def nc_xr_ts_to_df(filename, name_ds='ts'):
+def nc_xr_ts_to_df(filename, name_ds='ts', format_lon='only_east'):
     if filename.split('.')[-1] == 'nc':
-        ds = core_pp.import_ds_lazy(filename)
+        ds = core_pp.import_ds_lazy(filename, format_lon=format_lon)
     else:
         print('not a NetCDF file')
     return xrts_to_df(ds[name_ds]), ds
@@ -307,12 +335,16 @@ def xrts_to_df(xarray):
             dims[idx] = 'ncl'
             xarray = xarray.rename({'n_clusters':dims[idx]}).copy()
         var1 = int(xarray[dims[0]])
-        var2 = int(xarray[dims[1]])
         dim1 = dims[0]
-        dim2 = dims[1]
-        name = '{}{}_{}{}'.format(dim1, var1, dim2, var2)
-        df = xarray.drop(dim1).drop(dim2).T.to_dataframe(
-                                            name=name).unstack(level=1)
+        name = '{}{}'.format(dim1, var1)
+        xarray = xarray.drop_vars(dim1)
+        if len(dims) == 2:
+            var2 = int(xarray[dims[1]])
+            dim2 = dims[1]
+            name += '_{}{}'.format(dim2, var2)
+            xarray = xarray.drop_vars(dim2)
+        df = xarray.T.to_dataframe(name=name).unstack(level=1)
+
         df = df.droplevel(0, axis=1)
     else:
         attr = {k:i for k,i in xarray.attrs.items() if k != 'is_DataArray'}
@@ -338,7 +370,8 @@ def import_ds_timemeanbins(filepath, tfreq: int=None, start_end_date=None,
                                 seldates=seldates,
                                 selbox=selbox,
                                 dailytomonths=dailytomonths,
-                                format_lon=format_lon)
+                                format_lon=format_lon,
+                                start_end_year=start_end_year)
 
     if tfreq is not None and tfreq != 1:
         ds = time_mean_bins(ds, tfreq,
@@ -350,6 +383,11 @@ def import_ds_timemeanbins(filepath, tfreq: int=None, start_end_date=None,
     # check if no axis has length 0:
     assert 0 not in ds.shape, ('loaded ds has a dimension of length 0'
                                f', shape {ds.shape}')
+
+    # masks in xr.DataArray are not pickable, which will cause _thread.lock
+    # error when parallizing an analysis pipeline.
+    if 'mask' in ds.coords:
+        ds = ds.drop_vars('mask')
     return ds
 
 def time_mean_bins(xr_or_df, tfreq=int, start_end_date=None, start_end_year=None,
@@ -492,7 +530,7 @@ def timeseries_tofit_bins(xr_or_dt, tfreq, start_end_date=None, start_end_year=N
     at closed_on_date. With closed on date defined as the last day of TV_period
     '''
     #%%
-    # xr_or_dt = rg.fulltso.copy();verbosity=1; closed='right'
+    # xr_or_dt = rg.df_fulltso.copy();verbosity=1; closed='right'
     # start_end_date=None; start_end_year=None; verbosity=0
 
     if type(xr_or_dt) == type(xr.DataArray([0])):
@@ -505,6 +543,11 @@ def timeseries_tofit_bins(xr_or_dt, tfreq, start_end_date=None, start_end_year=N
         input_freq = 'day'
     elif (datetime[1] - datetime[0]).days in [28,29,30,31]:
         input_freq = 'month'
+        # ensure that days are 01, needed for alignment of timeseries.
+        start_end_TVdate = [s.split('-')[0] + '-01' for s in start_end_TVdate]
+        if start_end_date is not None:
+            start_end_date = [s.split('-')[0] + '-01' for s in start_end_date]
+
     # =============================================================================
     #   # select dates
     # =============================================================================
@@ -554,34 +597,48 @@ def timeseries_tofit_bins(xr_or_dt, tfreq, start_end_date=None, start_end_year=N
     adjhrsenddate   = senddate + ' {:02d}:00:00'.format(datetime[0].hour)
 
 
-    def getdaily_firstyear(adjhrsstartdate, adjhrsenddate, closed_on_date, tfreq):
-        fit_bins = int(365/tfreq) + 1
+    def getdaily_firstyear(adjhrsstartdate, adjhrsenddate, closed_on_date, _tfreq):
+        if 'd' in _tfreq:
+            fit_bins = int(365/tfreq) + 1
+        elif 'm' in _tfreq:
+            fit_bins = int(12/tfreq)
+
         if closed_on_date is not None:
             _closed_on_date = adjhrsenddate.replace(adjhrsenddate[5:10], closed_on_date)
-            dates_aggr =  pd.date_range(end=_closed_on_date, freq=f'{tfreq}d',
+            dates_aggr =  pd.date_range(end=_closed_on_date, freq=_tfreq,
                                         closed=closed,
                                         periods=fit_bins)
+            if 'm' in _tfreq:
+                # somehow month periods aligns on last date of month before
+                dates_aggr += pd.Timedelta('1d')
 
             # Extend untill adjhrsenddate
-            while dates_aggr[-1] + pd.Timedelta(f'{tfreq}d') < pd.to_datetime(adjhrsenddate):
-                dates_aggr = pd.date_range(start=dates_aggr[0], freq=f'{tfreq}d',
+            while dates_aggr[-1] + pd.Timedelta(_tfreq) < pd.to_datetime(adjhrsenddate):
+                dates_aggr = pd.date_range(start=dates_aggr[0], freq=_tfreq,
                                            closed='left',
                                            periods=fit_bins)
                 fit_bins += 1
         else:
-            dates_aggr =  pd.date_range(end=adjhrsenddate, freq=f'{tfreq}d',
+            dates_aggr =  pd.date_range(end=adjhrsenddate, freq=_tfreq,
                                     closed=closed,
                                     periods=fit_bins)
         # adjust startdate such the bins are closed and that the startdate
         # is not prior to the requisted adjhrsstartdate
-        fit_bins = int(365/tfreq)
-        while dates_aggr[0] < pd.to_datetime(adjhrsstartdate):
-            dates_aggr =  pd.date_range(end=dates_aggr[-1], freq=f'{tfreq}d',
-                                    closed=closed,
-                                    periods=fit_bins)
-            fit_bins -= 1
-
-
+        if 'd' in _tfreq:
+            fit_bins = int(365/tfreq) + 1
+            while dates_aggr[0] < pd.to_datetime(adjhrsstartdate):
+                dates_aggr =  pd.date_range(end=dates_aggr[-1], freq=_tfreq,
+                                        closed=closed,
+                                        periods=fit_bins)
+                fit_bins -= 1
+        elif 'm' in _tfreq:
+            fit_bins = int(12/tfreq)
+            dm = date_dt(months=tfreq) ; asd = pd.to_datetime(adjhrsstartdate)
+            while dates_aggr[0] - dm < asd: #< pd.Timedelta('3d'):
+                dates_aggr =  pd.date_range(end=dates_aggr[-1], freq=_tfreq,
+                                        closed=closed,
+                                        periods=fit_bins) + pd.Timedelta('1d')
+                fit_bins -= 1
         # if crossyr == False and senddate[1] == '12-31':
         #     # Extend untill end of the year, which might be handy in case one
         #     # want to study stuff like autocorrelation. Not wanted with cross-year.
@@ -594,34 +651,45 @@ def timeseries_tofit_bins(xr_or_dt, tfreq, start_end_date=None, start_end_year=N
         #         dates_aggr = pd.date_range(start=dates_aggr[0], freq=f'{tfreq}d',
         #                                     closed='left',
         #                                     periods=fit_bins)
-        # if closed right, convert to daily date that fit bins
-        # also take into account leapday adjustement
-        if dates_aggr.size == 1:
-            sd = dates_aggr[0] - pd.Timedelta(f'{tfreq}d')
-        else:
-            sd = dates_aggr[0]
 
-        # single year, dates between 01-01 and > 03-01
-        leap1yr = all([dates_aggr.year.unique().size==1,
-                       dates_aggr.is_leap_year[0],
-                       dates_aggr[0] < pd.to_datetime(f'{startyear}-03-01')])
-        # cross-year, one yr with dates both prior and after 03-01
-        yrs = np.unique(dates_aggr.year) ; leap2yr = []
-        for yr in yrs:
-            syr = core_pp.get_oneyr(dates_aggr, yr)
-            leap2yr.append(all([syr.is_leap_year[0],
-                           any(syr < pd.to_datetime(f'{yr}-03-01')),
-                           syr[-1] > pd.to_datetime(f'{yr}-03-01')]))
-        leap2yr = any(leap2yr)
+        # convert to daily date that fit bins
+        if 'd' in _tfreq: # adjusting for leap days
+            if dates_aggr.size == 1:
+                sd = dates_aggr[0] - pd.Timedelta(f'{tfreq}d')
+            else:
+                sd = dates_aggr[0]
+
+            # # single year, dates between 01-01 and > 03-01
+            # leap1yr = all([dates_aggr.year.unique().size==1,
+            #                dates_aggr.is_leap_year[0],
+            #                dates_aggr[0] < pd.to_datetime(f'{startyear}-03-01')])
+            # cross-year, one yr with dates both prior and after 03-01 in a lpyr
+
+            # single check for leap_year
+            if any(dates_aggr.is_leap_year):
+                _lpyr = dates_aggr[dates_aggr.is_leap_year][0].year
+                leap2yr = all([any(dates_aggr < pd.to_datetime(f'{_lpyr}-03-01')),
+                              dates_aggr[-1] > pd.to_datetime(f'{_lpyr}-03-01')])
+            else:
+                leap2yr  = False
 
 
-        if leap1yr or leap2yr:
-            start_yr = pd.date_range(start=sd,
-                                 end=dates_aggr[-1])
-        else:
-            start_yr = pd.date_range(start=sd + pd.Timedelta(f'{1}d'),
-                                 end=dates_aggr[-1])
-        start_yr = core_pp.remove_leapdays(start_yr)
+            if leap2yr:
+                start_yr = pd.date_range(start=sd,
+                                     end=dates_aggr[-1])
+            else:
+                start_yr = pd.date_range(start=sd + pd.Timedelta(f'{1}d'),
+                                     end=dates_aggr[-1])
+            start_yr = core_pp.remove_leapdays(start_yr)
+        elif 'm' in _tfreq:
+            sd = dates_aggr[0] - date_dt(months=tfreq)
+            start_yr = pd.date_range(start=sd, end=dates_aggr[-1],
+                                     freq='1m') + pd.Timedelta('1d')
+            start_yr = pd.to_datetime([f'{d.year}-{d.month}-01' for d in start_yr])
+
+        assert start_yr.size % tfreq == 0, ('Timeseries to fit aggregation bins'
+                                            ' failed')
+
         return start_yr
 
     if input_freq == 'day' and tfreq == 1:
@@ -633,7 +701,8 @@ def timeseries_tofit_bins(xr_or_dt, tfreq, start_end_date=None, start_end_year=N
         start_day = start_yr.min()
 
 
-    if input_freq == 'day' and tfreq != 1:
+    if tfreq != 1:
+        _tfreq = f'{tfreq}' + input_freq[0]
         if closed == 'right':
             if start_end_date == None:
                 # make cyclic around closed_end_date
@@ -641,11 +710,11 @@ def timeseries_tofit_bins(xr_or_dt, tfreq, start_end_date=None, start_end_year=N
                     startyear += 1 # first year full period not possible
                 start_yr = getdaily_firstyear(adjhrsstartdate,
                                              f'{startyear}-{closed_on_date} 0:00:00',
-                                             closed_on_date, tfreq)
+                                             closed_on_date, _tfreq)
 
                 otheryrs = getdaily_firstyear(f'{startyear}-{closed_on_date} 0:00:00',
                                               f'{startyear+1}-{closed_on_date} 0:00:00',
-                                              closed_on_date, tfreq)
+                                              closed_on_date, _tfreq)
                 start_day = otheryrs.min()
                 end_day = otheryrs.max()
             else:
@@ -656,31 +725,31 @@ def timeseries_tofit_bins(xr_or_dt, tfreq, start_end_date=None, start_end_year=N
 
 
 
-    if input_freq == 'month':
-        dt = date_dt(months=tfreq)
-        start_day = adjhrsstartdate.split(' ')[0]
-        start_day = pd.to_datetime(start_day.replace(start_day[-2:], '01'))
-        end_day = adjhrsenddate.split(' ')[0]
-        end_day = pd.to_datetime(end_day.replace(end_day[-2:], '01'))
-        if crossyr:
-            fit_steps_yr = (12-start_day.month + end_day.month+ 1 ) / tfreq
-        else:
-            fit_steps_yr = (end_day.month - start_day.month + 1) / tfreq
-        start_day = (end_day - (dt * int(fit_steps_yr))) \
-                + date_dt(months=+1)
-        days_back = end_day
-        start_yr = [end_day.strftime('%Y-%m-%d %H:%M:%S')]
-        while start_day < days_back:
-            days_back -= date_dt(months=+1)
-            start_yr.append(days_back.strftime('%Y-%m-%d %H:%M:%S'))
-        start_yr.reverse()
-        start_yr = pd.to_datetime(start_yr)
+    # if input_freq == 'month':
+    #     dt = date_dt(months=tfreq)
+    #     start_day = adjhrsstartdate.split(' ')[0]
+    #     start_day = pd.to_datetime(start_day.replace(start_day[-2:], '01'))
+    #     end_day = adjhrsenddate.split(' ')[0]
+    #     end_day = pd.to_datetime(end_day.replace(end_day[-2:], '01'))
+    #     if crossyr:
+    #         fit_steps_yr = (12-start_day.month + end_day.month+ 1 ) / tfreq
+    #     else:
+    #         fit_steps_yr = (end_day.month - start_day.month + 1) / tfreq
+    #     start_day = (end_day - (dt * int(fit_steps_yr))) \
+    #             + date_dt(months=+1)
+    #     days_back = end_day
+    #     start_yr = [end_day.strftime('%Y-%m-%d %H:%M:%S')]
+    #     while start_day < days_back:
+    #         days_back -= date_dt(months=+1)
+    #         start_yr.append(days_back.strftime('%Y-%m-%d %H:%M:%S'))
+    #     start_yr.reverse()
+    #     start_yr = pd.to_datetime(start_yr)
 
 
     #    n_oneyr = start_yr.size
     #    end_year = endyear
 
-    if input_freq == 'day' and tfreq != 1 and start_end_date == None:
+    if tfreq != 1 and start_end_date == None:
         # make cyclic around closed_end_date
         other_cyclic_yrs = core_pp.make_dates(otheryrs, years[1:])
         datesdt = start_yr.append(other_cyclic_yrs)
@@ -1194,18 +1263,15 @@ def load_hdf5(path_data):
     return dict_of_dfs
 
 def cross_validation(RV_ts, traintestgroups=None, test_yrs=None, method=str,
-                     seed=None):
-    # RV_ts = pd.DataFrame(rg.TV_ts.values,
-    #                         index=pd.to_datetime(rg.TV_ts.time.values),
-    #                         columns=['RV']) ; traintestgroups=rg.traintestgroups
-    # test_yrs = None ; seed=1
+                     seed=None, gap_prior: int=None, gap_after: int=None):
+    #%%
+    # RV_ts = rg.df_RV_ts ; traintestgroups=rg.traintestgroups
+    # test_yrs = None ; seed=1 ; gap_prior=None ; gap_after=None
 
     from func_models import get_cv_accounting_for_years
-    from sklearn.model_selection import KFold
+    from sklearn.model_selection import KFold, TimeSeriesSplit, RepeatedKFold
 
-    if test_yrs is not None:
-        method = 'copied_from_import_ts'
-        kfold  = test_yrs.shape[0]
+
 
     if traintestgroups is not None:
         groups = traintestgroups
@@ -1214,8 +1280,17 @@ def cross_validation(RV_ts, traintestgroups=None, test_yrs=None, method=str,
         groups = RV_ts.index.year
         index = RV_ts.index
 
-    uniqgroups = np.unique(groups)
+    if test_yrs is not None and type(test_yrs) is not pd.DataFrame:
+        method = 'copied_from_import_ts'
+        folds  = test_yrs.shape[0]
+        tot = len(core_pp.flatten(test_yrs)) ;
+        uniq = np.unique(core_pp.flatten(test_yrs)).size
+        n_repeats = int(tot / uniq) ;
+        kfold = int(folds / n_repeats)
+    else:
+        n_repeats = 1 # defined for RepeatedKFold
 
+    uniqgroups = np.unique(groups)
     if method == 'no_train_test_split':
         kfold = 1
         testgroups = np.array([[]])
@@ -1227,59 +1302,150 @@ def cross_validation(RV_ts, traintestgroups=None, test_yrs=None, method=str,
                 cv = get_cv_accounting_for_years(RV_ts, kfold, seed, TVgroups)
                 testgroups = cv.uniqgroups
             elif method[:5] == 'leave':
-                kfold = int(uniqgroups.size / int(method.split('_')[-1]))
+                kfold = int(round(uniqgroups.size / int(method.split('_')[-1]),0))
                 cv = KFold(n_splits=kfold, shuffle=False)
                 testgroups = [list(f[1]) for f in cv.split(uniqgroups)]
             elif method[:6] == 'random':
-                cv = KFold(n_splits=kfold, shuffle=True)
+                cv = KFold(n_splits=kfold, shuffle=True, random_state=seed)
                 testgroups = [list(f[1]) for f in cv.split(uniqgroups)]
-        else:
+            elif method[:15] == 'TimeSeriesSplit':
+                cv = TimeSeriesSplit(max_train_size=None, n_splits=kfold,
+                                     test_size=1)
+                testgroups = [list(f[1]) for f in cv.split(uniqgroups)]
+            elif method[:13] == 'RepeatedKFold':
+                n_repeats = int(method.split('_')[1])
+                cv = RepeatedKFold(n_splits=kfold, n_repeats=n_repeats,
+                                   random_state=seed)
+                testgroups = [list(f[1]) for f in cv.split(uniqgroups)]
+
+        elif test_yrs is not None and type(test_yrs) is pd.DataFrame:
             testgroups = test_yrs
 
+    if type(test_yrs) is not pd.DataFrame:
+        # n_repeats is build in for compatitability with RepeatedKFold
+        testsetidx = np.zeros( (n_repeats, groups.size), dtype=int)
+        testsetidx[:] = -999
 
-    testsetidx = np.zeros(groups.size , dtype=int) ; testsetidx[:] = -999
-    for i, test_fold_idx in enumerate(testgroups):
-        # convert idx to grouplabel (year or dateyrgroup)
-        if test_yrs is None:
-            test_fold = [uniqgroups[i] for i in test_fold_idx]
-        else:
-            test_fold = test_fold_idx
-        for j, gr in enumerate(groups):
-            if gr in list(test_fold):
-                testsetidx[j] = i
+        n = 0 ;
+        for i, test_fold_idx in enumerate(testgroups):
+            # convert idx to grouplabel (year or dateyrgroup)
+            if test_yrs is None:
+                test_fold = [uniqgroups[i] for i in test_fold_idx]
+            else:
+                test_fold = test_fold_idx
+            # assign testsetidx
+            if max(1,i) % kfold == 0:
+                n += 1
+            # if i == 2: break
+            # print(test_fold)
+            for j, gr in enumerate(groups):
+                # if j == 21: break
+                # print(gr)
+                if gr in list(test_fold):
+                    # print(gr, i, idx, i % kfold )
+                    testsetidx[n,j] = i % kfold
 
-    TrainIsTrue = []
-    for i in np.unique(testsetidx):
-        # if -999, No Train Test split, all True
-        mask = np.logical_or(testsetidx!=i, testsetidx==-999)
-        TrainIsTrue.append(pd.DataFrame(data=mask.T,
-                                        columns=['TrainIsTrue'],
-                                        index=index))
-    df_TrainIsTrue = pd.concat(TrainIsTrue , axis=0, keys=range(kfold))
+        def gap_traintest(testsetidx, groups, gap):
+            ign = np.zeros((np.unique(testsetidx).size, testsetidx.size))
+            for f, i in enumerate(np.unique(testsetidx)):
+                test_fold = testsetidx.squeeze()==i
+                roll_account_traintest_gr = gap*groups[groups==np.unique(groups)[1]].size
+                ign[f] = np.roll(test_fold, roll_account_traintest_gr).astype(float)
+                ign[f] = (ign[f] - test_fold) == 1 # everything prior to test
+                if np.sign(gap) == -1:
+                    ign[f][roll_account_traintest_gr:] = False
+                elif np.sign(gap) == 1:
+                    ign[f][:roll_account_traintest_gr] = False
+            return ign.astype(bool)
+
+        if gap_prior is not None:
+            ignprior = gap_traintest(testsetidx, groups, -gap_prior)
+        if gap_after is not None:
+            ignafter = gap_traintest(testsetidx, groups, gap_after)
+
+        TrainIsTrue = []
+        for n in range(n_repeats):
+            for f, i in enumerate(np.unique(testsetidx)):
+                # print(n, f, i)
+                # if -999, No Train Test split, all True
+                if method[:15] == 'TimeSeriesSplit':
+                    if i == -999:
+                        continue
+                    mask = np.array(testsetidx[n] < i, dtype=int)
+                    mask[testsetidx[n]>i] = -1
+                else:
+                    mask = np.logical_or(testsetidx[n]!=i, testsetidx[n]==-999)
+                    # print(n,i,mask[mask].size)
+
+                if gap_prior is not None:
+                    # if gap_prior, mask values will become -1 for unused (training) data
+                    mask = np.array(mask, dtype=int) ; mask[ignprior[f]] = -1
+                if gap_after is not None:
+                    # same as above for gap_after.
+                    mask = np.array(mask, dtype=int) ; mask[ignafter[f]] = -1
+
+                TrainIsTrue.append(pd.DataFrame(data=mask.T,
+                                                columns=['TrainIsTrue'],
+                                                index=index))
+        df_TrainIsTrue = pd.concat(TrainIsTrue , axis=0, keys=range(n_repeats*kfold))
+    else:
+        # align import timeseries to account data not aggregated yet
+        df_TrainIsTrue = test_yrs
+        kfold = df_TrainIsTrue.index.levels[0].size ; n_repeats = 1
+
+        df_index = traintestgroups.index ; input_index = df_TrainIsTrue.loc[0].index
+        input_data = np.array(df_TrainIsTrue.values).reshape(kfold, -1)
+        idx = [True if input_index[i] in df_index else False for i in range(input_index.size)]
+        mask = np.repeat(np.array(idx)[None,:], kfold, axis=0)
+        # .loc very slow on lots of data
+        # df_TrainIsTrue = df_TrainIsTrue.loc[pd.IndexSlice[:,traintestgroups.index],:]
+        # below is faster, but still slower than numpy
+        # df_TrainIsTrue = df_TrainIsTrue.loc[pd.MultiIndex.from_product([np.arange(kfold), df_index])]
+        df_TrainIsTrue = pd.DataFrame(input_data[mask],
+                                      index=pd.MultiIndex.from_product([np.arange(kfold), df_index]),
+                                      columns=['TrainIsTrue'])
+
+
     if traintestgroups is not None:
         # first group may be of different size then other groups
         fg = df_TrainIsTrue.loc[0][groups==groups[0]] # first group
         RV_maskfg = [True if d in RV_ts.index else False for d in list(fg.index)]
-        og = df_TrainIsTrue.loc[0][groups==groups[-1]] # other group size
-        RV_maskog = [True if d in RV_ts.index else False for d in list(og.index)]
-        if fg.size != og.size:
+        og = df_TrainIsTrue.loc[0][groups==np.unique(groups)[-2]] # other group size
+        lg = df_TrainIsTrue.loc[0][groups==groups[-1]] # last group size
+        if fg.size != og.size and lg.size != og.size:
+            # both fg and lg different size then other groups
+            RV_maskog = [True if d in RV_ts.index else False for d in list(og.index)]
+            RVmaskog = np.stack([RV_maskog]*(uniqgroups.size-2), 0).flatten()
+            RV_masklg = [True if d in RV_ts.index else False for d in list(lg.index)]
+            RV_mask = np.concatenate([RV_maskfg, RVmaskog, RV_masklg])
+        elif fg.size != og.size and lg.size == og.size:
+            # only fg different size then other groups
+            RV_maskog = [True if d in RV_ts.index else False for d in list(og.index)]
             RVmaskog = np.stack([RV_maskog]*(uniqgroups.size-1), 0).flatten()
             RV_mask = np.concatenate([RV_maskfg, RVmaskog])
+        elif fg.size == og.size and lg.size != og.size:
+            # only fg different size then other groups
+            RV_maskfg = np.stack([RV_maskfg]*(uniqgroups.size-1), 0).flatten()
+            RV_masklg = [True if d in RV_ts.index else False for d in list(lg.index)]
+            RV_mask = np.concatenate([RV_maskfg, RV_masklg])
         else:
+            # all equall size groups
             RV_mask = np.stack([RV_maskfg]*uniqgroups.size, 0).flatten()
     else:
         RV_mask = np.ones(RV_ts.size, dtype=bool)
+
     RV_mask = pd.concat([pd.DataFrame(RV_mask,
                                    index=index,
-                                   columns=['RV_mask'])]*kfold,
-                        keys=range(kfold))
+                                   columns=['RV_mask'])]*n_repeats*kfold,
+                        keys=range(n_repeats*kfold))
     # weird pandas bug due to non-unique indices
     RV_mask.index = df_TrainIsTrue.index
     df_splits = df_TrainIsTrue.merge(RV_mask,
                                      left_index=True, right_index=True)
+    #%%
     return df_splits
 
-def get_testyrs(df_splits: pd.DataFrame):
+def get_testyrs(df_splits: pd.DataFrame, return_traintestgroups=False):
     '''
     Extracts test years if both:
         - TrainIsTrue mask present
@@ -1336,15 +1502,18 @@ def get_testyrs(df_splits: pd.DataFrame):
         for s in splits:
             df_split = df_splits.loc[s]
             TrainIsTrue_s = df_split[df_split['TrainIsTrue']==False].index
-            groups_in_s = traintestgroups[(~df_split['TrainIsTrue']).values]
+            groups_in_s = traintestgroups[(df_split['TrainIsTrue']==False).values]
             groupset = []
             for gr in np.unique(groups_in_s):
                 yrs = TrainIsTrue_s[groups_in_s==gr]
-                yrs = np.unique(yrs.year)
+                yrs = np.unique(yrs.year.max())
                 groupset.append(list(yrs))
-            test_yrs.append(groupset)
+            test_yrs.append(flatten(groupset)) # changed to flatten() 20-05-21
             testgroups.append([list(uniqgroups).index(gr) for gr in np.unique(groups_in_s)])
-        out = (np.array(test_yrs, dtype=object), testgroups)
+        if return_traintestgroups:
+            out = (np.array(test_yrs, dtype='object'), testgroups)
+        else:
+            out = (np.array(test_yrs, dtype='object'))
     elif 'TrainIsTrue' in df_splits.columns:
         split_by_TrainIsTrue = True
 
@@ -1355,7 +1524,7 @@ def get_testyrs(df_splits: pd.DataFrame):
             df_split = df_splits.loc[s]
             test_yrs = np.unique(df_split[df_split['TrainIsTrue']==False].index.year)
             traintest_yrs.append(test_yrs)
-        out = (np.array(traintest_yrs, dtype=object))
+        out = (np.array(traintest_yrs, dtype='object'))
     elif split_by_TrainIsTrue==False and out is None:
         print('Note: No Train-test split found, could not extract test yrs')
 
@@ -1389,7 +1558,7 @@ def load_npy(filename, name=None):
             pass
     return fullts
 
-def csv_to_df(path:str, sep=','):
+def load_csv(path:str, sep=','):
    '''
    convert csv timeseries to hdf5 (.h5) format. Assumes column order:
     year, month, day, ts1, ts2, ..., ...,
@@ -1600,304 +1769,3 @@ def check_pp_done(name, infile, kwrgs_load: dict=None, verbosity=1):
 #    dates_fit_tfreq = dates
     #%%
     return outfile
-
-# def update_dates(cls, ex):
-#     import os
-#     file_path = os.path.join(cls.path_pp, cls.filename_pp)
-#     kwrgs_pp = {'selbox':ex['selbox'],
-#                 'loadleap':False }
-#     ds = core_pp.import_ds_lazy(file_path, **kwrgs_pp)
-
-#     temporal_freq = pd.Timedelta((ds['time'][1] - ds['time'][0]).values)
-#     cls.dates = pd.to_datetime(ds['time'].values)
-#     cls.temporal_freq = '{}days'.format(temporal_freq.days)
-#     return cls, ex
-
-# def find_region(data, region='EU'):
-#     import numpy as np
-
-#     def find_nearest(array, value):
-#         idx = (np.abs(array - value)).argmin()
-#         return int(idx)
-
-#     def find_nearest_coords(array, region_coords):
-#         for lon_value in region_coords[:2]:
-#             region_idx = region_coords.index(lon_value)
-#             idx = find_nearest(data['longitude'], lon_value)
-#             if region_coords[region_idx] != float(data['longitude'][idx].values):
-#                 print('longitude value of latlonbox did not match, '
-#                       'updating to nearest value')
-#             region_coords[region_idx] = float(data['longitude'][idx].values)
-#         for lat_value in region_coords[2:]:
-#             region_idx = region_coords.index(lat_value)
-#             idx = find_nearest(data['latitude'], lat_value)
-#             if region_coords[region_idx] != float(data['latitude'][idx].values):
-#                 print('latitude value of latlonbox did not match, '
-#                       'updating to nearest value')
-#             region_coords[region_idx] = float(data['latitude'][idx].values)
-#         return region_coords
-
-#     if region == 'EU':
-#         west_lon = -30; east_lon = 40; south_lat = 35; north_lat = 65
-
-#     elif region ==  'U.S.':
-#         west_lon = -120; east_lon = -70; south_lat = 20; north_lat = 50
-
-#     if type(region) == list:
-#         west_lon = region[0]; east_lon = region[1];
-#         south_lat = region[2]; north_lat = region[3]
-#     region_coords = [west_lon, east_lon, south_lat, north_lat]
-
-#     # Update regions coords in case they do not exactly match
-#     region_coords = find_nearest_coords(data, region_coords)
-#     west_lon = region_coords[0]; east_lon = region_coords[1];
-#     south_lat = region_coords[2]; north_lat = region_coords[3]
-
-
-#     lonstep = abs(data.longitude[1] - data.longitude[0])
-#     latstep = abs(data.latitude[1] - data.latitude[0])
-#     # abs() enforces that all values are positve, if not the case, it will not meet
-#     # the conditions
-#     lons = abs(np.arange(data.longitude[0], data.longitude[-1]+lonstep, lonstep))
-
-
-
-#     if (lons == np.array(data.longitude.values)).all():
-
-#         lons = list(np.arange(west_lon, east_lon+lonstep, lonstep))
-#         lats = list(np.arange(south_lat, north_lat+latstep, latstep))
-
-#         all_values = data.sel(latitude=lats, longitude=lons)
-#     if west_lon <0 and east_lon > 0:
-#         # left_of_meridional = np.array(data.sel(latitude=slice(north_lat, south_lat), longitude=slice(0, east_lon)))
-#         # right_of_meridional = np.array(data.sel(latitude=slice(north_lat, south_lat), longitude=slice(360+west_lon, 360)))
-#         # all_values = np.concatenate((np.reshape(left_of_meridional, (np.size(left_of_meridional))), np.reshape(right_of_meridional, np.size(right_of_meridional))))
-#         lon_idx = np.concatenate(( np.arange(find_nearest(data['longitude'], 360 + west_lon), len(data['longitude'])),
-#                               np.arange(0,find_nearest(data['longitude'], east_lon), 1) ))
-#         lat_idx = np.arange(find_nearest(data['latitude'],north_lat),find_nearest(data['latitude'],south_lat),1)
-#         all_values = data.sel(latitude=slice(north_lat, south_lat),
-#                               longitude=(data.longitude > 360 + west_lon) | (data.longitude < east_lon))
-#     if west_lon < 0 and east_lon < 0:
-#         all_values = data.sel(latitude=slice(north_lat, south_lat), longitude=slice(360+west_lon, 360+east_lon))
-#         lon_idx = np.arange(find_nearest(data['longitude'], 360 + west_lon), find_nearest(data['longitude'], 360+east_lon))
-#         lat_idx = np.arange(find_nearest(data['latitude'],north_lat),find_nearest(data['latitude'],south_lat),1)
-
-#     return all_values, region_coords
-
-# def selbox_to_1dts(cls, latlonbox):
-#     marray, var_class = core_pp.import (cls, path='pp')
-#     selboxmarray, region_coords = find_region(marray, latlonbox)
-#     print('spatial mean over latlonbox {}'.format(region_coords))
-#     lats = selboxmarray.latitude.values
-#     cos_box = np.cos(np.deg2rad(lats))
-#     cos_box_array = np.tile(cos_box, (selboxmarray.longitude.size,1) )
-#     weights_box = np.swapaxes(cos_box_array, 1,0)
-#     RV_fullts = (selboxmarray*weights_box).mean(dim=('latitude','longitude'))
-#     return RV_fullts
-
-# def rand_traintest_years(RV, traintestgroups=None, test_yrs=None, method=str,
-#                          seed=None, kwrgs_events=None, verb=0):
-#     #%%
-#     '''
-#     possible method are:
-#     random{int} : with the int(method[6:8]) determining the amount of folds
-#     leave{int} : chronologically split train and test years
-#     split{int} : split dataset into single train and test set
-#     no_train_test_split.
-
-#     if test_yrs are given, all arguments are overwritten and we return the samme
-#     train test masks that are in compliance with the test yrs
-
-#     traintestgroups specify which adjecent dates should be kept together. If
-#     target_ts is in DJF, then you don't want to split train-test based on years.
-#     '''
-
-
-#     RV_ts = RV.RV_ts
-#     tested_yrs = [] ;
-#     all_yrs = list(np.unique(RV_ts.index.year))
-#     n_yrs   = len(all_yrs)
-
-#     if test_yrs is not None:
-#         method = 'copied_from_import_ts'
-#         n_spl  = test_yrs.shape[0]
-#     if method[:6] == 'random' or method[:9] == 'ran_strat':
-#         if seed is None:
-#             seed = 1 # control reproducibility train/test split
-#         if method[:6] == 'random':
-#             n_spl = int(method.split('_')[-1])
-#         else:
-#              n_spl = int(method[9:])
-#     elif method[:5] == 'leave':
-#         n_spl = int(n_yrs / int(method.split('_')[1]) )
-#         iterate = np.arange(0, n_yrs+1E-9,
-#                             int(method.split('_')[1]), dtype=int)
-#     elif method == 'no_train_test_split' or method==False:
-#         n_spl = 1
-
-
-
-#     full_time  = pd.to_datetime(RV.fullts.index)
-#     RV_time  = pd.to_datetime(RV_ts.index.values)
-#     RV_mask = np.array([True if d in RV_time else False for d in full_time])
-#     full_years  = list(RV.fullts.index.year.values)
-#     RV_years  = list(RV_ts.index.year.values)
-
-#     traintest = [] ; list_splits = []
-#     for s in range(n_spl):
-
-#         # conditions failed initally assumed True
-#         a_conditions_failed = True
-#         count = 0
-
-#         while a_conditions_failed == True:
-#             count +=1
-#             a_conditions_failed = False
-
-
-#             if method[:6] == 'random' or method[:9] == 'ran_strat':
-
-
-#                 rng = np.random.RandomState(seed)
-#                 size_test  = int(np.round(n_yrs / n_spl))
-#                 size_train = int(n_yrs - size_test)
-
-#                 leave_n_years_out = size_test
-#                 yrs_to_draw_sample = [yr for yr in all_yrs if yr not in flatten(tested_yrs)]
-#                 if (len(yrs_to_draw_sample)) >= size_test:
-#                     rand_test_years = rng.choice(yrs_to_draw_sample, leave_n_years_out, replace=False)
-#                 # if last test sample will be too small for next iteration, add test yrs to current test yrs
-#                 if (len(yrs_to_draw_sample)) < size_test:
-#                     rand_test_years = yrs_to_draw_sample
-#                 check_double_test = [yr for yr in rand_test_years if yr in flatten( tested_yrs )]
-#                 if len(check_double_test) != 0 :
-#                     a_conditions_failed = True
-#                     print('test year drawn twice, redoing sampling')
-
-
-#             elif method[:5] == 'leave':
-#                 leave_n_years_out = int(method.split('_')[1])
-#                 t0 = iterate[s]
-#                 t1 = iterate[s+1]
-#                 rand_test_years = all_yrs[t0: t1]
-
-#             elif method[:5] == 'split':
-#                 size_train = int(np.percentile(range(len(all_yrs)), int(method[5:])))
-#                 size_test  = len(all_yrs) - size_train
-#                 leave_n_years_out = size_test
-#                 print('Using {} years to train and {} to test'.format(size_train, size_test))
-#                 rand_test_years = all_yrs[-size_test:]
-
-#             elif method == 'no_train_test_split':
-#                 size_train = len(all_yrs)
-#                 size_test  = 0
-#                 leave_n_years_out = size_test
-#                 print('No train test split'.format(size_train, size_test))
-#                 rand_test_years = []
-
-#             elif method == 'copied_from_import_ts':
-#                 size_train = len(all_yrs)
-#                 rand_test_years = test_yrs[s]
-#                 if s == 0:
-#                     size_test  = len(rand_test_years)
-#                 leave_n_years_out = len(test_yrs[s])
-
-
-#             # test duplicates
-#             a_conditions_failed = np.logical_and((len(set(rand_test_years)) != leave_n_years_out),
-#                                      s != n_spl-1)
-#             # Update random years to be selected as test years:
-#         #        initial_years = [yr for yr in initial_years if yr not in random_test_years]
-#             rand_train_years = [yr for yr in all_yrs if yr not in rand_test_years]
-
-
-
-#             TrainIsTrue = np.zeros( (full_time.size), dtype=bool )
-
-#             Prec_train_idx = [i for i in range(len(full_years)) if full_years[i] in rand_train_years]
-#             RV_train_idx = [i for i in range(len(RV_years)) if RV_years[i] in rand_train_years]
-#             RV_train = RV_ts.iloc[RV_train_idx]
-
-
-#             TrainIsTrue[Prec_train_idx] = True
-
-
-#             if method != 'no_train_test_split':
-#                 Prec_test_idx = [i for i in range(len(full_years)) if full_years[i] in rand_test_years]
-#                 RV_test_idx = [i for i in range(len(RV_years)) if RV_years[i] in rand_test_years]
-#                 RV_test = RV_ts.iloc[RV_test_idx]
-
-#                 test_years = np.unique(RV_test.index.year)
-
-#                 if method[:9] == 'ran_strat':
-#                     RV_bin = RV.RV_bin.iloc[RV_test_idx]
-#                     # check if representative sample
-#                     out = check_test_split(RV, RV_bin, kwrgs_events, a_conditions_failed,
-#                                            s, count, seed, verb)
-#                     a_conditions_failed, count, seed = out
-#             else:
-#                 RV_test = [] ; test_years = [] ; Prec_test_idx = []
-#         data = np.concatenate([TrainIsTrue[None,:], RV_mask[None,:]], axis=0)
-#         list_splits.append(pd.DataFrame(data=data.T,
-#                                        columns=['TrainIsTrue', 'RV_mask'],
-#                                        index = full_time))
-
-#         tested_yrs.append(test_years)
-
-#         traintest_ = dict( { 'years'            : test_years,
-#                             'RV_train'          : RV_train,
-#                             'Prec_train_idx'    : Prec_train_idx,
-#                             'RV_test'           : RV_test,
-#                             'Prec_test_idx'     : Prec_test_idx} )
-#         traintest.append(traintest_)
-
-#     df_splits = pd.concat(list_splits , axis=0, keys=range(n_spl))
-
-#     #%%
-#     return df_splits
-
-# def check_test_split(RV, RV_bin, kwrgs_events, a_conditions_failed, s, count, seed, verbosity=0):
-#     #%%
-#     tol_from_exp_events = 0.20
-
-#     if kwrgs_events is None:
-#         print('Stratified Train Test based on +1 tercile events\n')
-#         kwrgs_events  =  {'event_percentile': 66,
-#                           'min_dur' : 1,
-#                           'max_break' : 0,
-#                           'grouped' : False}
-
-#     if kwrgs_events['event_percentile'] == 'std':
-#         exp_events_r = 0.15
-#     elif type(kwrgs_events['event_percentile']) == int:
-#         exp_events_r = 1 - kwrgs_events['event_percentile']/100
-
-
-#     test_years = np.unique(RV_bin.index.year)
-#     n_yrs      = np.unique(RV.RV_ts.index.year).size
-#     exp_events = (exp_events_r * RV.RV_ts.size / n_yrs) * test_years.size
-#     tolerance  = tol_from_exp_events * exp_events
-#     event_test = RV_bin
-#     diff       = abs(len(event_test) - exp_events)
-
-
-#     if diff > tolerance:
-#         if verbosity > 1:
-#             print('not a representative sample drawn, drawing new sample')
-#         seed += 1 # next random sample
-#         a_conditions_failed = True
-#     else:
-#         if verbosity > 0:
-#             print('{}: test year is {}, with {} events'.format(s, test_years, len(event_test)))
-#     if count == 7:
-#         if verbosity > 1:
-#             print(f"{s}: {count+1} attempts made, lowering tolence threshold from {tol_from_exp_events} "
-#                 "to 0.40 deviation from mean expected events" )
-#         tol_from_exp_events = 0.40
-#     if count == 10:
-#         if verbosity > 1:
-#             print(f"kept sample after {count+1} attempts")
-#             print('{}: test year is {}, with {} events'.format(s, test_years, len(event_test)))
-#         a_conditions_failed = False
-#     #%%
-#     return a_conditions_failed, count, seed

@@ -30,7 +30,7 @@ list_of_name_path = [(18, os.path.join(path_test, 'q85_dendo_1bae1.nc')),
                     ('sst', os.path.join(path_test,'sst_1950-2020_1_12_monthly_1.0deg.nc'))]
 
 list_for_MI = [BivariateMI(name='sst', func=class_BivariateMI.corr_map, 
-                           alpha=.01, FDR_control=True, 
+                           alpha=.05, FDR_control=True, 
                            lags=np.array([1,2,3]),
                            # lags=np.array([['1950-06-01', '1950-08-31'],
                            #                  ['1950-09-01', '1950-11-30'],
@@ -57,19 +57,19 @@ rg.pp_TV(TVdates_aggr=False,ext_annual_to_mon=True)
 
 rg.plot_df_clust()
 
-rg.fulltso
+rg.df_fulltso
 
 rg.traintest(method='random_20')
 
 rg.calc_corr_maps() 
-#%%
+
 
 rg.cluster_list_MI()
 
 
 sst = rg.list_for_MI[0] 
 
-periodnames = ['JJA','SON','DJF']
+periodnames = ['DJF','SON','JJA']
 sst.prec_labels['lag'] = ('lag', periodnames)
 sst.corr_xr['lag'] = ('lag', periodnames)
 
@@ -100,7 +100,7 @@ rg.PCMCI_df_data(tigr_function_call='run_pcmci',
                              'max_conds_px': 2})
 
 
-rg.PCMCI_get_links(var=rg.TV.name, alpha_level=.05)
+rg.PCMCI_get_links(var=rg.TV.name, alpha_level=.05,FDR_cv=False)
 rg.df_links
 rg.plot_maps_sum()
 
